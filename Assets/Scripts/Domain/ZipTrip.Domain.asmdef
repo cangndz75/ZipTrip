@@ -1,0 +1,17 @@
+﻿{
+  "name": "ZipTrip.Domain",
+  "rootNamespace": "ZipTrip.Domain",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true,
+  "useGUIDs": false,
+  "optionalUnityReferences": [],
+  "excludeFromPreset": false
+}

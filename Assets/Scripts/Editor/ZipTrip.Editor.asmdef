@@ -1,0 +1,23 @@
+﻿{
+  "name": "ZipTrip.Editor",
+  "rootNamespace": "ZipTrip.Editor",
+  "references": [
+    "ZipTrip.Unity",
+    "ZipTrip.Application",
+    "ZipTrip.Domain"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "useGUIDs": false,
+  "optionalUnityReferences": [],
+  "excludeFromPreset": false
+}

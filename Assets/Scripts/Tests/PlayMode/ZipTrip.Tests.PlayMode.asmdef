@@ -1,0 +1,25 @@
+﻿{
+  "name": "ZipTrip.Tests.PlayMode",
+  "rootNamespace": "ZipTrip.Tests.PlayMode",
+  "references": [
+    "ZipTrip.Unity",
+    "ZipTrip.Application",
+    "ZipTrip.Domain"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "useGUIDs": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "excludeFromPreset": false
+}

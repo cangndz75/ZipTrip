@@ -1,0 +1,26 @@
+﻿{
+  "name": "ZipTrip.Tests.EditMode",
+  "rootNamespace": "ZipTrip.Tests.EditMode",
+  "references": [
+    "ZipTrip.Domain",
+    "ZipTrip.Application"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true,
+  "useGUIDs": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "excludeFromPreset": false
+}
