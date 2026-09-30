@@ -9,11 +9,11 @@ namespace ZipTrip.Domain
         public IReadOnlyList<PlacedItem> Placements { get; }
         /// <summary>Row-major, read-only projection of Placements; not independent gameplay state.</summary>
         public IReadOnlyList<Cell> Occupancy { get; }
-        public IReadOnlyList<string> Tray { get; }
+        public IReadOnlyList<TrayItem> Tray { get; }
         public IReadOnlyList<string> Targets { get; }
 
         public GameState(ContainerDefinition container, IEnumerable<PlacedItem> placements,
-            IEnumerable<string> tray, IEnumerable<string> targets)
+            IEnumerable<TrayItem> tray, IEnumerable<string> targets)
         {
             Container = container ?? throw new ArgumentNullException(nameof(container));
             if (placements == null)
@@ -46,7 +46,16 @@ namespace ZipTrip.Domain
                 return row != 0 ? row : a.X.CompareTo(b.X);
             });
 
-            var traySlots = CopyIds(tray, nameof(tray));
+            var traySlots = new List<TrayItem>();
+            foreach (var item in tray)
+            {
+                if (string.IsNullOrWhiteSpace(item.ItemId) ||
+                    string.IsNullOrWhiteSpace(item.ShapeState) ||
+                    !Enum.IsDefined(typeof(Rotation), item.Rotation) ||
+                    !itemIds.Add(item.ItemId))
+                    throw new ArgumentException("Tray requires unique valid items outside placements.", nameof(tray));
+                traySlots.Add(item);
+            }
             var targetIds = CopyIds(targets, nameof(targets));
             targetIds.Sort(StringComparer.Ordinal);
 

@@ -12,6 +12,7 @@ namespace ZipTrip.Tests.EditMode
     public sealed class GameStateMachineTests
     {
         private static ContainerDefinition Cabin() => ContainerFixtures.CreateCabin(new Cell(0, 0));
+        private static TrayItem Tray(string id) => new TrayItem(id, Rotation.Degrees0, "base");
 
         private static ItemDefinition CellItem(string id)
         {
@@ -28,7 +29,7 @@ namespace ZipTrip.Tests.EditMode
 
         private static GameState State(params PlacedItem[] placements)
         {
-            return new GameState(Cabin(), placements, Array.Empty<string>(), Array.Empty<string>());
+            return new GameState(Cabin(), placements, Array.Empty<TrayItem>(), Array.Empty<string>());
         }
 
         [Test]
@@ -40,16 +41,16 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(CanonicalStateSerializer.Serialize(first),
                 Is.EqualTo(CanonicalStateSerializer.Serialize(second)));
             Assert.That(StateHash.Compute(first), Is.EqualTo(StateHash.Compute(second)));
-            Assert.That(StateHash.Compute(first), Is.EqualTo(0x84BE89F9A0EF9F1AUL));
+            Assert.That(StateHash.Compute(first), Is.EqualTo(0x86EDED3B3E7E05C7UL));
         }
 
         [Test]
         public void SameLogicalState_FromIndependentInputs_HasSameBytesAndHash()
         {
             var first = new GameState(Cabin(), new[] { Place("b", 2, 3), Place("a", 1, 1) },
-                new[] { "sweater", "shoe" }, new[] { "z", "a" });
+                new[] { Tray("sweater"), Tray("shoe") }, new[] { "z", "a" });
             var second = new GameState(Cabin(), new[] { Place("a", 1, 1), Place("b", 2, 3) },
-                new[] { "sweater", "shoe" }, new[] { "a", "z" });
+                new[] { Tray("sweater"), Tray("shoe") }, new[] { "a", "z" });
 
             Assert.That(first.Placements.Select(p => p.ItemId), Is.EqualTo(new[] { "a", "b" }));
             Assert.That(first.Occupancy, Is.EqualTo(new[] { new Cell(1, 1), new Cell(2, 3) }));
@@ -92,11 +93,11 @@ namespace ZipTrip.Tests.EditMode
         public void EqualCanonicalBytes_RepresentEqualLogicalState()
         {
             var first = new GameState(Cabin(), new[] { Place("b", 3, 3), Place("a", 1, 1) },
-                new[] { "first", "second" }, new[] { "b", "a" });
+                new[] { Tray("first"), Tray("second") }, new[] { "b", "a" });
             var second = new GameState(Cabin(), new[] { Place("a", 1, 1), Place("b", 3, 3) },
-                new[] { "first", "second" }, new[] { "a", "b" });
+                new[] { Tray("first"), Tray("second") }, new[] { "a", "b" });
             var changedOwner = new GameState(Cabin(), new[] { Place("b", 1, 1), Place("a", 3, 3) },
-                new[] { "first", "second" }, new[] { "a", "b" });
+                new[] { Tray("first"), Tray("second") }, new[] { "a", "b" });
 
             Assert.That(CanonicalStateSerializer.Serialize(first),
                 Is.EqualTo(CanonicalStateSerializer.Serialize(second)));
@@ -130,7 +131,7 @@ namespace ZipTrip.Tests.EditMode
             foreach (var container in new[] { changedId, changedMask, changedEdge })
             {
                 var other = new GameState(container, Array.Empty<PlacedItem>(),
-                    Array.Empty<string>(), Array.Empty<string>());
+                    Array.Empty<TrayItem>(), Array.Empty<string>());
                 Assert.That(StateHash.Compute(other), Is.Not.EqualTo(StateHash.Compute(baseline)));
             }
         }
@@ -166,20 +167,20 @@ namespace ZipTrip.Tests.EditMode
         {
             var placed = Place("a", 1, 1);
             var placements = new List<PlacedItem> { placed };
-            var tray = new List<string> { "shoe", "sweater" };
+            var tray = new List<TrayItem> { Tray("shoe"), Tray("sweater") };
             var targets = new List<string> { "shoe" };
             var container = Cabin();
             var state = new GameState(container, placements, tray, targets);
             var maskCopy = container.Mask.ToStableBytes();
 
             placements.Add(Place("b", 2, 2));
-            tray[0] = "changed";
+            tray[0] = Tray("changed");
             targets.Clear();
             maskCopy[0] = 0;
 
             Assert.That(state.Placements.Select(p => p.ItemId), Is.EqualTo(new[] { "a" }));
             Assert.That(state.Occupancy, Is.EqualTo(new[] { new Cell(1, 1) }));
-            Assert.That(state.Tray, Is.EqualTo(new[] { "shoe", "sweater" }));
+            Assert.That(state.Tray, Is.EqualTo(new[] { Tray("shoe"), Tray("sweater") }));
             Assert.That(state.Targets, Is.EqualTo(new[] { "shoe" }));
             Assert.That(state.Container.Mask.IsValid(new Cell(1, 1)), Is.True);
             Assert.Throws<NotSupportedException>(() =>
@@ -187,7 +188,7 @@ namespace ZipTrip.Tests.EditMode
             Assert.Throws<NotSupportedException>(() =>
                 ((IList<Cell>)state.Occupancy)[0] = new Cell(3, 3));
             Assert.Throws<NotSupportedException>(() =>
-                ((IList<string>)state.Tray)[0] = "changed");
+                ((IList<TrayItem>)state.Tray)[0] = Tray("changed"));
             Assert.Throws<NotSupportedException>(() =>
                 ((IList<string>)state.Targets)[0] = "changed");
             Assert.Throws<NotSupportedException>(() =>
@@ -206,13 +207,32 @@ namespace ZipTrip.Tests.EditMode
         public void TraySlotOrder_ChangesBytesAndHash()
         {
             var first = new GameState(Cabin(), Array.Empty<PlacedItem>(),
-                new[] { "shoe", "sweater" }, Array.Empty<string>());
+                new[] { Tray("shoe"), Tray("sweater") }, Array.Empty<string>());
             var second = new GameState(Cabin(), Array.Empty<PlacedItem>(),
-                new[] { "sweater", "shoe" }, Array.Empty<string>());
+                new[] { Tray("sweater"), Tray("shoe") }, Array.Empty<string>());
 
             Assert.That(CanonicalStateSerializer.Serialize(first),
                 Is.Not.EqualTo(CanonicalStateSerializer.Serialize(second)));
             Assert.That(StateHash.Compute(first), Is.Not.EqualTo(StateHash.Compute(second)));
+        }
+
+        [Test]
+        public void TrayRotationAndShapeState_ChangeCanonicalBytesAndHash()
+        {
+            GameState With(Rotation rotation, string shapeState) => new GameState(Cabin(),
+                Array.Empty<PlacedItem>(), new[] { new TrayItem("sweater", rotation, shapeState) },
+                new[] { "sweater" });
+
+            var baseline = With(Rotation.Degrees0, "open");
+            var rotated = With(Rotation.Degrees90, "open");
+            var folded = With(Rotation.Degrees0, "folded");
+
+            Assert.That(CanonicalStateSerializer.Serialize(rotated),
+                Is.Not.EqualTo(CanonicalStateSerializer.Serialize(baseline)));
+            Assert.That(CanonicalStateSerializer.Serialize(folded),
+                Is.Not.EqualTo(CanonicalStateSerializer.Serialize(baseline)));
+            Assert.That(StateHash.Compute(rotated), Is.Not.EqualTo(StateHash.Compute(baseline)));
+            Assert.That(StateHash.Compute(folded), Is.Not.EqualTo(StateHash.Compute(baseline)));
         }
 
         [Test]
@@ -228,10 +248,10 @@ namespace ZipTrip.Tests.EditMode
             var container = new ContainerDefinition("x",
                 new ContainerMask(new[] { new Cell(0, 0) }), ZipperEdge.Top);
             var state = new GameState(container, new[] { Place("i", 0, 0) },
-                new[] { "é" }, new[] { "b", "a" });
+                new[] { Tray("é") }, new[] { "b", "a" });
 
             var expected = new List<byte>();
-            expected.AddRange(new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 10, 0, 0, 0 });
+            expected.AddRange(new byte[] { 2, 0, 0, 0, 8, 0, 0, 0, 10, 0, 0, 0 });
             expected.AddRange(new byte[] { 1, 0, 0, 0, (byte)'x' });
             expected.AddRange(new byte[] { 0, 0, 0, 0, 10, 0, 0, 0 });
             expected.AddRange(new byte[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }); // Mask.
@@ -239,7 +259,9 @@ namespace ZipTrip.Tests.EditMode
             expected.AddRange(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }); // Anchor and rotation.
             expected.AddRange(new byte[] { 4, 0, 0, 0, (byte)'b', (byte)'a', (byte)'s', (byte)'e' });
             expected.AddRange(new byte[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }); // Cell count and cell.
-            expected.AddRange(new byte[] { 1, 0, 0, 0, 2, 0, 0, 0, 0xC3, 0xA9 }); // Tray.
+            expected.AddRange(new byte[] { 1, 0, 0, 0, 2, 0, 0, 0, 0xC3, 0xA9 }); // Tray id.
+            expected.AddRange(new byte[] { 0, 0, 0, 0, 4, 0, 0, 0,
+                (byte)'b', (byte)'a', (byte)'s', (byte)'e' }); // Tray rotation and shape state.
             expected.AddRange(new byte[] { 2, 0, 0, 0, 1, 0, 0, 0, (byte)'a', 1, 0, 0, 0, (byte)'b' });
 
             Assert.That(CanonicalStateSerializer.Serialize(state), Is.EqualTo(expected.ToArray()));
@@ -320,11 +342,11 @@ namespace ZipTrip.Tests.EditMode
         public void Undo_RestoresByteEquivalentInitialState()
         {
             var initial = new GameState(Cabin(), new[] { Place("b", 4, 4), Place("a", 1, 1) },
-                new[] { "shoe", "sweater" }, new[] { "b", "a" });
+                new[] { Tray("shoe"), Tray("sweater") }, new[] { "b", "a" });
             var session = new GameSession(initial);
             var originalBytes = CanonicalStateSerializer.Serialize(initial);
             var next = new GameState(Cabin(), new[] { Place("a", 2, 2) },
-                new[] { "sweater" }, new[] { "a" });
+                new[] { Tray("sweater") }, new[] { "a" });
 
             session.Execute(new AcceptSnapshotCommand(next, Array.Empty<IGameEvent>()));
             Assert.That(session.UndoDepth, Is.EqualTo(1));
@@ -451,7 +473,7 @@ namespace ZipTrip.Tests.EditMode
         {
             using (var reader = new BinaryReader(new MemoryStream(bytes), Encoding.UTF8))
             {
-                Assert.That(reader.ReadInt32(), Is.EqualTo(1));
+                Assert.That(reader.ReadInt32(), Is.EqualTo(2));
                 Assert.That(reader.ReadInt32(), Is.EqualTo(GridSize.Width));
                 Assert.That(reader.ReadInt32(), Is.EqualTo(GridSize.Height));
                 ReadString(reader); // Container id.

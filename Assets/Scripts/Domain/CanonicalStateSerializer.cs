@@ -13,7 +13,7 @@ namespace ZipTrip.Domain
 
             using (var stream = new MemoryStream())
             {
-                WriteInt32(stream, 1); // Format version.
+                WriteInt32(stream, 2); // Format version: tray item rotation and shape state.
                 WriteInt32(stream, GridSize.Width);
                 WriteInt32(stream, GridSize.Height);
                 WriteString(stream, state.Container.Id);
@@ -39,8 +39,12 @@ namespace ZipTrip.Domain
                 }
 
                 WriteInt32(stream, state.Tray.Count);
-                foreach (var itemId in state.Tray) // Slot order is gameplay state.
-                    WriteString(stream, itemId);
+                foreach (var item in state.Tray) // Slot order and authored state are gameplay state.
+                {
+                    WriteString(stream, item.ItemId);
+                    WriteInt32(stream, (int)item.Rotation);
+                    WriteString(stream, item.ShapeState);
+                }
 
                 WriteInt32(stream, state.Targets.Count);
                 foreach (var itemId in state.Targets) // Ordinal id order.
