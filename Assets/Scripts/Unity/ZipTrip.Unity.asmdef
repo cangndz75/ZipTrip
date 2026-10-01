@@ -2,7 +2,8 @@
   "name": "ZipTrip.Unity",
   "rootNamespace": "ZipTrip.Unity",
   "references": [
-    "ZipTrip.Application"
+    "ZipTrip.Application",
+    "ZipTrip.Domain"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

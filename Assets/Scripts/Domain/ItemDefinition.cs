@@ -38,11 +38,14 @@ namespace ZipTrip.Domain
     {
         private readonly IReadOnlyDictionary<string, ItemShape> _shapeStates;
         private readonly IReadOnlyList<Rotation> _allowedRotations;
+        private readonly IReadOnlyList<string> _authoredShapeStateIds;
 
         public string Id { get; }
         public string BaseStateId { get; }
         public IReadOnlyDictionary<string, ItemShape> ShapeStates => _shapeStates;
         public IReadOnlyList<Rotation> AllowedRotations => _allowedRotations;
+        /// <summary>Explicit authored order for stable ordinal content mapping; empty when unspecified.</summary>
+        public IReadOnlyList<string> AuthoredShapeStateIds => _authoredShapeStateIds;
         public IReadOnlyList<string> Tags { get; }
         public ItemShape VacuumShape { get; }
 
@@ -52,7 +55,8 @@ namespace ZipTrip.Domain
             IEnumerable<KeyValuePair<string, ItemShape>> shapeStates,
             IEnumerable<Rotation> allowedRotations,
             IEnumerable<string> tags,
-            ItemShape vacuumShape = null)
+            ItemShape vacuumShape = null,
+            IEnumerable<string> authoredShapeStateIds = null)
         {
             if (string.IsNullOrWhiteSpace(id))
                 throw new ArgumentException("Item id is required.", nameof(id));
@@ -73,6 +77,22 @@ namespace ZipTrip.Domain
 
             if (!states.TryGetValue(baseStateId, out var baseShape))
                 throw new ArgumentException("Base state is missing.", nameof(shapeStates));
+
+            var authoredOrder = new List<string>();
+            if (authoredShapeStateIds != null)
+            {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var stateId in authoredShapeStateIds)
+                {
+                    if (string.IsNullOrWhiteSpace(stateId) || !states.ContainsKey(stateId) || !seen.Add(stateId))
+                        throw new ArgumentException("Authored state order must list each state id once.",
+                            nameof(authoredShapeStateIds));
+                    authoredOrder.Add(stateId);
+                }
+                if (authoredOrder.Count != states.Count)
+                    throw new ArgumentException("Authored state order must include every state.",
+                        nameof(authoredShapeStateIds));
+            }
 
             foreach (var state in states)
             {
@@ -109,6 +129,7 @@ namespace ZipTrip.Domain
             BaseStateId = baseStateId;
             _shapeStates = new ReadOnlyDictionary<string, ItemShape>(states);
             _allowedRotations = new List<Rotation>(rotations).AsReadOnly();
+            _authoredShapeStateIds = authoredOrder.AsReadOnly();
             Tags = new List<string>(sortedTags).AsReadOnly();
             VacuumShape = vacuumShape;
         }

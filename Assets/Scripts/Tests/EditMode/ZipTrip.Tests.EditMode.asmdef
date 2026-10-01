@@ -3,7 +3,8 @@
   "rootNamespace": "ZipTrip.Tests.EditMode",
   "references": [
     "ZipTrip.Domain",
-    "ZipTrip.Application"
+    "ZipTrip.Application",
+    "ZipTrip.Unity"
   ],
   "includePlatforms": [
     "Editor"
@@ -17,7 +18,7 @@
   "autoReferenced": false,
   "defineConstraints": [],
   "versionDefines": [],
-  "noEngineReferences": true,
+  "noEngineReferences": false,
   "useGUIDs": false,
   "optionalUnityReferences": [
     "TestAssemblies"
