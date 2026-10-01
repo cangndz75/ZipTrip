@@ -34,18 +34,21 @@ Kamera:
 
 ## Numerical Parameters
 
-Kesin:
+ZA-001 için onaylanan gameplay camera contract:
 
-- projection tipi,
-- camera angle,
-- camera distance,
-- FOV / orthographic size,
-- container framing,
-- hücre başına hedef ekran boyutu
+- Orthographic projection; rotation `(75, 0, 0)` derece.
+- Board XZ düzlemindedir. Container dış sol üst köşesi `(0, 0, 0)`; sütun +X, satır -Z yönünde artar.
+- Bir logical cell = bir Unity world unit. Container merkezi dış dikdörtgen sınırından türetilir.
+- Kamera konumu `containerCenter - cameraForward * 12`; mesafe 12 world unit.
+- Near clip `0.1`, far clip `30`.
+- Yatay dış kenarların her birinde `0.4` cell framing payı vardır.
+- `orthographicSize = (containerOuterWidth + 0.8) / (2 * portraitAspect)`;
+  `portraitAspect = viewportWidth / viewportHeight`.
+- Kamera gameplay sırasında sabittir; orbit, pan ve oyuncu zoom'u yoktur.
 
-ZA-001 Mini Art Bible ve golden readability çalışması sırasında ölçülerek belirlenecektir.
-
-Bu değerler doğrulanmadan tahmin edilerek production kararı haline getirilmez.
+360 genişliğinde bir portrait viewport için yaklaşık hücre ekran genişliği Cabin'de 53,
+Backpack'te 62 birimdir. Bunlar fiziksel piksel kabul eşiği değildir; art bible'daki
+okunabilirlik çalışmasının referansıdır.
 
 ## Aspect Ratio Policy
 
