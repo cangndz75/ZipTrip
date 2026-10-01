@@ -3,6 +3,20 @@ using System.Collections.Generic;
 
 namespace ZipTrip.Domain.Solver
 {
+    public sealed class FoldDependencyResult
+    {
+        public PackSolverResult WithoutFold { get; }
+        public PackSolverResult WithFold { get; }
+        public bool FoldRequired => !WithoutFold.Solvable && WithFold.Solvable;
+        public bool FoldDesignedLevelValid => FoldRequired;
+
+        internal FoldDependencyResult(PackSolverResult withoutFold, PackSolverResult withFold)
+        {
+            WithoutFold = withoutFold;
+            WithFold = withFold;
+        }
+    }
+
     public sealed class PackSolverResult
     {
         public const int HeuristicVersion = 1;
@@ -40,7 +54,11 @@ namespace ZipTrip.Domain.Solver
 
     public static class PackSolver
     {
-        public static PackSolverResult Solve(LevelDefinition level)
+        /// <summary>Solves using only the current tray shape states.</summary>
+        public static PackSolverResult Solve(LevelDefinition level) => Solve(level, false);
+
+        /// <summary>When allowFold is true, considers authored shape states for each tray item.</summary>
+        public static PackSolverResult Solve(LevelDefinition level, bool allowFold)
         {
             if (level == null)
                 throw new ArgumentNullException(nameof(level));
@@ -49,14 +67,22 @@ namespace ZipTrip.Domain.Solver
             if (level.Inventory.Count == 0)
                 throw new ArgumentException("EmptyInventory", nameof(level));
 
-            var search = new Search(level);
+            var search = new Search(level, allowFold);
             search.Run();
             return search.Result();
+        }
+
+        public static FoldDependencyResult AnalyzeFoldDependency(LevelDefinition level)
+        {
+            var withoutFold = Solve(level);
+            var withFold = Solve(level, true);
+            return new FoldDependencyResult(withoutFold, withFold);
         }
 
         private sealed class Search
         {
             private readonly LevelDefinition _level;
+            private readonly bool _allowFold;
             private readonly List<TrayItem> _initialInventory;
             private readonly List<Cell> _initialOccupied;
             private readonly List<Decision> _path = new List<Decision>();
@@ -67,9 +93,10 @@ namespace ZipTrip.Domain.Solver
             private long? _firstSolutionBacktracks;
             private int? _forcedPlacementCount;
 
-            public Search(LevelDefinition level)
+            public Search(LevelDefinition level, bool allowFold)
             {
                 _level = level;
+                _allowFold = allowFold;
                 _initialInventory = new List<TrayItem>(level.Inventory);
                 _initialOccupied = new List<Cell>(level.InitialState.Occupancy);
             }
@@ -114,7 +141,7 @@ namespace ZipTrip.Domain.Solver
                 foreach (var trayItem in remaining)
                 {
                     var item = _level.Items[trayItem.ItemId];
-                    var candidates = Candidates(board, item, trayItem.ShapeState);
+                    var candidates = Candidates(board, item, trayItem.ShapeState, _allowFold);
                     var area = item.ShapeStates[trayItem.ShapeState].CellCount;
                     if (selectedCandidates == null || candidates.Count < selectedCandidates.Count ||
                         (candidates.Count == selectedCandidates.Count &&
@@ -161,36 +188,54 @@ namespace ZipTrip.Domain.Solver
             }
 
             private static List<PlacedItem> Candidates(PlacementBoard board, ItemDefinition item,
-                string shapeState)
+                string shapeState, bool allowFold)
             {
                 var candidates = new List<PlacedItem>();
                 var rotations = new List<Rotation>(item.AllowedRotations);
                 rotations.Sort();
-                var uniqueShapes = new List<ItemShape>();
-                foreach (var rotation in rotations)
+                IReadOnlyList<string> states = allowFold && item.ShapeStates.Count > 1
+                    ? item.AuthoredShapeStateIds : new[] { shapeState };
+                if (states.Count == 0)
+                    throw new ArgumentException("MissingAuthoredShapeStateOrder: " + item.Id);
+                foreach (var state in states)
                 {
-                    var shape = item.GetRotatedShape(shapeState, rotation).Shape;
-                    var duplicate = false;
-                    foreach (var earlier in uniqueShapes)
+                    var uniqueShapes = new List<ItemShape>();
+                    foreach (var rotation in rotations)
                     {
-                        if (SameShape(earlier, shape))
+                        var shape = item.GetRotatedShape(state, rotation).Shape;
+                        var duplicate = false;
+                        foreach (var earlier in uniqueShapes)
                         {
-                            duplicate = true;
-                            break;
+                            if (SameShape(earlier, shape))
+                            {
+                                duplicate = true;
+                                break;
+                            }
                         }
-                    }
-                    if (duplicate)
-                        continue;
-                    uniqueShapes.Add(shape);
+                        if (duplicate)
+                            continue;
+                        uniqueShapes.Add(shape);
 
-                    for (var y = 0; y < GridSize.Height; y++)
-                    {
-                        for (var x = 0; x < GridSize.Width; x++)
+                        for (var y = 0; y < GridSize.Height; y++)
                         {
-                            var anchor = new Cell(x, y);
-                            if (PlacementValidator.Validate(board, item, anchor, rotation,
-                                shapeState).IsValid)
-                                candidates.Add(new PlacedItem(item, anchor, rotation, shapeState));
+                            for (var x = 0; x < GridSize.Width; x++)
+                            {
+                                var anchor = new Cell(x, y);
+                                if (PlacementValidator.Validate(board, item, anchor, rotation,
+                                    state).IsValid)
+                                {
+                                    var candidate = new PlacedItem(item, anchor, rotation, state);
+                                    var repeatedFootprint = false;
+                                    foreach (var earlier in candidates)
+                                        if (SamePlacementFootprint(earlier, candidate))
+                                        {
+                                            repeatedFootprint = true;
+                                            break;
+                                        }
+                                    if (!repeatedFootprint)
+                                        candidates.Add(candidate);
+                                }
+                            }
                         }
                     }
                 }
@@ -202,6 +247,17 @@ namespace ZipTrip.Domain.Solver
                 if (first.CellCount != second.CellCount)
                     return false;
                 for (var i = 0; i < first.CellCount; i++)
+                    if (first.OccupiedCells[i] != second.OccupiedCells[i])
+                        return false;
+                return true;
+            }
+
+            private static bool SamePlacementFootprint(PlacedItem first, PlacedItem second)
+            {
+                if (first.Anchor != second.Anchor ||
+                    first.OccupiedCells.Count != second.OccupiedCells.Count)
+                    return false;
+                for (var i = 0; i < first.OccupiedCells.Count; i++)
                     if (first.OccupiedCells[i] != second.OccupiedCells[i])
                         return false;
                 return true;
