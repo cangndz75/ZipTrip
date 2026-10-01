@@ -74,6 +74,10 @@ dönüşümünden sorumludur.
 - overlap kontrol etmez,
 - container validity kararı vermez.
 
+ZT-011 için açık insan kararı: continuous grid koordinatı en yakın integer anchor'a çevrilir. Tam yarım/eşit uzaklıkta X için küçük sütun, Y için küçük satır seçilir; dört yönlü eşitlikte sol üst anchor seçilir. Bu kural `Mathf.RoundToInt` veya platforma bağlı midpoint rounding'e bırakılmaz.
+
+Board dışında da en yakın **ham** integer anchor döner; canonical 8×10 sınıra veya container mask'e clamp edilmez. Örneğin `(-1, -1)` ve `(8, 10)` geçerli projector çıktıları olabilir. Sınır/maske/placement legality kararları Domain katmanında kalır.
+
 Bu kararlar Domain tarafındaki canonical validator'lardan gelir.
 
 ## Drag Policy

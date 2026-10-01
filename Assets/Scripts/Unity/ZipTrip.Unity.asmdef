@@ -3,7 +3,8 @@
   "rootNamespace": "ZipTrip.Unity",
   "references": [
     "ZipTrip.Application",
-    "ZipTrip.Domain"
+    "ZipTrip.Domain",
+    "Unity.InputSystem"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

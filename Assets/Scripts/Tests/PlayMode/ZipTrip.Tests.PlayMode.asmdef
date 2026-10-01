@@ -4,7 +4,9 @@
   "references": [
     "ZipTrip.Unity",
     "ZipTrip.Application",
-    "ZipTrip.Domain"
+    "ZipTrip.Domain",
+    "Unity.InputSystem",
+    "Unity.InputSystem.TestFramework"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
