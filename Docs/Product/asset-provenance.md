@@ -43,3 +43,39 @@ Exact active-work timings were not measured. The local file timestamps give **es
 | Unity import verification | ~10 min estimate: first FBX file 20:11 → final screenshot 20:21 |
 | Human review | Laptop candidate accepted; duration not measured or supplied |
 | Total | ~46 min estimated observable local interval from raw file to final screenshot, excluding unmeasured Tripo generation/comparison and human review; full active-work total unavailable |
+
+## ZA-003 sweater open 3D candidate — asset accepted
+
+The Sweater Open candidate was generated with Meshy on 2026-10-01. The human owner confirmed that the Meshy account was on a paid plan at generation time and that the model generation was private. Acceptance closes this asset only; the full ZA-003 ticket remains open. No other account or license setting was verified for this asset.
+
+| Field | Recorded value |
+|---|---|
+| Asset | `M_Item_SweaterOpen` |
+| Golden reference | `Assets/Art/Items/Golden/item_sweater_open.png` |
+| Provider | Meshy |
+| Plan at generation time | Paid — human confirmed |
+| Model generation visibility | Private — human confirmed |
+| Generation date | 2026-10-01 |
+| Raw high-detail file | `Assets/Art/Models/Items/Raw/M_Item_SweaterOpen_MeshyRaw.glb` |
+| Retopo source | `Assets/Art/Models/Items/Raw/M_Item_SweaterOpen_MeshyRetopo_8k.glb` |
+| Blender source | `Assets/Art/Models/Items/Source/M_Item_SweaterOpen_Source.blend` |
+| Reproducible cleanup script | `Assets/Art/Models/Items/Source/M_Item_SweaterOpen_Cleanup.py` |
+| Unity final interchange | `Assets/Art/Models/Items/Final/M_Item_SweaterOpen.fbx` |
+| Texture sources | `Assets/Art/Materials/Items/SweaterOpen/Textures/M_Item_SweaterOpen_MeshyRetopo_8k_basecolor.jpg`, `M_Item_SweaterOpen_MeshyRetopo_8k_normal.jpg`, `M_Item_SweaterOpen_MeshyRetopo_8k_rm.jpg` in the same directory |
+| Canonical logical footprint | 3 × 3 cells |
+| Unity visual bounds | X = [0, 3], Z = [-2.692080, -0.307920] |
+| Visual top projection | 3.0000 × 2.38416 Unity units |
+| Packing thickness | 0.375000 Unity units; bottom at Y = 0 |
+| Geometry | 8,816 triangles, 7,126 vertices, 1 material slot |
+| Unity import | PASS via `ModelImporter` |
+| Human visual review | Open-sweater silhouette readable at 75°; +0.15 Y lift does not expose a large hollow underside. Shallow sleeve/hem openings at lower angles accepted; no capping performed. |
+
+### Time record
+
+| Stage | Time record |
+|---|---|
+| Meshy generation and retopo | Unknown; no measured duration supplied |
+| Blender normalization and packing-pose revision | Unknown; no measured active-work duration supplied |
+| FBX export and Unity verification | Unknown; no measured active-work duration supplied |
+| Human review | Completed; duration unknown |
+| Total human time | Unknown; no measured or supported estimate available |
