@@ -67,8 +67,9 @@
 
 ### ZA-002 — 3 golden 2D referans
 - **SP:** 3 · **Sahip:** insan · **Dependency:** ZA-001
-- **Scope:** Sneaker, sweater (açık + katlı), laptop. Transparent PNG'ler, art bible açısında.
-- **Acceptance:** Dört görsel aynı ışık, aynı açı ve aynı material dilinde. Her birinin hedef footprint'i (hücre maskesi) görselin yanına çizilmiş.
+- **Scope:** Sneaker, sweater (açık + katlı), laptop için dört transparent PNG; item kimliği, renk/malzeme dili, açık/katlı state kimliği, hedef siluet ve gameplay footprint referansları.
+- **Acceptance:** Mevcut dört PNG insan tarafından final ZA-002 stil/kimlik/şekil referansı olarak kabul edilmiştir; hedef footprint'leri `Docs/Product/golden-item-footprints.md`'de kayıtlıdır. Pixel-identical veya ortak kamera projeksiyonu ZA-002 koşulu değildir.
+- **İnsan kararı (2026-10-01):** Ortak 75° gameplay kamera, orthographic projeksiyon, world scale, pivot ve mesh ↔ footprint uyumu gerçek 3D mesh'lerle ZA-003'te kurulup ölçülür.
 
 ### ZA-003 — Image-to-3D ve Blender cleanup
 - **SP:** 5 · **Sahip:** insan · **Dependency:** ZA-002, D-007 ara cevabı
