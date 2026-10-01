@@ -72,7 +72,7 @@
 - **İnsan kararı (2026-10-01):** Ortak 75° gameplay kamera, orthographic projeksiyon, world scale, pivot ve mesh ↔ footprint uyumu gerçek 3D mesh'lerle ZA-003'te kurulup ölçülür.
 
 ### ZA-003 — Image-to-3D ve Blender cleanup
-- **SP:** 5 · **Sahip:** insan · **Dependency:** ZA-002, D-007 ara cevabı
+- **SP:** 5 · **Sahip:** insan · **Dependency:** ZA-002; D-007, 2026-10-01 insan kararıyla kapatıldı
 - **Scope:** Meshy (gerekirse Tripo ile karşılaştırma) → Blender: pivot, scale (1 hücre = sabit birim), topology ve material cleanup.
 - **Acceptance:** Mesh'in üstten izdüşümü hedef footprint'e oturuyor. Kaynak, lisans ve provenance `Docs/Product/asset-provenance.md`'de. Tek item başına harcanan süre kaydedildi; bu kayıt Phase B tahmininin girdisidir.
 
