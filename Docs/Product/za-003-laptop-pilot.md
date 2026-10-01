@@ -1,18 +1,19 @@
 # ZA-003 — Laptop image-to-3D pilot (human execution)
 
-Status: **prepared; no 3D model has been generated or accepted**. This pilot stops before sneaker, sweater, prefabs, or gameplay integration.
+Status: **laptop candidate human accepted; full ZA-003 ticket remains open**. This pilot stops before sneaker, sweater, prefabs, or gameplay integration.
 
 ## Contract and files
 
 - Input: `Assets/Art/Items/Golden/item_laptop.png` only. Keep the approved transparent reference unchanged.
 - Canonical footprint: `XXX / XXX / XXX / XXX`, width 3 cells, depth 4 cells, area 12.
 - Scale: 1 logical cell = 1 Unity world unit. The final top projection target is 3 × 4 Unity units; the mesh adapts to the gameplay footprint.
-- Raw archive: `Assets/Art/Models/Items/Raw/M_Item_Laptop_MeshyRaw.glb`.
+- Raw archive: `Assets/Art/Models/Items/Raw/M_Item_Laptop_TripoRaw.glb`; retopo source: `Assets/Art/Models/Items/Raw/M_Item_Laptop_TripoRetopo_8k.glb`.
 - Blender working source: `Assets/Art/Models/Items/Source/M_Item_Laptop_Source.blend`.
-- Final export, **only after pilot review**: `Assets/Art/Models/Items/Final/M_Item_Laptop.glb` or `M_Item_Laptop.fbx`. The interchange format remains undecided until material and transform round trips are compared.
-- `Assets/Art/Materials/Items/` is reserved for cleaned material assets if the chosen final export needs separate files. Do not create a prefab here.
+- Unity-facing accepted export: `Assets/Art/Models/Items/Final/M_Item_Laptop.fbx`. The experimental final GLB was removed; the two raw GLBs and `.blend` remain the reproducible sources. Unity recognizes GLB as `DefaultAsset` because the project has no GLB importer; adding a package is unnecessary for Phase A.
+- Source texture maps extracted unchanged from the packed Blender source live in `Assets/Art/Materials/Items/Laptop/Textures/`. Their Unity material channel assignment remains subject to visual review. Do not create a prefab here.
+- Reproduce the Unity-facing export with `blender -b --python Assets/Art/Models/Items/Source/M_Item_Laptop_Cleanup.py -- --export-fbx`. This reads the existing `.blend` without saving it. Unity imports one material slot but does not automatically bind its base-color texture; the import pilot uses a temporary test material. No production URP channel conversion has been selected.
 
-## 1. Generate privately in Meshy
+## 1. Original Meshy preparation (superseded for this accepted Tripo laptop)
 
 1. Before uploading, verify the Meshy account is on an **active paid plan at generation time**. If it is free or cannot be verified, stop. Keep the task/model **Private** and do not publish to Meshy Community. Use only the approved laptop PNG; do not upload third-party references.
 2. Open Meshy Workspace → Model → Image to 3D and upload `item_laptop.png` as the single reference. The PNG already has a transparent background; do not alter the source. Do not add Multi-View images that do not exist.
@@ -29,7 +30,7 @@ Meshy documents the [Image to 3D controls](https://help.meshy.ai/en/articles/999
 2. Orient the **closed laptop** for a top-down gameplay view. The gameplay plane is Unity X/Z, with +X to the right and -Z down the rows. In Blender's Z-up workspace, use X/Y for the top projection: +X to the right, -Y down the rows. Do not use the angled PNG projection as the mesh's final floor orientation.
 3. Remove stray pieces, obvious generation artifacts, and hidden/internal faces only when removal is safe. Check face normals, non-manifold or doubled geometry where relevant, UV damage, and silhouette after any topology reduction. Keep the approved color blocks and material separation; consolidate redundant materials without flattening distinct visual regions.
 4. Set a consistent placement root/pivot at the **top-left footprint corner on the floor**. In the Blender working coordinates that is `(0, 0, 0)`, with intended bounds X `[0, 3]`, Y `[-4, 0]`, and Z at or above the floor. Apply rotation and scale after numerical sizing; final object scale should be `(1, 1, 1)` and rotation zero. Preserve the pivot through the later export/import comparison.
-5. Scale and position by measured geometry, not visual guess. Save the `.blend` source. Do not put a final model in `Final/` or select GLB versus FBX until a human reviews the cleaned pilot and an import comparison confirms material and transform fidelity. Meshy's [Blender cleanup guide](https://help.meshy.ai/en/articles/16100257-meshy-to-blender-cleanup-workflow) covers import, materials, topology, transforms, and UV checks.
+5. Scale and position by measured geometry, not visual guess. Save the `.blend` source. The accepted laptop export uses FBX after Unity import and footprint verification. Meshy's [Blender cleanup guide](https://help.meshy.ai/en/articles/16100257-meshy-to-blender-cleanup-workflow) was consulted for the original pipeline preparation.
 
 ## 3. Measure the top projection
 

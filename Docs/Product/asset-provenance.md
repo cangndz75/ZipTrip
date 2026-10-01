@@ -7,23 +7,39 @@
 | `item_sweater_folded.png` | Generated with ChatGPT image generation | 2026-10-01 | ZA-002 reference only | Not yet a final production mesh |
 | `item_laptop.png` | Generated with ChatGPT image generation | 2026-10-01 | ZA-002 reference only | Not yet a final production mesh |
 
-## ZA-003 laptop 3D pilot — pending generation
+## ZA-003 laptop 3D pilot — laptop candidate accepted
 
-This is a **record template**, not a claim that a 3D asset exists. Fill verified values when the human performs the paid, private generation and Blender cleanup described in [the laptop pilot](za-003-laptop-pilot.md).
+The laptop candidate was generated with Tripo on 2026-10-01. The user confirmed that the Tripo account was on a paid plan at generation time and accepted the laptop candidate. This closes the laptop asset only, not the full ZA-003 ticket.
 
-| Field | Planned / actual value |
+| Field | Recorded value |
 |---|---|
-| Provider | Meshy approved; actual task ID pending |
-| Plan at generation time | Paid required; actual account/plan verification pending |
-| Generation date | Pending |
+| Asset | `M_Item_Laptop` |
+| Provider | Tripo |
+| Plan at generation time | Paid Tripo plan — human confirmed; account receipt/task ID not recorded here |
+| Generation date | 2026-10-01 |
 | Source reference PNG | `Assets/Art/Items/Golden/item_laptop.png` |
-| Raw output path | `Assets/Art/Models/Items/Raw/M_Item_Laptop_MeshyRaw.glb` (planned) |
-| Blender source path | `Assets/Art/Models/Items/Source/M_Item_Laptop_Source.blend` (planned) |
-| Final model path / format | Pending human pilot review; `Assets/Art/Models/Items/Final/M_Item_Laptop.glb` or `.fbx` |
-| Kept private / Community publication | Private required; actual verification pending |
-| License terms at generation | Pending verification of actual paid plan and terms; [Meshy ownership help](https://help.meshy.ai/en/articles/10137554-what-is-the-ownership-of-the-generated-models) and [Terms of Service](https://www.meshy.ai/terms-of-use) consulted for pipeline preparation on 2026-10-01 |
-| Blender cleanup performed | Pending; record artifacts, topology, normals, UVs, materials, pivot and scale work |
-| Generation time | Pending |
-| Cleanup time | Pending |
-| Total human time | Pending |
-| Final X/Z projection bounds and deviations | Pending measurement; target 3 × 4 Unity units |
+| Raw high-detail file | `Assets/Art/Models/Items/Raw/M_Item_Laptop_TripoRaw.glb` |
+| Retopo source | `Assets/Art/Models/Items/Raw/M_Item_Laptop_TripoRetopo_8k.glb` |
+| Blender source | `Assets/Art/Models/Items/Source/M_Item_Laptop_Source.blend` |
+| Reproducible cleanup script | `Assets/Art/Models/Items/Source/M_Item_Laptop_Cleanup.py` |
+| Unity final interchange | `Assets/Art/Models/Items/Final/M_Item_Laptop.fbx` |
+| Texture source directory | `Assets/Art/Materials/Items/Laptop/Textures/` |
+| Commercial-use basis | Human-confirmed paid plan; paid-user commercial-use rights described in [Tripo Terms §5.2.2](https://www.tripo3d.ai/terms) and [Tripo commercial-use help](https://www.tripo3d.ai/help/privacy-policy/how-to-use-tripo-models-commercially). Private visibility is not a commercial-use blocker. |
+| Actual private/public visibility | Not manually verified |
+| Final top projection | X = 3.0000, Z = 4.0000 Unity units |
+| Final triangle count / material slots | 15111 / 1 |
+| Unity import | PASS via `ModelImporter`; imported material's base-color texture is not automatically bound |
+
+### Time record
+
+Exact active-work timings were not measured. The local file timestamps give **estimated elapsed intervals**, which can include waiting, export, and inspection time; they are not measured hands-on time.
+
+| Stage | Time record |
+|---|---|
+| Tripo generation / comparison | Not measured; no start timestamp or human duration supplied |
+| Retopo | ~9 min estimate: raw file 19:35 → retopo file 19:44 |
+| Export / FBX preparation | ~17 min estimate: Blender source 19:54 → first FBX file 20:11 |
+| Automated Blender normalization | ~10 min estimate: retopo file 19:44 → Blender source 19:54 |
+| Unity import verification | ~10 min estimate: first FBX file 20:11 → final screenshot 20:21 |
+| Human review | Laptop candidate accepted; duration not measured or supplied |
+| Total | ~46 min estimated observable local interval from raw file to final screenshot, excluding unmeasured Tripo generation/comparison and human review; full active-work total unavailable |
