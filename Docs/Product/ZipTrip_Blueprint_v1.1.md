@@ -527,3 +527,31 @@ Aşağıdaki kararlar ilgili ticket'a gelmeden kapatılmalıdır:
 En önemli kural:
 
 > **Yeni fikir eklemek yerine önce bu çekirdeğin gerçekten iyi olduğunu kanıtla.**
+
+## Ek A — Phase A canonical item ve L1–L4 içerikleri
+
+Bu ek, ZT-009 için insan tarafından onaylanan authored içeriği kaydeder. Tüm footprint'ler canonical integer hücreleridir; rectangle ölçüleri genişlik × yüksekliktir. Fold state sırası `0 = open`, `1 = folded` ve Domain string ID'leri `open` / `folded`dır.
+
+| Item | Open footprint | Folded footprint | İzinli rotasyonlar |
+|---|---|---|---|
+| sweater | 3×3 | 2×4 | 0°, 90° |
+| pants | 2×5 | 3×3 | 0°, 90° |
+| scarf | 1×6 | 2×3 | 0°, 90° |
+| towel | 1×4 | 2×2 | 0°, 90° |
+| laptop | 3×4 | — | 0°, 90° |
+| book | 2×3 | — | 0°, 90° |
+| camera | 2×2 | — | 0° |
+| bottle | 1×3 | — | 0°, 90° |
+| passport | 1×2 | — | 0°, 90° |
+| sneaker | `(0,0) (0,1) (0,2) (1,2)` | — | 0°, 90°, 180°, 270° |
+
+L1–L4 `grammar=pack`, `preplaced=[]`, `targets=[]` ve `boosters.vacuumCount=0` kullanır. Inventory sırası aşağıdaki sıradır.
+
+| Level | Container | Inventory | Fold | Canonical solver hedefi |
+|---|---|---|---|---|
+| L1 | Backpack | book, camera, bottle, sneaker | Kapalı | `100_PLUS` |
+| L2 | Backpack | book, bottle, camera, laptop, sneaker | Kapalı | 12 çözüm, `11_99`; yalnız 0° rotasyonla çözümsüz |
+| L3 | Cabin | camera, laptop, pants, sneaker, sweater | Kapalı; pants ve sweater açık | 4 çözüm, `2_10`; 39/44 = %88,6363… doluluk |
+| L4 | Cabin | book, bottle, camera, laptop, scarf, sneaker, sweater | Açık | Fold'suz 0; sweater açık kilitliyken 0; yalnız sweater Fold ile çözülebilir |
+
+L3'ün 39/44 doluluğu, yaklaşık %90 ürün hedefinin onaylanmış authored karşılığıdır. L3 sneaker'ın dışarıda kaldığı son-item Creative A anı için, L4 ise sweater'a özgü Fold dönüşümü ve Creative B için kaynak level'dır. L4'te açık footprint toplamı 44/44, ilk canonical Fold çözümünde 43/44'tür.
