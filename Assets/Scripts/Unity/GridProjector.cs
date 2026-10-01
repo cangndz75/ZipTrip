@@ -11,12 +11,17 @@ namespace ZipTrip.Unity
 
         public static Cell ScreenToAnchor(Camera camera, Vector2 screenPosition)
         {
+            return WorldToAnchor(ScreenToWorld(camera, screenPosition));
+        }
+
+        public static Vector3 ScreenToWorld(Camera camera, Vector2 screenPosition)
+        {
             if (camera == null)
                 throw new ArgumentNullException(nameof(camera));
             var ray = camera.ScreenPointToRay(screenPosition);
             if (!BoardPlane.Raycast(ray, out var distance))
                 throw new InvalidOperationException("Screen ray does not intersect the board plane.");
-            return WorldToAnchor(ray.GetPoint(distance));
+            return ray.GetPoint(distance);
         }
 
         public static Cell WorldToAnchor(Vector3 worldPosition) =>

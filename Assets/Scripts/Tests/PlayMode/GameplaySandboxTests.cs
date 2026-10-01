@@ -114,5 +114,28 @@ namespace ZipTrip.Tests.PlayMode
             Assert.AreEqual(root.InitialStateHash, StateHash.Compute(root.Level.InitialState));
             Assert.AreEqual(0, root.Level.InitialState.Occupancy.Count);
         }
+
+        [UnityTest]
+        public IEnumerator L1_DragPreviewIsWiredWithoutStateMutation()
+        {
+            yield return SceneManager.LoadSceneAsync("GameplaySandbox");
+            yield return null;
+
+            var root = Object.FindFirstObjectByType<PhaseAL1Presentation>();
+            var board = root.GetComponent<BoardPresenter>();
+            var pointer = root.GetComponent<PointerInteractor>();
+            var preview = root.GetComponent<DragPreviewPresenter>();
+            Assert.IsNotNull(pointer);
+            Assert.IsNotNull(preview);
+            var initial = StateHash.Compute(board.PresentedState);
+            var sneaker = board.ItemViews[3];
+            var point = sneaker.transform.TransformPoint(new Vector3(0.5f, 0f, -0.5f));
+            var screen = Camera.main.WorldToScreenPoint(new Vector3(point.x, 0f, point.z));
+            preview.HandlePointer(new PointerSignal(PointerPhase.Down, screen));
+            Assert.AreSame(sneaker, preview.ActiveItem);
+            preview.HandlePointer(new PointerSignal(PointerPhase.Up, screen));
+            Assert.IsNull(preview.ActiveItem);
+            Assert.AreEqual(initial, StateHash.Compute(board.PresentedState));
+        }
     }
 }

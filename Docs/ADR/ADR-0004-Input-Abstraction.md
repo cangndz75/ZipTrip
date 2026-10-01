@@ -82,6 +82,14 @@ Bu kararlar Domain tarafındaki canonical validator'lardan gelir.
 
 ## Drag Policy
 
+ZT-012 için açık insan kararları: preview yalnız tray item'ları içindir; board'daki item bu ticket'ta taşınmaz. Pointer-down hit testi collider/raycast yerine interaction plane kesişimindeki X/Z noktasını tray `ItemView` occupied cell dikdörtgenleriyle karşılaştırır; boş bounding-box hücresi hit değildir. Birden çok görsel çakışırsa mevcut presentation sırasındaki en öndeki seçilir. Kimlik `ItemView.ItemId` üzerinden alınır.
+
+İlk grab delta aynen korunur: `itemVisualAnchorWorld - projectedPointerWorld`; ek ergonomik offset `0`'dır. Aktif item yalnız görsel olarak `+0.15` world unit yükselir; tilt, bounce, pulse veya easing yoktur. Ghost board düzleminden `+0.02` world unit yukarıdadır.
+
+ZT-012 feedback kanalları: valid footprint art-bible teal `#4E9FA2` ve yaklaşık `%32` alpha; her occupied ghost cell çevresinde warm cream `#E9E5DD`, yaklaşık `%90` opacity ve `0.06` cell kalınlığında sabit outline vardır. Valid durumda X işareti yoktur. Invalid footprint terracotta `#C36F58` ve yaklaşık `%32` alpha, Domain `offendingCells` içindeki her hücrede iki diyagonal bardan oluşan X vardır. Bar kalınlığı `0.08` cell, opacity yaklaşık `%85`'tir. X, renkten bağımsız okunmalıdır. Shake kullanılmaz. Pointer Up/Cancel yalnız preview'i bitirir; gameplay command çalıştırmaz. Valid outline, ZT-012 insan görsel incelemesi sonrası açık karardır.
+
+ZT-012 performans kararı: preview, aynı `PlacementValidator` kurallarını kullanan caller-owned scratch ile allocation-free validation yapabilir. Mevcut `Validate` davranışı korunur; non-alloc yol parity-test edilir.
+
 Pointer interaction presentation seviyesinde:
 
 - lift,

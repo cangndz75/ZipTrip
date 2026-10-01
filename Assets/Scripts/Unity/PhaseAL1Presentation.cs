@@ -18,6 +18,8 @@ namespace ZipTrip.Unity
             var camera = Camera.main.GetComponent<FixedGameplayCamera>();
             camera.Configure(Level.InitialState.Container, Camera.main.aspect,
                 board.PresentationBounds);
+            var pointer = gameObject.AddComponent<PointerInteractor>();
+            gameObject.AddComponent<DragPreviewPresenter>().Initialize(board, Camera.main, pointer);
         }
     }
 }

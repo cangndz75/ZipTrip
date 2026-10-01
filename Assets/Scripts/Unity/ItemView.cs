@@ -14,6 +14,21 @@ namespace ZipTrip.Unity
         public bool IsInTray { get; private set; }
         public Transform VisualRoot { get; private set; }
 
+        public bool ContainsWorldPoint(Vector3 worldPoint)
+        {
+            if (Footprint == null)
+                return false;
+            var local = transform.InverseTransformPoint(worldPoint);
+            for (var i = 0; i < Footprint.OccupiedCells.Count; i++)
+            {
+                var cell = Footprint.OccupiedCells[i];
+                if (local.x >= cell.X && local.x < cell.X + 1f &&
+                    -local.z >= cell.Y && -local.z < cell.Y + 1f)
+                    return true;
+            }
+            return false;
+        }
+
         public void Present(ItemDefinition item, string shapeState, Rotation rotation,
             bool isInTray, Vector3 position, float scale, Color color)
         {

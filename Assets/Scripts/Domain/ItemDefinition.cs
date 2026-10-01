@@ -145,6 +145,17 @@ namespace ZipTrip.Domain
             return ItemRotationResult.Accepted(shape.Rotate(rotation));
         }
 
+        public ItemRotationRejectionReason WriteRotatedCells(string shapeStateId, Rotation rotation,
+            Cell[] destination)
+        {
+            if (!_shapeStates.TryGetValue(shapeStateId, out var shape))
+                throw new ArgumentException("Unknown shape state.", nameof(shapeStateId));
+            if (!ContainsRotation(rotation))
+                return ItemRotationRejectionReason.RotationNotAllowed;
+            shape.WriteRotatedCells(rotation, destination);
+            return ItemRotationRejectionReason.None;
+        }
+
         private bool ContainsRotation(Rotation rotation)
         {
             for (var i = 0; i < _allowedRotations.Count; i++)
