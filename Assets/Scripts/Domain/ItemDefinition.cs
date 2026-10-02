@@ -48,6 +48,7 @@ namespace ZipTrip.Domain
         public IReadOnlyList<string> AuthoredShapeStateIds => _authoredShapeStateIds;
         public IReadOnlyList<string> Tags { get; }
         public ItemShape VacuumShape { get; }
+        public string VisualPrefabId { get; }
 
         public ItemDefinition(
             string id,
@@ -56,7 +57,8 @@ namespace ZipTrip.Domain
             IEnumerable<Rotation> allowedRotations,
             IEnumerable<string> tags,
             ItemShape vacuumShape = null,
-            IEnumerable<string> authoredShapeStateIds = null)
+            IEnumerable<string> authoredShapeStateIds = null,
+            string visualPrefabId = null)
         {
             if (string.IsNullOrWhiteSpace(id))
                 throw new ArgumentException("Item id is required.", nameof(id));
@@ -66,6 +68,9 @@ namespace ZipTrip.Domain
                 throw new ArgumentNullException(nameof(shapeStates));
             if (allowedRotations == null)
                 throw new ArgumentNullException(nameof(allowedRotations));
+            if (visualPrefabId != null && string.IsNullOrWhiteSpace(visualPrefabId))
+                throw new ArgumentException("Visual prefab id must be non-empty when provided.",
+                    nameof(visualPrefabId));
 
             var states = new SortedDictionary<string, ItemShape>(StringComparer.Ordinal);
             foreach (var state in shapeStates)
@@ -132,6 +137,7 @@ namespace ZipTrip.Domain
             _authoredShapeStateIds = authoredOrder.AsReadOnly();
             Tags = new List<string>(sortedTags).AsReadOnly();
             VacuumShape = vacuumShape;
+            VisualPrefabId = visualPrefabId;
         }
 
         public ItemRotationResult GetRotatedShape(string shapeStateId, Rotation rotation)

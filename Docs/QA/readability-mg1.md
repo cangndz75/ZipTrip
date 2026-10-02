@@ -1,6 +1,16 @@
 # ZA-005 / MG-1 — human readability test
 
-**Status:** Prepared; no participant observations recorded.
+**Status:** WAIVED / OVERRIDDEN BY HUMAN DECISION (2026-10-02). This is not a PASS.
+
+## Human override record
+
+- The test instrument is valid and frozen.
+- Only P01 was observed: **1/4 within tolerance**.
+- The item-level P01 answers were not supplied for this record, so the participant/item rows below remain blank rather than inventing data.
+- P02–P05 observations were not collected.
+- The remaining readability risk is consciously accepted for now.
+- ZT-016 gameplay integration re-check was human accepted on 2026-10-02: mesh, hidden-footprint and ghost agreement passed; Sneaker Pair L-footprint and Laptop 3×4 gameplay readability were accepted.
+- This ZT-016 result does not convert MG-1 to PASS. The waiver and accepted readability risk remain in force.
 
 ## Canonical contract
 
@@ -59,11 +69,11 @@ Read this section **after** the participant has answered the item. Shapes follow
 | Sweater Folded | `XX / XX / XX / XX` | 8 | ≤1 cell difference |
 | Sneaker Pair | `X. / X. / XX` | 4 | ≤1 cell difference |
 
-## Final scoring — leave blank until observations exist
+## Final scoring
 
-- Passing observations: ___ / 20
+- Passing observations: 1 / 4 collected; 16 observations not collected
 - Repeated wrong cell by item and participant IDs: ___
-- Systematic error present: ___
-- MG-1 gate: ___
-- Assets to revise if failed: ___
-- Device / date / facilitator: ___
+- Systematic error present: not assessable from one participant
+- MG-1 gate: WAIVED / OVERRIDDEN BY HUMAN DECISION — not PASS
+- ZT-016 re-check: human accepted; mesh/hidden-footprint/ghost agreement PASS. MG-1 readability risk remains accepted under this waiver.
+- Device / date / facilitator: human observation record / 2026-10-02 / human-owned

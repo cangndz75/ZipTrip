@@ -107,7 +107,16 @@ namespace ZipTrip.Tests.PlayMode
                 Assert.AreEqual(root.Level.Items[view.ItemId]
                     .GetRotatedShape(view.ShapeState, view.Rotation).Shape.CellCount,
                     view.Footprint.CellCount);
-                Assert.AreEqual(view.Footprint.CellCount, view.VisualRoot.childCount);
+                if (view.ItemId == "sneaker")
+                {
+                    Assert.IsNotNull(view.VisualPrefabInstance);
+                    Assert.AreEqual("PF_Item_SneakerPair", view.VisualPrefabInstance.name);
+                }
+                else
+                {
+                    Assert.IsNull(view.VisualPrefabInstance);
+                    Assert.AreEqual(view.Footprint.CellCount, view.VisualRoot.childCount);
+                }
             }
             Assert.IsEmpty(expected);
             Assert.AreEqual(4, board.ItemViews[3].Footprint.CellCount);
@@ -129,6 +138,7 @@ namespace ZipTrip.Tests.PlayMode
             Assert.IsNotNull(preview);
             var initial = StateHash.Compute(board.PresentedState);
             var sneaker = board.ItemViews[3];
+            Assert.AreEqual("PF_Item_SneakerPair", sneaker.VisualPrefabInstance.name);
             var point = sneaker.transform.TransformPoint(new Vector3(0.5f, 0f, -0.5f));
             var screen = Camera.main.WorldToScreenPoint(new Vector3(point.x, 0f, point.z));
             preview.HandlePointer(new PointerSignal(PointerPhase.Down, screen));

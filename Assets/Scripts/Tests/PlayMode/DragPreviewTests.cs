@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -25,7 +26,7 @@ namespace ZipTrip.Tests.PlayMode
         public override void Setup()
         {
             base.Setup();
-            var level = PhaseALevels.Load("L1");
+            var level = PlaceholderLevel();
             _initialHash = StateHash.Compute(level.InitialState);
             _root = new GameObject("ZT-012 preview test");
             _board = _root.AddComponent<BoardPresenter>();
@@ -44,6 +45,19 @@ namespace ZipTrip.Tests.PlayMode
             _sneaker = _board.ItemViews[3];
             _restPosition = _sneaker.transform.position;
             _restScale = _sneaker.transform.localScale;
+        }
+
+        private static LevelDefinition PlaceholderLevel()
+        {
+            var source = PhaseALevels.Load("L1");
+            var items = source.Items.Values.Select(item => new ItemDefinition(item.Id,
+                item.BaseStateId, item.AuthoredShapeStateIds.Select(state =>
+                    new KeyValuePair<string, ItemShape>(state, item.ShapeStates[state])),
+                item.AllowedRotations, item.Tags, item.VacuumShape,
+                authoredShapeStateIds: item.AuthoredShapeStateIds));
+            return new LevelDefinition(source.SchemaVersion, source.MetricVersion, source.Id,
+                source.Grammar, source.InitialState.Container, items, source.Preplaced,
+                source.Inventory, source.Targets, source.Boosters);
         }
 
         public override void TearDown()
@@ -151,7 +165,7 @@ namespace ZipTrip.Tests.PlayMode
         public void OverlapMarksOnlyDomainOffendingCell()
         {
             var item = _sneaker.Item;
-            var level = PhaseALevels.Load("L1");
+            var level = PlaceholderLevel();
             UnityEngine.Object.DestroyImmediate(_root);
             _root = new GameObject("ZT-012 overlap test");
             _board = _root.AddComponent<BoardPresenter>();

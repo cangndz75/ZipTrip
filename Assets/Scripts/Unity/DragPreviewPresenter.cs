@@ -189,9 +189,9 @@ namespace ZipTrip.Unity
             _ghostRenderers = new Renderer[capacity];
             _markerA = new Transform[capacity];
             _markerB = new Transform[capacity];
-            _ghostMaterial = TransparentMaterial();
-            _markerMaterial = TransparentMaterial();
-            _outlineMaterial = TransparentMaterial();
+            _ghostMaterial = TransparentMaterial(_board.RuntimeMaterialTemplate);
+            _markerMaterial = TransparentMaterial(_board.RuntimeMaterialTemplate);
+            _outlineMaterial = TransparentMaterial(_board.RuntimeMaterialTemplate);
             _outlineMaterial.SetColor("_BaseColor", ValidOutlineColor);
             _outlineMaterial.SetColor("_Color", ValidOutlineColor);
             _markerMaterial.SetColor("_BaseColor", new Color(1f, 1f, 1f, 0.85f));
@@ -249,9 +249,12 @@ namespace ZipTrip.Unity
             return bar.transform;
         }
 
-        private static Material TransparentMaterial()
+        private static Material TransparentMaterial(Material template)
         {
-            var shader = Shader.Find("Universal Render Pipeline/Unlit");
+            var shader = template != null ? template.shader :
+                Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null)
+                throw new InvalidOperationException("Ghost preview shader is unavailable.");
             var material = new Material(shader);
             material.SetFloat("_Surface", 1f);
             material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);

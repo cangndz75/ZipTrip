@@ -11,30 +11,34 @@ namespace ZipTrip.Unity
         {
             var items = new List<ItemDefinition>
             {
-                Rigid("book", Rectangle(2, 3), Rotation.Degrees0, Rotation.Degrees90),
-                Rigid("bottle", Rectangle(1, 3), Rotation.Degrees0, Rotation.Degrees90),
-                Rigid("camera", Rectangle(2, 2), Rotation.Degrees0),
-                Rigid("laptop", Rectangle(3, 4), Rotation.Degrees0, Rotation.Degrees90),
+                Rigid("book", Rectangle(2, 3), null, Rotation.Degrees0, Rotation.Degrees90),
+                Rigid("bottle", Rectangle(1, 3), null, Rotation.Degrees0, Rotation.Degrees90),
+                Rigid("camera", Rectangle(2, 2), null, Rotation.Degrees0),
+                Rigid("laptop", Rectangle(3, 4), "PF_Item_Laptop", Rotation.Degrees0, Rotation.Degrees90),
                 Soft("pants", Rectangle(2, 5), Rectangle(3, 3), allowFold),
-                Rigid("passport", Rectangle(1, 2), Rotation.Degrees0, Rotation.Degrees90),
+                Rigid("passport", Rectangle(1, 2), null, Rotation.Degrees0, Rotation.Degrees90),
                 Soft("scarf", Rectangle(1, 6), Rectangle(2, 3), allowFold),
                 Rigid("sneaker", new ItemShape(new[]
                 {
                     new Cell(0, 0), new Cell(0, 1), new Cell(0, 2), new Cell(1, 2)
-                }), Rotation.Degrees0, Rotation.Degrees90, Rotation.Degrees180, Rotation.Degrees270),
-                Soft("sweater", Rectangle(3, 3), Rectangle(2, 4), allowFold),
+                }), "PF_Item_SneakerPair", Rotation.Degrees0, Rotation.Degrees90,
+                    Rotation.Degrees180, Rotation.Degrees270),
+                Soft("sweater", Rectangle(3, 3), Rectangle(2, 4), allowFold, "PF_Item_Sweater"),
                 Soft("towel", Rectangle(1, 4), Rectangle(2, 2), allowFold)
             };
             return items.AsReadOnly();
         }
 
-        private static ItemDefinition Rigid(string id, ItemShape shape, params Rotation[] rotations) =>
+        private static ItemDefinition Rigid(string id, ItemShape shape, string visualPrefabId,
+            params Rotation[] rotations) =>
             new ItemDefinition(id, "open", new[]
             {
                 new KeyValuePair<string, ItemShape>("open", shape)
-            }, rotations, Array.Empty<string>(), authoredShapeStateIds: new[] { "open" });
+            }, rotations, Array.Empty<string>(), authoredShapeStateIds: new[] { "open" },
+                visualPrefabId: visualPrefabId);
 
-        private static ItemDefinition Soft(string id, ItemShape open, ItemShape folded, bool allowFold)
+        private static ItemDefinition Soft(string id, ItemShape open, ItemShape folded, bool allowFold,
+            string visualPrefabId = null)
         {
             var states = new List<KeyValuePair<string, ItemShape>>
             {
@@ -48,7 +52,7 @@ namespace ZipTrip.Unity
             }
             return new ItemDefinition(id, "open", states,
                 new[] { Rotation.Degrees0, Rotation.Degrees90 }, Array.Empty<string>(),
-                authoredShapeStateIds: authoredOrder);
+                authoredShapeStateIds: authoredOrder, visualPrefabId: visualPrefabId);
         }
 
         private static ItemShape Rectangle(int width, int height)

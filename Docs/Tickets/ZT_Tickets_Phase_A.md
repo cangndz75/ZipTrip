@@ -86,6 +86,7 @@
 
 ### ZA-005 — MG-1 okunabilirlik testi
 - **SP:** 3 · **Sahip:** insan · **Dependency:** ZA-004
+- **Status:** WAIVED / OVERRIDDEN BY HUMAN DECISION (2026-10-02); **PASS değildir**. Yalnız P01 gözlemlendi ve 1/4 tolerans içinde kaldı; P02–P05 toplanmadı. Okunabilirlik riski şimdilik bilinçli kabul edildi ve mesh/hidden footprint/ghost uyumu ZT-016'da yeniden kontrol edilecek.
 - **Scope:** 4 shape × 5 kullanıcı = 20 gözlem, Delta Δ-04 protokolüyle.
 - **Acceptance:** ≥16/20 doğru ya da tolerans içinde ve sistematik hata yok. Sonuç `Docs/QA/readability-mg1.md`'de. Başarısızsa revize edilecek asset listesi yazılı.
 
@@ -207,7 +208,8 @@
   - Drag loop'unda per-frame managed allocation yok (Profiler ekran görüntüsü PR'da).
 
 ### ZT-016 — MG-2: Golden prefab entegrasyonu ve gameplay readability gate
-- **SP:** 2 · **Dependency:** ZT-012, **MG-1 geçmiş**
+- **SP:** 2 · **Dependency:** ZT-012, **MG-1 geçmiş veya açık insan waiver'ı kaydedilmiş**. Mevcut Phase A ilerleyişi ZA-005'in 2026-10-02 tarihli insan override kaydıyla yetkilidir; bu kayıt MG-1 PASS sayılmaz.
+- **Status:** COMPLETE — human accepted (2026-10-02). Mesh, hidden footprint ve ghost footprint uyumu PASS; sneaker L-footprint ve laptop 3×4 gameplay okunabilirliği kabul edildi. Golden mesh'ler ve canonical footprint'ler değiştirilmedi. MG-1 waiver ve kabul edilen okunabilirlik riski geçerliliğini korur; MG-1 PASS değildir.
 - **Scope:** ZA-004 prefab'ları `ItemDefinition.visualPrefabId` üzerinden bağlanır; sweater'ın açık ve katlı prefab'ı state'e göre değişir. Golden item'lar gerçek drag + ghost footprint akışında cihazda doğrulanır.
 - **Acceptance:** Prefab'larda gameplay script'i yok. Golden item'larda görünür mesh sınırı ile hidden-grid/ghost footprint oyuncuya çelişkili sinyal vermiyor. Sorun varsa ZT-013'e geçilmeden asset/pivot/scale/shape revize edilir.
 

@@ -37,6 +37,10 @@ namespace ZipTrip.Tests.EditMode
             }));
             Assert.That(items["sneaker"].ShapeStates["open"].OccupiedCells,
                 Is.EqualTo(new[] { new Cell(0, 0), new Cell(0, 1), new Cell(0, 2), new Cell(1, 2) }));
+            Assert.That(items["laptop"].VisualPrefabId, Is.EqualTo("PF_Item_Laptop"));
+            Assert.That(items["sneaker"].VisualPrefabId, Is.EqualTo("PF_Item_SneakerPair"));
+            Assert.That(items["sweater"].VisualPrefabId, Is.EqualTo("PF_Item_Sweater"));
+            Assert.That(items["book"].VisualPrefabId, Is.Null);
         }
 
         [Test]

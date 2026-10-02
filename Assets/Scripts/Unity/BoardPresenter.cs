@@ -8,10 +8,23 @@ namespace ZipTrip.Unity
     public sealed class BoardPresenter : MonoBehaviour
     {
         private readonly List<ItemView> _itemViews = new List<ItemView>();
+        [SerializeField] private GoldenItemPrefabCatalog goldenItemPrefabs;
+        [SerializeField] private Material runtimeMaterialTemplate;
         public GameState PresentedState { get; private set; }
         public IReadOnlyList<ItemView> ItemViews => _itemViews.AsReadOnly();
         public int ValidCellCount { get; private set; }
         public int BlockedCellCount { get; private set; }
+        public Material RuntimeMaterialTemplate => runtimeMaterialTemplate;
+
+        public void ConfigureGoldenItemPrefabs(GoldenItemPrefabCatalog catalog)
+        {
+            goldenItemPrefabs = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        }
+
+        public void ConfigureRuntimeMaterial(Material material)
+        {
+            runtimeMaterialTemplate = material ?? throw new ArgumentNullException(nameof(material));
+        }
         public Bounds PresentationBounds
         {
             get
@@ -47,6 +60,8 @@ namespace ZipTrip.Unity
                     tile.transform.SetParent(boardRoot, false);
                     tile.transform.position = new Vector3(x + 0.5f, -0.06f, -y - 0.5f);
                     tile.transform.localScale = new Vector3(0.96f, 0.1f, 0.96f);
+                    if (runtimeMaterialTemplate != null)
+                        tile.GetComponent<Renderer>().sharedMaterial = runtimeMaterialTemplate;
                     var properties = new MaterialPropertyBlock();
                     var color = valid ? new Color(0.28f, 0.59f, 0.6f) : new Color(0.76f, 0.44f, 0.35f);
                     properties.SetColor("_BaseColor", color);
@@ -80,7 +95,15 @@ namespace ZipTrip.Unity
                 item.Id == "camera" ? new Color(0.19f, 0.32f, 0.37f) :
                 item.Id == "bottle" ? new Color(0.84f, 0.67f, 0.35f) :
                 new Color(0.62f, 0.72f, 0.7f);
-            view.Present(item, shapeState, rotation, inTray, position, scale, color);
+            GameObject visualPrefab = null;
+            if (!string.IsNullOrEmpty(item.VisualPrefabId))
+            {
+                if (goldenItemPrefabs == null)
+                    throw new InvalidOperationException("Golden item prefab catalog is missing.");
+                visualPrefab = goldenItemPrefabs.Resolve(item.VisualPrefabId, shapeState);
+            }
+            view.Present(item, shapeState, rotation, inTray, position, scale, color,
+                visualPrefab, runtimeMaterialTemplate);
             _itemViews.Add(view);
         }
     }

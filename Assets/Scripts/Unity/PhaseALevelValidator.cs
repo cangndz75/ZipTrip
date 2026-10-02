@@ -122,7 +122,8 @@ namespace ZipTrip.Unity
                 items.Add(new ItemDefinition(item.Id, item.BaseStateId,
                     stateIds.Select(state => new KeyValuePair<string, ItemShape>(state, item.ShapeStates[state])),
                     zeroRotations ? new[] { Rotation.Degrees0 } : item.AllowedRotations,
-                    item.Tags, item.VacuumShape, authoredShapeStateIds: stateIds));
+                    item.Tags, item.VacuumShape, authoredShapeStateIds: stateIds,
+                    visualPrefabId: item.VisualPrefabId));
             }
             return new LevelDefinition(source.SchemaVersion, source.MetricVersion, source.Id,
                 source.Grammar, source.InitialState.Container, items, source.Preplaced,
