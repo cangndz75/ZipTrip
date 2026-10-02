@@ -79,7 +79,8 @@
 
 ### ZA-004 — Unity prefab'ları ve ReadabilityTest scene
 - **SP:** 2 · **Sahip:** agent (Level C) + insan review · **Dependency:** ZA-003, ZT-000B
-- **Scope:** `PF_Item_Sneaker`, `PF_Item_SweaterOpen`, `PF_Item_SweaterFolded`, `PF_Item_Laptop`; placeholder cabin container; `ReadabilityTest` scene. Scene statiktir, ADR-0002 kamerasını kullanır ve grid overlay aç/kapa ile ghost kapalı başlar.
+- **Status:** COMPLETE (2026-10-02). Dört scriptsiz golden item prefab'ı ve statik Cabin `ReadabilityTest` sahnesi kabul edildi. Son responsive Android development build'i fiziksel cihazda portrait olarak açıldı; insan incelemesinde Cabin dış kabuğu, dört blocked corner, geçerli kenarlar ve dört golden item görünürlüğü PASS.
+- **Scope:** `PF_Item_SneakerPair`, `PF_Item_SweaterOpen`, `PF_Item_SweaterFolded`, `PF_Item_Laptop`; placeholder cabin container; `ReadabilityTest` scene. Scene statiktir, ADR-0002 kamerasını kullanır ve grid overlay aç/kapa ile ghost kapalı başlar.
 - **Acceptance:** Scene gameplay koduna **bağımlı değil**. Prefab'larda gameplay script'i yok. Telefonda portrait çalışıyor.
 - **Out-of-scope:** Drag, Domain entegrasyonu.
 
