@@ -8,8 +8,14 @@ namespace ZipTrip.Unity
     public sealed class BoardPresenter : MonoBehaviour
     {
         private readonly List<ItemView> _itemViews = new List<ItemView>();
+        private Transform _boardRoot;
+        private Transform _itemsRoot;
         [SerializeField] private GoldenItemPrefabCatalog goldenItemPrefabs;
         [SerializeField] private Material runtimeMaterialTemplate;
+        [SerializeField] private GameObject cabinVisualPrefab;
+        [SerializeField] private Material cabinShellMaterial;
+        [SerializeField] private Material cabinLiningMaterial;
+        [SerializeField] private Material cabinAccentMaterial;
         public GameState PresentedState { get; private set; }
         public IReadOnlyList<ItemView> ItemViews => _itemViews.AsReadOnly();
         public int ValidCellCount { get; private set; }
@@ -39,16 +45,23 @@ namespace ZipTrip.Unity
             }
         }
 
-        public void Present(LevelDefinition level, GameState state)
+        public void Present(LevelDefinition level, GameState state) => Rebuild(level, state);
+
+        public void Rebuild(LevelDefinition level, GameState state)
         {
             if (level == null || state == null)
                 throw new ArgumentNullException();
-            if (PresentedState != null)
-                throw new InvalidOperationException("Board already presented.");
+            RemoveRoot(ref _boardRoot);
+            RemoveRoot(ref _itemsRoot);
+            _itemViews.Clear();
+            ValidCellCount = 0;
+            BlockedCellCount = 0;
             PresentedState = state;
             var bounds = FixedGameplayCamera.OuterBounds(state.Container.Mask);
-            var boardRoot = new GameObject("Container cells").transform;
-            boardRoot.SetParent(transform, false);
+            _boardRoot = new GameObject("Container cells").transform;
+            _boardRoot.SetParent(transform, false);
+            if (StringComparer.Ordinal.Equals(state.Container.Id, "cabin_std"))
+                AddCabinVisual();
             for (var y = bounds.yMin; y < bounds.yMax; y++)
             {
                 for (var x = bounds.xMin; x < bounds.xMax; x++)
@@ -57,7 +70,7 @@ namespace ZipTrip.Unity
                     if (valid) ValidCellCount++; else BlockedCellCount++;
                     var tile = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     tile.name = (valid ? "Valid " : "Blocked ") + x + "," + y;
-                    tile.transform.SetParent(boardRoot, false);
+                    tile.transform.SetParent(_boardRoot, false);
                     tile.transform.position = new Vector3(x + 0.5f, -0.06f, -y - 0.5f);
                     tile.transform.localScale = new Vector3(0.96f, 0.1f, 0.96f);
                     if (runtimeMaterialTemplate != null)
@@ -70,6 +83,36 @@ namespace ZipTrip.Unity
                     Destroy(tile.GetComponent<Collider>());
                 }
             }
+
+            RefreshItems(level, state);
+        }
+
+        private void AddCabinVisual()
+        {
+            if (cabinVisualPrefab == null || cabinShellMaterial == null ||
+                cabinLiningMaterial == null || cabinAccentMaterial == null)
+                throw new InvalidOperationException("Accepted Cabin presentation assets are missing.");
+            var cabin = Instantiate(cabinVisualPrefab, _boardRoot);
+            cabin.name = "Accepted Cabin suitcase";
+            cabin.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            foreach (var renderer in cabin.GetComponentsInChildren<MeshRenderer>())
+            {
+                var name = renderer.name;
+                renderer.sharedMaterial = name.Contains("FlatLining") ? cabinLiningMaterial :
+                    name.Contains("ZipperLine") ? cabinAccentMaterial : cabinShellMaterial;
+            }
+        }
+
+        public void RefreshItems(LevelDefinition level, GameState state)
+        {
+            if (level == null || state == null)
+                throw new ArgumentNullException();
+            RemoveRoot(ref _itemsRoot);
+            _itemViews.Clear();
+            PresentedState = state;
+            _itemsRoot = new GameObject("Items").transform;
+            _itemsRoot.SetParent(transform, false);
+            var bounds = FixedGameplayCamera.OuterBounds(state.Container.Mask);
 
             foreach (var placement in state.Placements)
                 AddItem(level.Items[placement.ItemId], placement.ShapeState, placement.Rotation,
@@ -85,11 +128,19 @@ namespace ZipTrip.Unity
             }
         }
 
+        public ItemView FindItemView(string itemId)
+        {
+            for (var i = 0; i < _itemViews.Count; i++)
+                if (StringComparer.Ordinal.Equals(_itemViews[i].ItemId, itemId))
+                    return _itemViews[i];
+            return null;
+        }
+
         private void AddItem(ItemDefinition item, string shapeState, Rotation rotation,
             bool inTray, Vector3 position, float scale)
         {
             var visual = new GameObject(item.Id + (inTray ? " tray" : " placed"));
-            visual.transform.SetParent(transform, false);
+            visual.transform.SetParent(_itemsRoot, false);
             var view = visual.AddComponent<ItemView>();
             var color = item.Id == "sneaker" ? new Color(0.77f, 0.44f, 0.35f) :
                 item.Id == "camera" ? new Color(0.19f, 0.32f, 0.37f) :
@@ -105,6 +156,15 @@ namespace ZipTrip.Unity
             view.Present(item, shapeState, rotation, inTray, position, scale, color,
                 visualPrefab, runtimeMaterialTemplate);
             _itemViews.Add(view);
+        }
+
+        private static void RemoveRoot(ref Transform root)
+        {
+            if (root == null)
+                return;
+            root.gameObject.SetActive(false);
+            Destroy(root.gameObject);
+            root = null;
         }
     }
 }

@@ -435,6 +435,10 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   goldenItemPrefabs: {fileID: 950010005}
   runtimeMaterialTemplate: {fileID: 2100000, guid: dda25590701b2b745b90ded91681f46a, type: 2}
+  cabinVisualPrefab: {fileID: 919132149155446097, guid: 88a89747c4d9bc74bbd1097135532576, type: 3}
+  cabinShellMaterial: {fileID: 2100000, guid: 9b211a059f28ce2458826b682621be27, type: 2}
+  cabinLiningMaterial: {fileID: 2100000, guid: 86d310d1107e30046be7d293373de107, type: 2}
+  cabinAccentMaterial: {fileID: 2100000, guid: 593a396ddf9c81344aa079b7bd0d1aa3, type: 2}
 --- !u!114 &950010004
 MonoBehaviour:
   m_ObjectHideFlags: 0

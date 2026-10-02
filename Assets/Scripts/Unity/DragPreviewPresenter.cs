@@ -6,7 +6,26 @@ using ZipTrip.Domain;
 
 namespace ZipTrip.Unity
 {
-    // ZT-012: tray-only visual preview. Release never commits a gameplay command.
+    public readonly struct DragReleaseRequest
+    {
+        public ItemView Item { get; }
+        public Cell CandidateAnchor { get; }
+        public Vector3 VisualPosition { get; }
+        public Vector3 RestPosition { get; }
+        public Vector3 RestScale { get; }
+
+        public DragReleaseRequest(ItemView item, Cell candidateAnchor, Vector3 visualPosition,
+            Vector3 restPosition, Vector3 restScale)
+        {
+            Item = item;
+            CandidateAnchor = candidateAnchor;
+            VisualPosition = visualPosition;
+            RestPosition = restPosition;
+            RestScale = restScale;
+        }
+    }
+
+    // Visual preview only; Application resolves every release request.
     public sealed class DragPreviewPresenter : MonoBehaviour
     {
         private const float LiftHeight = 0.15f;
@@ -39,7 +58,9 @@ namespace ZipTrip.Unity
         private float _outlineHeight;
         private float _outlineZOffset;
 
+        public event Action<DragReleaseRequest> ReleaseRequested;
         public ItemView ActiveItem => _activeItem;
+        public bool InteractionEnabled { get; set; } = true;
         public Cell CandidateAnchor { get; private set; }
         public PlacementValidationSummary Validation { get; private set; }
         public int GhostCellCount { get; private set; }
@@ -53,15 +74,23 @@ namespace ZipTrip.Unity
             _board = board ?? throw new ArgumentNullException(nameof(board));
             _camera = camera ?? throw new ArgumentNullException(nameof(camera));
             _pointer = pointer ?? throw new ArgumentNullException(nameof(pointer));
-            _placementBoard = new PlacementBoard(board.PresentedState.Container, board.PresentedState.Occupancy);
-
-            var capacity = 1;
-            for (var i = 0; i < board.ItemViews.Count; i++)
-                if (board.ItemViews[i].IsInTray)
-                    capacity = Math.Max(capacity, board.ItemViews[i].Footprint.CellCount);
-            _scratch = new PlacementValidationScratch(capacity);
-            CreateGhost(capacity);
+            RefreshPresentedState();
             _pointer.PointerEvent += HandlePointer;
+        }
+
+        public void RefreshPresentedState()
+        {
+            if (_board == null || _board.PresentedState == null)
+                return;
+            CancelActiveImmediate();
+            _placementBoard = new PlacementBoard(_board.PresentedState.Container,
+                _board.PresentedState.Occupancy);
+            var capacity = 1;
+            for (var i = 0; i < _board.ItemViews.Count; i++)
+                capacity = Math.Max(capacity, _board.ItemViews[i].Footprint.CellCount);
+            _scratch = new PlacementValidationScratch(capacity);
+            DestroyGhost();
+            CreateGhost(capacity);
         }
 
         public void HandlePointer(PointerSignal signal)
@@ -70,7 +99,7 @@ namespace ZipTrip.Unity
                 return;
             if (signal.Phase == PointerPhase.Down)
             {
-                if (_activeItem == null)
+                if (InteractionEnabled && _activeItem == null)
                     Begin(signal.ScreenPosition);
             }
             else if (signal.Phase == PointerPhase.Move)
@@ -98,7 +127,7 @@ namespace ZipTrip.Unity
             for (var i = _board.ItemViews.Count - 1; i >= 0; i--)
             {
                 var view = _board.ItemViews[i];
-                if (!view.IsInTray || !view.ContainsWorldPoint(world))
+                if (!view.ContainsWorldPoint(world))
                     continue;
                 _activeItem = view;
                 _restPosition = view.transform.position;
@@ -135,12 +164,37 @@ namespace ZipTrip.Unity
         {
             if (_activeItem == null)
                 return;
-            _activeItem.transform.position = _restPosition;
-            _activeItem.transform.localScale = _restScale;
+            var request = new DragReleaseRequest(_activeItem, CandidateAnchor,
+                _activeItem.transform.position, _restPosition, _restScale);
+            var item = _activeItem;
             _activeItem = null;
+            HideGhost();
+            if (ReleaseRequested != null)
+                ReleaseRequested(request);
+            else
+            {
+                item.transform.position = _restPosition;
+                item.transform.localScale = _restScale;
+            }
+        }
+
+        public void CancelActiveImmediate()
+        {
+            if (_activeItem != null)
+            {
+                _activeItem.transform.position = _restPosition;
+                _activeItem.transform.localScale = _restScale;
+                _activeItem = null;
+            }
+            HideGhost();
+        }
+
+        private void HideGhost()
+        {
             GhostCellCount = 0;
             GhostMarkerCount = 0;
-            _ghostRoot.gameObject.SetActive(false);
+            if (_ghostRoot != null)
+                _ghostRoot.gameObject.SetActive(false);
         }
 
         private void RenderGhost()
@@ -277,12 +331,23 @@ namespace ZipTrip.Unity
         {
             if (_pointer != null)
                 _pointer.PointerEvent -= HandlePointer;
+            DestroyGhost();
+        }
+
+        private void DestroyGhost()
+        {
+            if (_ghostRoot != null)
+                Destroy(_ghostRoot.gameObject);
             if (_ghostMaterial != null)
                 Destroy(_ghostMaterial);
             if (_markerMaterial != null)
                 Destroy(_markerMaterial);
             if (_outlineMaterial != null)
                 Destroy(_outlineMaterial);
+            _ghostRoot = null;
+            _ghostMaterial = null;
+            _markerMaterial = null;
+            _outlineMaterial = null;
         }
     }
 }
