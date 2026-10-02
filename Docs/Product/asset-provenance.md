@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | `item_sneaker_pair.png` | Generated with ChatGPT image generation | 2026-10-01 | ZA-002 reference only | Not yet a final production mesh |
 | `item_sweater_open.png` | Generated with ChatGPT image generation | 2026-10-01 | ZA-002 reference only | Not yet a final production mesh |
-| `item_sweater_folded.png` | Generated with ChatGPT image generation | 2026-10-01 | ZA-002 reference only | Not yet a final production mesh |
+| `item_sweater_folded.png` | Human-approved long-form `SweaterFolded_LongFront.jpeg`; original image-generation provider not recorded | 2026-10-02 canonical replacement | ZA-003 folded-sweater identity, texture and 2×4 shape reference | Reference art; not a production mesh |
 | `item_laptop.png` | Generated with ChatGPT image generation | 2026-10-01 | ZA-002 reference only | Not yet a final production mesh |
 
 ## ZA-003 laptop 3D pilot — laptop candidate accepted
@@ -79,3 +79,25 @@ The Sweater Open candidate was generated with Meshy on 2026-10-01. The human own
 | FBX export and Unity verification | Unknown; no measured active-work duration supplied |
 | Human review | Completed; duration unknown |
 | Total human time | Unknown; no measured or supported estimate available |
+
+## ZA-003 sweater folded procedural candidate — asset accepted
+
+The human owner accepted this asset on 2026-10-02. The earlier square-ish golden reference was replaced because its visible shape did not agree with the canonical 2×4 hidden footprint. This closes the Sweater Folded asset only; the full ZA-003 ticket remains open.
+
+| Field | Recorded value |
+|---|---|
+| Asset | `M_Item_SweaterFolded` |
+| Geometry authorship | Procedurally authored in Blender; no Meshy or Tripo generated mesh is used in production geometry |
+| Reproducible Blender script | `Assets/Art/Models/Items/Source/M_Item_SweaterFolded_Procedural.py` |
+| Blender source | `Assets/Art/Models/Items/Source/M_Item_SweaterFolded_Source.blend` |
+| Approved long-form reference | `Assets/Art/Items/Golden/item_sweater_folded.png` |
+| Top-surface texture source | `Assets/Art/Materials/Items/SweaterFolded/Textures/SweaterFolded_LongFront.jpeg`; the approved reference supplies the visual identity and mustard collar knit |
+| Rejected R&D | Meshy and Tripo generated meshes were tried and rejected; their raw/retopo/Smart-Mesh outputs are not production dependencies |
+| Unity final interchange | `Assets/Art/Models/Items/Final/M_Item_SweaterFolded.fbx` |
+| Canonical logical footprint | 2 × 4 cells |
+| Unity visual bounds | X = [0.0500, 1.9500], Z = [-3.9500, -0.0500]; bottom at Y = 0 |
+| Packing thickness | 0.371316 Unity units |
+| Final geometry | 9,600 triangles: body 8,064; collar 1,536 |
+| Unity import | PASS via `ModelImporter` |
+| Human visual review | PASS: folded-sweater identity and Sweater Open family, visual/hidden footprint agreement, revised collar, no giant cavity, texture smear or visible holes, and +0.15 Y drag lift |
+| Generation and cleanup time | Unknown; active human time was not measured or supplied |
