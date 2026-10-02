@@ -101,3 +101,30 @@ The human owner accepted this asset on 2026-10-02. The earlier square-ish golden
 | Unity import | PASS via `ModelImporter` |
 | Human visual review | PASS: folded-sweater identity and Sweater Open family, visual/hidden footprint agreement, revised collar, no giant cavity, texture smear or visible holes, and +0.15 Y drag lift |
 | Generation and cleanup time | Unknown; active human time was not measured or supplied |
+
+## ZA-003 sneaker pair 3D candidate — asset accepted
+
+The human owner accepted this Sneaker Pair candidate on 2026-10-02. This closes only the Sneaker Pair asset; the full ZA-003 ticket remains open.
+
+| Field | Recorded value |
+|---|---|
+| Asset | `M_Item_SneakerPair` |
+| Golden reference | `Assets/Art/Items/Golden/item_sneaker_pair.png` |
+| Provider | Tripo |
+| Account plan at generation | Paid Tripo plan — human confirmed |
+| Generation date | 2026-10-02 |
+| Actual private/public visibility | Not explicitly verified for this generation |
+| Raw high-detail archive | `Assets/Art/Models/Items/Raw/M_Item_SneakerPair_TripoRaw.glb` |
+| Production retopo source | `Assets/Art/Models/Items/Raw/M_Item_SneakerPair_TripoRetopo_10k.glb` |
+| Blender source | `Assets/Art/Models/Items/Source/M_Item_SneakerPair_Source.blend` |
+| Reproducible cleanup script | `Assets/Art/Models/Items/Source/M_Item_SneakerPair_Cleanup.py` |
+| Unity final interchange | `Assets/Art/Models/Items/Final/M_Item_SneakerPair.fbx` |
+| Texture source directory | `Assets/Art/Materials/Items/SneakerPair/Textures/` |
+| Canonical footprint | `X. / X. / XX`; logical X [0, 2], Z [-3, 0] |
+| Unity visual bounds | X [0.060000, 1.960000], Z [-2.995761, -0.060000]; height 1.039440, bottom Y = 0 |
+| Forbidden-cell projection | (1,0) = 0%; (1,1) = 0% |
+| Final geometry | 17,961 triangles |
+| Deterministic cleanup | 28 specifically reviewed stray mesh islands removed (340 triangles); laces, pull tabs, sole pads, and decorative components preserved |
+| Unity import | PASS via `ModelImporter` |
+| Human visual review | PASS: L-footprint readability and remaining very small seam/edge traces accepted at gameplay scale |
+| Generation and cleanup time | Unknown; no measured duration supplied |
