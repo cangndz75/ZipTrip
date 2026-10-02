@@ -19,11 +19,14 @@ namespace ZipTrip.Unity
             var camera = Camera.main;
             var pointer = gameObject.AddComponent<PointerInteractor>();
             var preview = gameObject.AddComponent<DragPreviewPresenter>();
+            var hud = new GameObject("Gameplay HUD", typeof(RectTransform)).AddComponent<GameplayHud>();
+            hud.Initialize(camera);
             Gameplay = gameObject.AddComponent<PackGameplayController>();
-            Gameplay.Initialize(Level, board, camera, pointer, preview, LoadLevel);
+            Gameplay.Initialize(Level, board, camera, pointer, preview, hud, LoadLevel);
             preview.Initialize(board, camera, pointer);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             gameObject.AddComponent<DebugGameplayOverlay>().Initialize(Gameplay, preview);
+            Gameplay.DebugOverlayRequested += GetComponent<DebugGameplayOverlay>().Toggle;
 #endif
         }
 

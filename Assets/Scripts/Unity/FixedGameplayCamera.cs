@@ -16,6 +16,9 @@ namespace ZipTrip.Unity
         private ContainerDefinition _container;
         private Bounds? _presentationBounds;
         private float _lastAspect;
+        private bool _composed;
+
+        public GameplayFrame Frame { get; private set; }
 
         public static float OrthographicSize(int outerWidth, float aspect)
         {
@@ -62,17 +65,45 @@ namespace ZipTrip.Unity
             Apply(aspect);
         }
 
-        private void Apply(float aspect)
+        public static Vector3 ContainerCenter(ContainerMask mask)
+        {
+            var bounds = OuterBounds(mask);
+            return new Vector3(bounds.xMin + bounds.width * 0.5f, 0f,
+                -(bounds.yMin + bounds.height * 0.5f));
+        }
+
+        // Responsive portrait composition: same transform and ADR-0002 minimum size; only the
+        // orthographic extent and its vertical placement change so HUD, board and tray share the screen.
+        public void ApplyFrame(ContainerDefinition container, GameplayFrame frame)
+        {
+            _container = container ?? throw new ArgumentNullException(nameof(container));
+            _presentationBounds = null;
+            PlaceCanonical();
+            var size = frame.OrthographicSize;
+            var halfWidth = size * frame.Aspect;
+            _camera.orthographicSize = size;
+            _camera.projectionMatrix = Matrix4x4.Ortho(-halfWidth, halfWidth,
+                frame.CenterY - size, frame.CenterY + size, _camera.nearClipPlane, _camera.farClipPlane);
+            Frame = frame;
+            _composed = true;
+        }
+
+        private void PlaceCanonical()
         {
             _camera = GetComponent<Camera>();
-            var bounds = OuterBounds(_container.Mask);
-            var center = new Vector3(bounds.xMin + bounds.width * 0.5f, 0f,
-                -(bounds.yMin + bounds.height * 0.5f));
             transform.rotation = Quaternion.Euler(Pitch, 0f, 0f);
-            transform.position = center - transform.forward * Distance;
+            transform.position = ContainerCenter(_container.Mask) - transform.forward * Distance;
             _camera.orthographic = true;
             _camera.nearClipPlane = 0.1f;
             _camera.farClipPlane = 30f;
+        }
+
+        private void Apply(float aspect)
+        {
+            _composed = false;
+            PlaceCanonical();
+            _camera.ResetProjectionMatrix();
+            var bounds = OuterBounds(_container.Mask);
             var size = OrthographicSize(bounds.width, aspect);
             if (_presentationBounds.HasValue)
             {
@@ -99,7 +130,7 @@ namespace ZipTrip.Unity
 
         private void LateUpdate()
         {
-            if (_container != null && !Mathf.Approximately(_camera.aspect, _lastAspect))
+            if (_container != null && !_composed && !Mathf.Approximately(_camera.aspect, _lastAspect))
                 Apply(_camera.aspect);
         }
     }

@@ -115,12 +115,13 @@ namespace ZipTrip.Unity
             RefreshSnapshot();
         }
 
+        // Opened from the development drawer; nothing is drawn over normal gameplay.
         private void OnGUI()
         {
-            if (GUI.Button(new Rect(8f, 8f, 72f, 36f), IsVisible ? "Hide DBG" : "DBG"))
-                Toggle();
             if (!IsVisible)
                 return;
+            if (GUI.Button(new Rect(8f, 8f, 110f, 36f), "Hide DBG"))
+                Toggle();
             GUI.Box(new Rect(8f, 50f, 440f, 520f), string.Empty);
             GUI.Label(new Rect(18f, 58f, 420f, 330f), SnapshotText);
             GUI.Label(new Rect(18f, 365f, 420f, 150f), _logText);

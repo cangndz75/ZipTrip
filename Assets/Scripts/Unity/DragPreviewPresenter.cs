@@ -33,6 +33,7 @@ namespace ZipTrip.Unity
         private static readonly ProfilerMarker DragMarker = new ProfilerMarker("ZipTrip.DragPreview.Move");
         private static readonly Color ValidColor = new Color(78f / 255f, 159f / 255f, 162f / 255f, 0.32f);
         private static readonly Color InvalidColor = new Color(195f / 255f, 111f / 255f, 88f / 255f, 0.32f);
+        private static readonly Color InvalidMarkerColor = new Color(195f / 255f, 111f / 255f, 88f / 255f, 0.95f);
         private static readonly Color ValidOutlineColor = new Color(233f / 255f, 229f / 255f, 221f / 255f, 0.9f);
 
         private BoardPresenter _board;
@@ -134,6 +135,8 @@ namespace ZipTrip.Unity
                 _restScale = view.transform.localScale;
                 _grabOffset = _restPosition - world;
                 view.transform.localScale = Vector3.one;
+                view.SetLifted(true);
+                _board.SetDragEmphasis(true);
                 var renderers = view.VisualRoot.GetComponentsInChildren<Renderer>();
                 var visualTop = renderers[0].bounds.max.y;
                 for (var rendererIndex = 1; rendererIndex < renderers.Length; rendererIndex++)
@@ -169,12 +172,14 @@ namespace ZipTrip.Unity
             var item = _activeItem;
             _activeItem = null;
             HideGhost();
+            _board.SetDragEmphasis(false);
             if (ReleaseRequested != null)
                 ReleaseRequested(request);
             else
             {
                 item.transform.position = _restPosition;
                 item.transform.localScale = _restScale;
+                item.ResetFeedback();
             }
         }
 
@@ -184,8 +189,11 @@ namespace ZipTrip.Unity
             {
                 _activeItem.transform.position = _restPosition;
                 _activeItem.transform.localScale = _restScale;
+                _activeItem.ResetFeedback();
                 _activeItem = null;
             }
+            if (_board != null)
+                _board.SetDragEmphasis(false);
             HideGhost();
         }
 
@@ -216,6 +224,12 @@ namespace ZipTrip.Unity
                     _ghostCells[i].position = center;
                     _validOutlines[i].position = new Vector3(center.x, _outlineHeight,
                         center.z + _outlineZOffset);
+                    // Perimeter only: bars shared with another footprint cell stay hidden.
+                    var outline = _validOutlines[i];
+                    outline.GetChild(0).gameObject.SetActive(!InFootprint(count, cell.X - 1, cell.Y));
+                    outline.GetChild(1).gameObject.SetActive(!InFootprint(count, cell.X + 1, cell.Y));
+                    outline.GetChild(2).gameObject.SetActive(!InFootprint(count, cell.X, cell.Y + 1));
+                    outline.GetChild(3).gameObject.SetActive(!InFootprint(count, cell.X, cell.Y - 1));
                     _ghostRenderers[i].SetPropertyBlock(colorBlock);
                 }
 
@@ -225,13 +239,22 @@ namespace ZipTrip.Unity
                 if (marked)
                 {
                     var cell = _scratch.OffendingCells[i];
-                    var position = new Vector3(cell.X + 0.5f, GhostHeight + 0.03f,
-                        -cell.Y - 0.5f);
+                    // Raised like the outline (screen-aligned) so container rims and items never hide it.
+                    var position = new Vector3(cell.X + 0.5f, _outlineHeight + 0.01f,
+                        -cell.Y - 0.5f + _outlineZOffset);
                     _markerA[i].position = position;
                     _markerB[i].position = position;
                 }
             }
             _ghostRoot.gameObject.SetActive(true);
+        }
+
+        private bool InFootprint(int count, int x, int y)
+        {
+            for (var i = 0; i < count; i++)
+                if (_scratch.RotatedCells[i].X == x && _scratch.RotatedCells[i].Y == y)
+                    return true;
+            return false;
         }
 
         private void CreateGhost(int capacity)
@@ -248,8 +271,8 @@ namespace ZipTrip.Unity
             _outlineMaterial = TransparentMaterial(_board.RuntimeMaterialTemplate);
             _outlineMaterial.SetColor("_BaseColor", ValidOutlineColor);
             _outlineMaterial.SetColor("_Color", ValidOutlineColor);
-            _markerMaterial.SetColor("_BaseColor", new Color(1f, 1f, 1f, 0.85f));
-            _markerMaterial.SetColor("_Color", new Color(1f, 1f, 1f, 0.85f));
+            _markerMaterial.SetColor("_BaseColor", InvalidMarkerColor);
+            _markerMaterial.SetColor("_Color", InvalidMarkerColor);
             _validBlock = ColorBlock(ValidColor);
             _invalidBlock = ColorBlock(InvalidColor);
             for (var i = 0; i < capacity; i++)
@@ -257,7 +280,7 @@ namespace ZipTrip.Unity
                 var cell = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 cell.name = "Ghost cell";
                 cell.transform.SetParent(_ghostRoot, false);
-                cell.transform.localScale = new Vector3(0.96f, 0.01f, 0.96f);
+                cell.transform.localScale = new Vector3(1f, 0.01f, 1f);
                 _ghostCells[i] = cell.transform;
                 _ghostRenderers[i] = cell.GetComponent<Renderer>();
                 _ghostRenderers[i].sharedMaterial = _ghostMaterial;
