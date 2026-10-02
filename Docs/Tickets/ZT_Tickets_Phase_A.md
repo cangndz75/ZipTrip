@@ -73,7 +73,8 @@
 
 ### ZA-003 — Image-to-3D ve Blender cleanup
 - **SP:** 5 · **Sahip:** insan · **Dependency:** ZA-002; D-007, 2026-10-01 insan kararıyla kapatıldı
-- **Scope:** Meshy (gerekirse Tripo ile karşılaştırma) → Blender: pivot, scale (1 hücre = sabit birim), topology ve material cleanup.
+- **Status:** COMPLETE (2026-10-02); dört golden mesh adayı insan tarafından kabul edildi, ölçüm ve provenance kayıtları `Docs/Product/asset-provenance.md`'de.
+- **Scope:** Ücretli Meshy veya Tripo asset bazında seçilir; kabul edilen prosedürel Blender geometrisi de geçerlidir. Blender: pivot, scale (1 hücre = sabit birim), topology ve material cleanup.
 - **Acceptance:** Mesh'in üstten izdüşümü hedef footprint'e oturuyor. Kaynak, lisans ve provenance `Docs/Product/asset-provenance.md`'de. Tek item başına harcanan süre kaydedildi; bu kayıt Phase B tahmininin girdisidir.
 
 ### ZA-004 — Unity prefab'ları ve ReadabilityTest scene

@@ -1,6 +1,6 @@
 # ZA-003 — Laptop image-to-3D pilot (human execution)
 
-Status: **laptop candidate human accepted; full ZA-003 ticket remains open**. This pilot stops before sneaker, sweater, prefabs, or gameplay integration.
+Status: **laptop candidate human accepted; full ZA-003 ticket completed after all four assets were accepted**. This pilot stopped before sneaker, sweater, prefabs, or gameplay integration.
 
 ## Contract and files
 

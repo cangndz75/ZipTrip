@@ -1,20 +1,23 @@
 # Asset provenance
 
+ZA-003 per-item totals below are retrospective human-approved active-work estimates; not instrumented timings.
+
 | Asset filename | Source | Date | Purpose | Production status |
 |---|---|---|---|---|
 | `item_sneaker_pair.png` | Generated with ChatGPT image generation | 2026-10-01 | ZA-002 reference only | Not yet a final production mesh |
 | `item_sweater_open.png` | Generated with ChatGPT image generation | 2026-10-01 | ZA-002 reference only | Not yet a final production mesh |
-| `item_sweater_folded.png` | Human-approved long-form `SweaterFolded_LongFront.jpeg`; original image-generation provider not recorded | 2026-10-02 canonical replacement | ZA-003 folded-sweater identity, texture and 2×4 shape reference | Reference art; not a production mesh |
+| `item_sweater_folded.png` | Human-approved long-form `SweaterFolded_LongFront.jpeg`, generated with ChatGPT / OpenAI image generation during the human-guided ZA-003 workflow | Generated 2026-10-01; canonical replacement 2026-10-02 | ZA-003 procedural folded-sweater visual reference and top-surface texture identity for the 2×4 shape | Reference art; not production mesh geometry |
 | `item_laptop.png` | Generated with ChatGPT image generation | 2026-10-01 | ZA-002 reference only | Not yet a final production mesh |
 
 ## ZA-003 laptop 3D pilot — laptop candidate accepted
 
-The laptop candidate was generated with Tripo on 2026-10-01. The user confirmed that the Tripo account was on a paid plan at generation time and accepted the laptop candidate. This closes the laptop asset only, not the full ZA-003 ticket.
+The laptop candidate was generated with Tripo on 2026-10-01. The user confirmed that the Tripo account was on a paid plan at generation time and accepted the laptop candidate. That acceptance closed the laptop asset only; the full ZA-003 ticket was closed after all four assets were accepted.
 
 | Field | Recorded value |
 |---|---|
 | Asset | `M_Item_Laptop` |
 | Provider | Tripo |
+| Provider selection | Meshy and Tripo were compared. Meshy low-poly geometry was usable, but its textured candidate had visible seam/color-bleed artifacts; Tripo better retained the intended form and material identity. |
 | Plan at generation time | Paid Tripo plan — human confirmed; account receipt/task ID not recorded here |
 | Generation date | 2026-10-01 |
 | Source reference PNG | `Assets/Art/Items/Golden/item_laptop.png` |
@@ -43,18 +46,21 @@ Exact active-work timings were not measured. The local file timestamps give **es
 | Unity import verification | ~10 min estimate: first FBX file 20:11 → final screenshot 20:21 |
 | Human review | Laptop candidate accepted; duration not measured or supplied |
 | Total | ~46 min estimated observable local interval from raw file to final screenshot, excluding unmeasured Tripo generation/comparison and human review; full active-work total unavailable |
+| Total active work | ~1.5 h retrospective human-approved active-work estimate; not an instrumented timing. The partial file-timestamp intervals above remain separate evidence. |
 
 ## ZA-003 sweater open 3D candidate — asset accepted
 
-The Sweater Open candidate was generated with Meshy on 2026-10-01. The human owner confirmed that the Meshy account was on a paid plan at generation time and that the model generation was private. Acceptance closes this asset only; the full ZA-003 ticket remains open. No other account or license setting was verified for this asset.
+The Sweater Open candidate was generated with Meshy on 2026-10-01. The human owner confirmed that the Meshy account was on a paid plan at generation time and that the model generation was private. That acceptance closed this asset only; the full ZA-003 ticket was closed after all four assets were accepted. No other account or license setting was verified for this asset.
 
 | Field | Recorded value |
 |---|---|
 | Asset | `M_Item_SweaterOpen` |
 | Golden reference | `Assets/Art/Items/Golden/item_sweater_open.png` |
 | Provider | Meshy |
+| Provider selection | Meshy produced an acceptable candidate and was retained. |
 | Plan at generation time | Paid — human confirmed |
 | Model generation visibility | Private — human confirmed |
+| Commercial-use record | Human-confirmed paid/private generation under Blueprint D-007; Meshy terms references are recorded in `Docs/Product/za-003-laptop-pilot.md`. No other license/account setting was verified. |
 | Generation date | 2026-10-01 |
 | Raw high-detail file | `Assets/Art/Models/Items/Raw/M_Item_SweaterOpen_MeshyRaw.glb` |
 | Retopo source | `Assets/Art/Models/Items/Raw/M_Item_SweaterOpen_MeshyRetopo_8k.glb` |
@@ -78,16 +84,17 @@ The Sweater Open candidate was generated with Meshy on 2026-10-01. The human own
 | Blender normalization and packing-pose revision | Unknown; no measured active-work duration supplied |
 | FBX export and Unity verification | Unknown; no measured active-work duration supplied |
 | Human review | Completed; duration unknown |
-| Total human time | Unknown; no measured or supported estimate available |
+| Total human time | ~1.0 h retrospective human-approved active-work estimate; not an instrumented timing. Stage durations above remain unmeasured. |
 
 ## ZA-003 sweater folded procedural candidate — asset accepted
 
-The human owner accepted this asset on 2026-10-02. The earlier square-ish golden reference was replaced because its visible shape did not agree with the canonical 2×4 hidden footprint. This closes the Sweater Folded asset only; the full ZA-003 ticket remains open.
+The human owner accepted this asset on 2026-10-02. The earlier square-ish golden reference was replaced because its visible shape did not agree with the canonical 2×4 hidden footprint. That acceptance closed the Sweater Folded asset only; the full ZA-003 ticket was closed after all four assets were accepted.
 
 | Field | Recorded value |
 |---|---|
 | Asset | `M_Item_SweaterFolded` |
 | Geometry authorship | Procedurally authored in Blender; no Meshy or Tripo generated mesh is used in production geometry |
+| Production selection | Meshy and Tripo AI meshes repeatedly failed topology/readability quality; AI outputs were visual/reference exploration only. The final geometry was procedurally authored in Blender. |
 | Reproducible Blender script | `Assets/Art/Models/Items/Source/M_Item_SweaterFolded_Procedural.py` |
 | Blender source | `Assets/Art/Models/Items/Source/M_Item_SweaterFolded_Source.blend` |
 | Approved long-form reference | `Assets/Art/Items/Golden/item_sweater_folded.png` |
@@ -100,18 +107,20 @@ The human owner accepted this asset on 2026-10-02. The earlier square-ish golden
 | Final geometry | 9,600 triangles: body 8,064; collar 1,536 |
 | Unity import | PASS via `ModelImporter` |
 | Human visual review | PASS: folded-sweater identity and Sweater Open family, visual/hidden footprint agreement, revised collar, no giant cavity, texture smear or visible holes, and +0.15 Y drag lift |
-| Generation and cleanup time | Unknown; active human time was not measured or supplied |
+| Generation and cleanup time | ~4.5 h retrospective human-approved active-work estimate; not an instrumented timing. Stage durations were not measured. |
 
 ## ZA-003 sneaker pair 3D candidate — asset accepted
 
-The human owner accepted this Sneaker Pair candidate on 2026-10-02. This closes only the Sneaker Pair asset; the full ZA-003 ticket remains open.
+The human owner accepted this Sneaker Pair candidate on 2026-10-02. That acceptance closed the Sneaker Pair asset; the full ZA-003 ticket was closed after all four assets were accepted.
 
 | Field | Recorded value |
 |---|---|
 | Asset | `M_Item_SneakerPair` |
 | Golden reference | `Assets/Art/Items/Golden/item_sneaker_pair.png` |
 | Provider | Tripo |
+| Provider selection | Tripo was selected directly under the later per-asset provider decision; no failed Meshy attempt is claimed for this asset. |
 | Account plan at generation | Paid Tripo plan — human confirmed |
+| Commercial-use record | Human-confirmed paid plan; Tripo commercial-use terms references are recorded in the laptop entry above. This generation's private/public visibility was not verified. |
 | Generation date | 2026-10-02 |
 | Actual private/public visibility | Not explicitly verified for this generation |
 | Raw high-detail archive | `Assets/Art/Models/Items/Raw/M_Item_SneakerPair_TripoRaw.glb` |
@@ -127,4 +136,4 @@ The human owner accepted this Sneaker Pair candidate on 2026-10-02. This closes 
 | Deterministic cleanup | 28 specifically reviewed stray mesh islands removed (340 triangles); laces, pull tabs, sole pads, and decorative components preserved |
 | Unity import | PASS via `ModelImporter` |
 | Human visual review | PASS: L-footprint readability and remaining very small seam/edge traces accepted at gameplay scale |
-| Generation and cleanup time | Unknown; no measured duration supplied |
+| Generation and cleanup time | ~1.5 h retrospective human-approved active-work estimate; not an instrumented timing. Stage durations were not measured. |

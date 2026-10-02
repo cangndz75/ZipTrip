@@ -515,7 +515,7 @@ Aşağıdaki kararlar ilgili ticket'a gelmeden kapatılmalıdır:
 - **D-004:** Creative test threshold / budget
 - **D-005:** Store vs landing-page test yolu
 - **D-006:** Test ülkeleri / geo
-- **D-007:** Golden asset / image-to-3D pipeline — Phase A için insan kararıyla kapatıldı (2026-10-01): üretim yalnız ücretli Meshy planında ve private; Community'ye yayımlanmaz. Raw `.glb` → Blender `.blend` cleanup → insan kabulünden sonra Unity-ready export. Tripo yalnız Meshy sonucu makul denemelerden sonra yetersiz kalırsa, ayrı ücretli/ticari lisans kaydıyla karşılaştırma fallback'idir. Final `.glb`/`.fbx` formatı laptop pilot ölçümünden sonra seçilir.
+- **D-007:** Golden asset / image-to-3D pipeline — Phase A için insan kararıyla kapatıldı (2026-10-01); ZA-003 üretim kararıyla netleştirildi (2026-10-02): Meshy ve Tripo ücretli planları onaylıdır. Sağlayıcı her asset için görsel sadakat, topology kalitesi, footprint okunabilirliği ve üretim uygunluğuna göre seçilir; Tripo için önce başarısız bir Meshy denemesi şart değildir. Meshy üretimleri private kalır, Community'ye yayımlanmaz. Kaynak ve ticari kullanım dayanağı asset bazında kaydedilir. Raw `.glb` → Blender `.blend` cleanup → insan kabulünden sonra Unity final `.fbx`; prosedürel Blender geometrisi de ZA-003'te onaylı üretim yoludur.
 - **D-008:** Gate devices + frame pacing hedefi
 - **D-009:** iOS device-build stratejisi
 - **D-010:** Extract slide distance kontratı
