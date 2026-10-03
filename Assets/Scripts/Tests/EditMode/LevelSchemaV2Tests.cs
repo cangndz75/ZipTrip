@@ -14,7 +14,7 @@ namespace ZipTrip.Tests.EditMode
     {
         // ---- Catalog and JSON helpers ----
 
-        private static ItemSpec[] Catalog() => new[]
+        internal static ItemSpec[] Catalog() => new[]
         {
             Block("book", 2, 1),
             Block("laptop", 2, 2, tags: new[] { "tech" }),
@@ -31,7 +31,7 @@ namespace ZipTrip.Tests.EditMode
             Jacket()
         };
 
-        private static PuzzleLevel Fixture(string name) =>
+        internal static PuzzleLevel Fixture(string name) =>
             LevelJsonLoaderV2.Load(File.ReadAllText(Path.Combine(UnityEngine.Application.dataPath, "Scripts/Tests/EditMode/Fixtures/LevelsV2", name)), Catalog());
 
         // Main 4x3, L = 2, (3,1) masked, bottom row is zone "bottom".
