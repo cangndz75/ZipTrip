@@ -33,7 +33,6 @@ namespace ZipTrip.Unity
         /// into the top HUD band or past the screen edge, so the lid reads without shrinking the board.
         /// </summary>
         public const float LidFrameHeight = 3.5f;
-        private const float SurfaceSize = 90f;
 
         [SerializeField] private string[] levelIds = { "lv1-fit", "lv2-rotate" };
         [SerializeField] private int startLevel;
@@ -45,9 +44,7 @@ namespace ZipTrip.Unity
         private bool _gestureOnHud;
         private float _framedAspect;
         private Vector2Int _framedScreen;
-        private GameObject _surface;
-        private Material _surfaceMaterial;
-        private Texture2D _surfaceTexture;
+        private PackingTable _table;
 
         public PuzzleLevel Level { get; private set; }
         public PuzzleSession Session { get; private set; }
@@ -56,8 +53,10 @@ namespace ZipTrip.Unity
         public PuzzleDragController Drag { get; private set; }
         public PuzzleHud Hud { get; private set; }
         public Camera Camera { get; private set; }
-        /// <summary>Linen packing surface under the suitcase (excluded from camera framing).</summary>
-        public GameObject Surface => _surface;
+        /// <summary>Linen packing table under the suitcase (excluded from camera framing).</summary>
+        public GameObject Surface => _table != null ? _table.Surface : null;
+        /// <summary>ZT-040D table, felt mat, light rig and post stack.</summary>
+        public PackingTable Table => _table;
         public Material MaterialTemplate => materialTemplate;
         /// <summary>Authored container art (null = procedural ZT-040B suitcase fallback).</summary>
         public GameObject ContainerPrefab => containerPrefab;
@@ -114,9 +113,8 @@ namespace ZipTrip.Unity
                 var body = Board.ContainerFootprint;
                 Tray.RowWidth = Mathf.Max(body.width + TrayOverhang, 4f);
                 Tray.Scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
-                Tray.transform.localPosition = new Vector3(body.center.x - Tray.RowWidth * 0.5f, Board.ContainerBottomY,
-                    body.yMin - ContainerTrayGap);
-                PlaceSurface(body.center.x, body.yMin, Board.ContainerBottomY);
+                Tray.transform.localPosition = new Vector3(body.center.x - Tray.RowWidth * 0.5f,
+                    Board.ContainerBottomY + PackingTable.MatThickness, body.yMin - ContainerTrayGap);
             }
             else
             {
@@ -124,9 +122,9 @@ namespace ZipTrip.Unity
                 Tray.RowWidth = Mathf.Max(boardWidth + SuitcaseShell.Wall * 2f + TrayOverhang, 4f);
                 Tray.Scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
                 Tray.transform.localPosition = new Vector3((boardWidth - Tray.RowWidth) * 0.5f, 0f, -(boardDepth + TrayGap));
-                PlaceSurface(boardWidth * 0.5f, -boardDepth, SuitcaseShell.SurfaceY);
             }
             Drag.Initialize(Session, Board, Tray, Camera);
+            LayoutTable();
             Drag.InteractionEnabled = !Session.CurrentCompletion.IsComplete;
 
             Hud.SetLevel($"Level {LevelIndex + 1}");
@@ -156,6 +154,7 @@ namespace ZipTrip.Unity
                 if (action != PuzzleHudAction.None)
                 {
                     _gestureOnHud = true;
+                    Hud.Press(action);
                     Perform(action);
                     return;
                 }
@@ -194,6 +193,7 @@ namespace ZipTrip.Unity
             if (Session == null)
                 return;
             Hud.SetRotateVisible(!Hud.CompletionVisible && Drag.CanRotateSelection);
+            Hud.SetUndoEnabled(Session.UndoDepth > 0 && !Hud.CompletionVisible);
             var keyboard = Keyboard.current;
             if (keyboard != null && !Drag.IsDragging && keyboard.rKey.wasPressedThisFrame)
                 Drag.RotateSelection();
@@ -266,36 +266,36 @@ namespace ZipTrip.Unity
             if (_pointer == null)
                 _pointer = gameObject.AddComponent<PointerInteractor>();
             _pointer.PointerEvent += HandlePointer;
+            _table = new GameObject("Packing Table").AddComponent<PackingTable>();
+            _table.transform.SetParent(transform, false);
+            _table.Build(materialTemplate, Camera);
         }
 
-        // Large linen quad under the suitcase; deliberately not under Board / Tray so framing ignores it.
-        private void PlaceSurface(float centerX, float centerZ, float surfaceY)
+        // Table under the suitcase, felt mat under the loose items' row (deliberately not under Board / Tray, so camera
+        // framing ignores both).
+        private void LayoutTable()
         {
-            if (_surface == null)
+            if (_table == null)
+                return;
+            var body = Board.ContainerFootprint;
+            var surfaceY = Board.Container != null ? Board.ContainerBottomY : SuitcaseShell.SurfaceY;
+            var origin = Tray.transform.localPosition;
+            var depth = 0f;
+            foreach (var view in Tray.ItemViews.Values)
             {
-                var template = PresentationKit.TemplateOrFallback(materialTemplate);
-                if (template == null)
-                    return;
-                _surfaceTexture = PresentationKit.LinenTexture(128, 1709);
-                _surfaceMaterial = PresentationKit.Matte(template, PresentationKit.Linen, _surfaceTexture, 0.05f);
-                _surfaceMaterial.SetTextureScale(PresentationKit.BaseMapId, new Vector2(SurfaceSize / 2.2f, SurfaceSize / 2.2f));
-                var half = SurfaceSize * 0.5f;
-                _surface = PresentationKit.MeshObject("Packing Surface", transform,
-                    PresentationKit.Quad(new Rect(-half, -half, SurfaceSize, SurfaceSize), SuitcaseShell.SurfaceY), _surfaceMaterial);
+                var rows = 0;
+                foreach (var cell in view.Footprint.OccupiedCells)
+                    rows = Mathf.Max(rows, cell.Y + 1);
+                depth = Mathf.Max(depth, rows * Tray.Scale);
             }
-            _surface.transform.localPosition = new Vector3(centerX, surfaceY - SuitcaseShell.SurfaceY, centerZ);
+            var area = new Rect(origin.x, origin.z - Mathf.Max(depth, 1f), Tray.RowWidth, Mathf.Max(depth, 1f));
+            _table.Layout(body.center, surfaceY, area);
         }
 
         private void OnDestroy()
         {
             if (_pointer != null)
                 _pointer.PointerEvent -= HandlePointer;
-            if (_surface != null)
-                Destroy(_surface.GetComponent<MeshFilter>().sharedMesh);
-            if (_surfaceMaterial != null)
-                Destroy(_surfaceMaterial);
-            if (_surfaceTexture != null)
-                Destroy(_surfaceTexture);
         }
     }
 }

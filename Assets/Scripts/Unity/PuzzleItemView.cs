@@ -15,7 +15,7 @@ namespace ZipTrip.Unity
     public sealed class PuzzleItemView : MonoBehaviour
     {
         public const float ShadowPad = 0.22f;
-        private const float ShadowAlpha = 0.42f;
+        private const float ShadowAlpha = 0.6f; // ZT-040D: still reads on the dark lining and felt
         private static readonly Vector3 ShadowOffset = new Vector3(0.06f, 0f, -0.08f);
 
         private readonly List<(Renderer Renderer, Material[] Materials, MaterialPropertyBlock Block)> _original =
@@ -38,6 +38,8 @@ namespace ZipTrip.Unity
         public int Thickness { get; private set; }
         public ItemShape Footprint { get; private set; }
         public Transform VisualRoot { get; private set; }
+        /// <summary>Presentation motion (ZT-040D); animates only its own root, never this transform.</summary>
+        public ItemFeedback Feedback { get; private set; }
         public bool UsesPrefab { get; private set; }
         public bool IsGhosted { get; private set; }
         public bool ShadowVisible => _shadow != null && _shadow.activeSelf;
@@ -93,8 +95,27 @@ namespace ZipTrip.Unity
             SetGhost(false, null);
             if (VisualRoot != null)
                 Destroy(VisualRoot.gameObject);
+            // ZT-040D: item root (placement) > Feedback Root (motion only, pivot at the footprint centre) > Visual Root.
+            if (Feedback == null)
+            {
+                var feedbackRoot = new GameObject("Feedback Root").transform;
+                feedbackRoot.SetParent(transform, false);
+                Feedback = gameObject.AddComponent<ItemFeedback>();
+                Feedback.Attach(feedbackRoot);
+            }
+            Feedback.CompleteAll();
+            int pivotWidth = 0, pivotDepth = 0;
+            foreach (var cell in footprint.OccupiedCells)
+            {
+                pivotWidth = Math.Max(pivotWidth, cell.X + 1);
+                pivotDepth = Math.Max(pivotDepth, cell.Y + 1);
+            }
+            var pivot = new Vector3(pivotWidth * 0.5f, 0f, -pivotDepth * 0.5f);
+            Feedback.SetPivot(pivot);
+            Feedback.CompleteAll();
             VisualRoot = new GameObject("Visual Root").transform;
-            VisualRoot.SetParent(transform, false);
+            VisualRoot.SetParent(Feedback.Root, false);
+            VisualRoot.localPosition = -pivot;
             UsesPrefab = prefab != null;
             BuildShadow(footprint, template);
 

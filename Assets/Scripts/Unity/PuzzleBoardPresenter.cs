@@ -32,7 +32,8 @@ namespace ZipTrip.Unity
         /// </summary>
         public const float GameplayLidOpenDegrees = -90f;
 
-        public static readonly Color GhostColor = new Color(0.55f, 0.75f, 0.78f, 0.22f);
+        // ZT-040D: paper-white held silhouette, strong enough to read over felt, table and the footprint glow.
+        public static readonly Color GhostColor = new Color(0.97f, 0.95f, 0.9f, 0.5f);
         // Functional fallback-block colours (not final art): palette family plus two muted extras to reduce collisions.
         private static readonly Color[] Palette =
         {
@@ -165,6 +166,9 @@ namespace ZipTrip.Unity
                 instance.name = "Container " + _containerPrefab.name;
                 _container = ContainerRig.Bind(instance.transform);
                 _container.SetLidOpenPose(Quaternion.Euler(GameplayLidOpenDegrees, 0f, 0f));
+                // ZT-040D: the standing lid would throw one hard shadow across the whole lining under the top-left key.
+                foreach (var renderer in _container.Lid.GetComponentsInChildren<Renderer>())
+                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 _container.SetLidClosed(false);
             }
             var root = _container.Root;
@@ -210,11 +214,35 @@ namespace ZipTrip.Unity
                 foreach (var filler in fillers)
                     AddDecor("Padded Filler", PresentationKit.Slab(Inset(filler, 0.05f), 0.16f, SuitcaseShell.LiningY, FillerHeight), padding);
             }
-            var shadowTexture = OwnDecor(PresentationKit.SoftRect(64, 0.3f));
-            var shadow = OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.32f), shadowTexture));
+            // ZT-040D grounding: tight dark core + wide soft falloff, offset away from the top-left key.
             var footprint = ContainerFootprint;
-            AddDecor("Contact Shadow", PresentationKit.Quad(new Rect(footprint.xMin - 0.3f, footprint.yMin - 0.45f,
-                footprint.width + 0.6f, footprint.height + 0.6f), ContainerBottomY + 0.004f), shadow);
+            var core = OwnDecor(PresentationKit.SoftRect(64, 0.2f));
+            var soft = OwnDecor(PresentationKit.SoftRect(64, 0.45f));
+            AddDecor("Contact Shadow", PresentationKit.Quad(new Rect(footprint.xMin - 0.08f, footprint.yMin - 0.18f,
+                footprint.width + 0.2f, footprint.height + 0.2f), ContainerBottomY + 0.006f),
+                OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.5f), core)));
+            AddDecor("Soft Shadow", PresentationKit.Quad(new Rect(footprint.xMin - 0.55f, footprint.yMin - 1.1f,
+                footprint.width + 1.5f, footprint.height + 1.3f), ContainerBottomY + 0.004f),
+                OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.3f), soft)));
+            // Interior depth: soft occlusion where the lining floor meets the walls (darkens edges, clear centre).
+            var occlusion = OwnDecor(InnerOcclusion(64, 0.16f));
+            AddDecor("Lining Occlusion", PresentationKit.Quad(ContainerInterior, SuitcaseShell.LiningY + 0.004f),
+                OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.55f), occlusion)));
+        }
+
+        // Alpha 1 at the rim of the texture falling to 0 within `band` (fraction of the size) - an inner-edge glow mask.
+        private static Texture2D InnerOcclusion(int size, float band)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Lining occlusion" };
+            for (var y = 0; y < size; y++)
+                for (var x = 0; x < size; x++)
+                {
+                    var d = Mathf.Min(Mathf.Min(x + 0.5f, size - x - 0.5f), Mathf.Min(y + 0.5f, size - y - 0.5f)) / size;
+                    var a = 1f - Mathf.Clamp01(d / band);
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, a * a));
+                }
+            texture.Apply(false, true);
+            return texture;
         }
 
         private void AddDecor(string name, Mesh mesh, Material material) =>

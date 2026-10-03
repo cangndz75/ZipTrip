@@ -260,6 +260,39 @@ namespace ZipTrip.Unity
         }
 
         // Thin band following a closed contour (zipper trim, seams).
+        /// <summary>Stitch-like dashes of <paramref name="dash"/> length every dash + gap along a path (ZT-040D mat stitch).</summary>
+        public static Mesh DashedPath(IReadOnlyList<Vector2> path, float dash, float gap, float width, float y, bool closed)
+        {
+            var builder = new MeshBuilder();
+            var count = closed ? path.Count : path.Count - 1;
+            var phase = 0f; // distance into the current dash+gap period
+            for (var i = 0; i < count; i++)
+            {
+                var a = path[i];
+                var b = path[(i + 1) % path.Count];
+                var length = (b - a).magnitude;
+                if (length <= 1e-5f)
+                    continue;
+                var direction = (b - a) / length;
+                var n = new Vector2(-direction.y, direction.x) * width * 0.5f;
+                var walked = 0f;
+                while (walked < length)
+                {
+                    var inDash = phase < dash;
+                    var step = Mathf.Min(length - walked, (inDash ? dash : dash + gap) - phase);
+                    if (inDash)
+                    {
+                        var p = a + direction * walked;
+                        var q = a + direction * (walked + step);
+                        builder.Quad(At(p - n, y), At(q - n, y), At(q + n, y), At(p + n, y), Vector3.up);
+                    }
+                    walked += step;
+                    phase = (phase + step) % (dash + gap);
+                }
+            }
+            return builder.Build("Dashed path");
+        }
+
         public static Mesh Ribbon(IReadOnlyList<Vector2> path, float width, float y, bool closed)
         {
             var builder = new MeshBuilder();
@@ -418,6 +451,52 @@ namespace ZipTrip.Unity
                     texture.SetPixel(x, y, new Color(value, value, value, 1f));
                 }
             texture.Apply(true, true);
+            return texture;
+        }
+
+        /// <summary>Soft packing felt: fine fibres and faint mottling, white-ish so the material colour carries the hue.</summary>
+        public static Texture2D FeltTexture(int size, int seed)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true)
+            {
+                wrapMode = TextureWrapMode.Repeat, name = "Felt"
+            };
+            var random = new System.Random(seed);
+            var noise = new float[size * size];
+            for (var i = 0; i < noise.Length; i++)
+                noise[i] = (float)random.NextDouble();
+            for (var y = 0; y < size; y++)
+                for (var x = 0; x < size; x++)
+                {
+                    var fibre = noise[y * size + x] * 0.5f + noise[y * size + (x + 1) % size] * 0.25f + noise[((y + 1) % size) * size + x] * 0.25f;
+                    var mottle = 0.03f * Mathf.Sin(x * 0.11f + 1.3f) * Mathf.Sin(y * 0.09f + 0.4f);
+                    var value = Mathf.Clamp01(0.9f + (fibre - 0.5f) * 0.12f + mottle);
+                    texture.SetPixel(x, y, new Color(value, value, value, 1f));
+                }
+            texture.Apply(true, true);
+            return texture;
+        }
+
+        /// <summary>
+        /// Table light falloff: transparent around the warm key (<paramref name="keyCenter"/>, UV space), rising to
+        /// <paramref name="strength"/> alpha towards the edges. Used tinted dark over the table only (never over objects).
+        /// </summary>
+        public static Texture2D TableVignette(int size, Vector2 keyCenter, float strength)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp, name = "Table vignette"
+            };
+            for (var y = 0; y < size; y++)
+                for (var x = 0; x < size; x++)
+                {
+                    var uv = new Vector2((x + 0.5f) / size, (y + 0.5f) / size);
+                    var d = Mathf.Clamp01((Vector2.Distance(uv, keyCenter) - 0.18f) / 0.62f);
+                    var edge = Mathf.Clamp01(Mathf.Max(Mathf.Abs(uv.x - 0.5f), Mathf.Abs(uv.y - 0.5f)) * 2f - 0.55f) / 0.45f;
+                    var a = Mathf.Clamp01(0.75f * d * d * (3f - 2f * d) + 0.45f * edge * edge) * strength;
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                }
+            texture.Apply(false, true);
             return texture;
         }
 

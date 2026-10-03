@@ -54,6 +54,7 @@ namespace ZipTrip.Unity
         private PuzzleItem _item;
         private Vector3 _grabOffset;
         private Vector3 _lastPointer;
+        private Vector3 _dragStart;
         private Transform _ghostRoot;
 
         public PuzzleSession Session => _session;
@@ -146,6 +147,8 @@ namespace ZipTrip.Unity
             var scale = Mathf.Approximately(view.transform.lossyScale.x, 0f) ? 1f : view.transform.lossyScale.x;
             _grabOffset = new Vector3(origin.x - pointerWorld.x, 0f, origin.z - pointerWorld.z) / scale;
             view.transform.localScale = Vector3.one;
+            _dragStart = pointerWorld;
+            view.Feedback?.PlayLift();
             UpdateDrag(pointerWorld);
             return DragBeginResult.Started;
         }
@@ -252,7 +255,15 @@ namespace ZipTrip.Unity
             }
             var step = _session.Apply(CandidateMove());
             LastStep = step;
+            var id = _item.InstanceId;
+            var direction = _lastPointer - _dragStart;
             EndDrag();
+            // Feedback follows state: the view that now shows the item (placed or returned) plays it.
+            if (step.Move.IsAccepted && _board.ItemViews.TryGetValue(id, out var placed))
+                placed.Feedback?.PlaySettle();
+            else if (!step.Move.IsAccepted)
+                (_board.ItemViews.TryGetValue(id, out var home) ? home : _tray.ItemViews.TryGetValue(id, out home) ? home : null)
+                    ?.Feedback?.PlayReject(direction);
             StepCommitted?.Invoke(step);
             return step;
         }
@@ -295,6 +306,7 @@ namespace ZipTrip.Unity
 
         private void EndDrag()
         {
+            _view?.Feedback?.CompleteAll();
             _view = null;
             _item = null;
             HasCandidate = false;

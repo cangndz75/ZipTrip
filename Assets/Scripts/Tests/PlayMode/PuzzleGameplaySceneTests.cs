@@ -238,6 +238,44 @@ namespace ZipTrip.Tests.PlayMode
                 "preview disappears after cancel");
         }
 
+        // ZT-040D: drop feedback animates only the Feedback Root; the item root sits at its canonical placement on every
+        // frame, the state is untouched, and every channel ends exactly at rest.
+        [UnityTest]
+        public IEnumerator DropFeedback_NeverMovesTheItemRoot_AndEndsAtRest()
+        {
+            var scene = Scene(0);
+            yield return null;
+            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
+            var view = scene.Board.ItemViews["book-1"];
+            var canonical = PuzzleBoardLayout.ItemLocalPosition(view.Placement);
+            var hash = scene.Session.CurrentState.Hash;
+            Assert.That(view.Feedback.IsAnimating, Is.True, "valid drop settles");
+            var start = Time.realtimeSinceStartup;
+            while (view.Feedback.IsAnimating && Time.realtimeSinceStartup - start < 2f)
+            {
+                Assert.That(view.transform.localPosition, Is.EqualTo(canonical), "item root stays canonical");
+                Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(hash));
+                yield return null;
+            }
+            Assert.That(view.Feedback.IsAnimating, Is.False);
+            Assert.That(view.Feedback.Root.localScale, Is.EqualTo(Vector3.one));
+            Assert.That(view.Feedback.Root.localRotation, Is.EqualTo(Quaternion.identity));
+
+            // Rejected drop (laptop onto the book): the returned tray view wobbles home; state and move count unchanged.
+            var moves = scene.Session.MoveCount;
+            var tray = scene.Tray.ItemViews["laptop-1"];
+            scene.Drag.BeginDrag("laptop-1", TrayGrab(tray));
+            Assert.That(scene.Drag.DraggedInstanceId, Is.EqualTo("laptop-1"));
+            scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(3.5f, 0f, -4.5f));
+            Assert.That(scene.Drag.PreviewValid, Is.False);
+            scene.Drag.Drop();
+            Assert.That(scene.Session.MoveCount, Is.EqualTo(moves), "a rejected drop is not a move");
+            var returned = scene.Tray.ItemViews["laptop-1"];
+            Assert.That(returned.Feedback.IsAnimating, Is.True, "rejection feedback plays at home");
+            returned.Feedback.CompleteAll();
+            Assert.That(returned.Feedback.Root.localScale, Is.EqualTo(Vector3.one));
+        }
+
         // The glow covers exactly the snapped cells (plus its soft pad): centre and extent match the footprint rectangle.
         private static void AssertCovers(Bounds glow, Vector3 origin, Rect cells)
         {
@@ -341,8 +379,8 @@ namespace ZipTrip.Tests.PlayMode
                 Assert.That(interior.xMin <= frame.Origin.x && interior.xMax >= frame.Origin.x + frame.Width
                     && interior.yMin <= frame.Origin.z - frame.Height && interior.yMax >= frame.Origin.z, Is.True,
                     scene.LevelId + " board inside the authored interior");
-                Assert.That(scene.Tray.transform.position.y, Is.EqualTo(board.ContainerBottomY).Within(1e-4f),
-                    "loose items rest on the suitcase's surface");
+                Assert.That(scene.Tray.transform.position.y, Is.EqualTo(board.ContainerBottomY + PackingTable.MatThickness).Within(1e-4f),
+                    "loose items rest on the felt mat on the suitcase's table");
                 Assert.That(scene.Tray.transform.position.z, Is.LessThan(board.ContainerFootprint.yMin), "in front of the suitcase");
                 scene.NextLevel();
                 yield return null;
@@ -597,6 +635,62 @@ namespace ZipTrip.Tests.PlayMode
             yield return Capture(scene, folder, "08-lid-identity-closed", 1080, 2340);
             scene.Board.Container.SetLidClosed(false);
             Debug.Log("[zt040c-screens] " + folder);
+        }
+
+        // ZT-040D visual proof at 1080x2340, rendered with the Mobile quality level (the Android pipeline asset).
+        [UnityTest, Explicit("Writes ZT-040D screenshots")]
+        public IEnumerator CaptureFirstPlayablePolishScreenshots()
+        {
+            var quality = QualitySettings.GetQualityLevel();
+            QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "Mobile"), true);
+            try
+            {
+                var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../Builds/zt040d-screens"));
+                Directory.CreateDirectory(folder);
+                yield return LoadGameplayScene();
+                var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+                scene.Hud.RenderThrough(scene.Camera);
+                var main = scene.Board.Compartments["main"].transform.position;
+
+                yield return Capture(scene, folder, "01-lv1-idle", 1080, 2340);
+                scene.Drag.BeginDrag("sneaker-1", TrayGrab(scene.Tray.ItemViews["sneaker-1"]));
+                scene.Drag.UpdateDrag(main + new Vector3(2.2f, 0f, -9.2f));
+                yield return new WaitForSecondsRealtime(0.3f);
+                yield return Capture(scene, folder, "02-lv1-picked-up", 1080, 2340);
+                scene.Drag.UpdateDrag(main + new Vector3(3.5f, 0f, -0.5f));
+                yield return Capture(scene, folder, "03-lv1-valid-hover", 1080, 2340);
+                scene.Drag.Cancel();
+                Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
+                scene.Drag.BeginDrag("sneaker-1", TrayGrab(scene.Tray.ItemViews["sneaker-1"]));
+                scene.Drag.UpdateDrag(main + new Vector3(1.5f, 0f, -0.5f));
+                yield return new WaitForSecondsRealtime(0.3f);
+                yield return Capture(scene, folder, "04-lv1-invalid-hover", 1080, 2340);
+                scene.Drag.Cancel();
+                Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
+                yield return new WaitForSecondsRealtime(0.4f);
+                yield return Capture(scene, folder, "05-lv1-partial", 1080, 2340);
+                Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
+                Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0));
+                yield return new WaitForSecondsRealtime(0.4f);
+                yield return Capture(scene, folder, "06-lv1-complete", 1080, 2340);
+
+                scene.Perform(PuzzleHudAction.Next);
+                main = scene.Board.Compartments["main"].transform.position;
+                yield return Capture(scene, folder, "07-lv2-idle", 1080, 2340);
+                scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
+                scene.Drag.Cancel();
+                scene.Perform(PuzzleHudAction.Rotate);
+                scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
+                scene.Drag.UpdateDrag(main + new Vector3(0.5f, 0f, -0.5f));
+                yield return new WaitForSecondsRealtime(0.3f);
+                yield return Capture(scene, folder, "08-lv2-rotated-laptop-drag", 1080, 2340);
+                scene.Drag.Cancel();
+                Debug.Log("[zt040d-screens] " + folder);
+            }
+            finally
+            {
+                QualitySettings.SetQualityLevel(quality, true);
+            }
         }
 
         private static IEnumerator Capture(PuzzleGameplayScene scene, string folder, string name, int width, int height,
