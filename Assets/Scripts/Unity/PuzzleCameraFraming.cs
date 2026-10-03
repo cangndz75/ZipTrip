@@ -8,7 +8,7 @@ namespace ZipTrip.Unity
     {
         public const float Pitch = 75f; // ADR-0002 fixed camera pitch.
         public const float Distance = 12f;
-        public const float Margin = 0.35f;
+        public const float Margin = 0.25f;
 
         /// <param name="topFraction">Screen-height fraction covered by the top HUD band.</param>
         /// <param name="bottomFraction">Screen-height fraction covered by the bottom HUD band.</param>

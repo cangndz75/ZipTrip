@@ -15,9 +15,19 @@ namespace ZipTrip.Unity
     public sealed class PuzzleGameplayScene : MonoBehaviour
     {
         public const string LevelFolder = "LevelsV2/";
-        public const float TrayScale = 0.6f;
-        /// <summary>Distance from the suitcase interior's front edge to the first row of loose items (clears wall + handle).</summary>
-        public const float TrayGap = 1.9f;
+        /// <summary>Loose-item scale bounds; the actual scale fits all Source Tray items into one row (ZT-040B pass 2).</summary>
+        public const float MinTrayScale = 0.58f;
+        public const float MaxTrayScale = 0.8f;
+        /// <summary>How far the row of loose items may extend past the suitcase's outer width (both sides together).</summary>
+        public const float TrayOverhang = 0.7f;
+        public const float TrayItemGap = 0.3f;
+        /// <summary>Distance from the suitcase interior's front edge to the loose items (clears wall + handle).</summary>
+        public const float TrayGap = 1.5f;
+        /// <summary>
+        /// Height (world y above the hinge) of the open lid that camera framing reserves; the rest of the lid may rise
+        /// into the top HUD band or past the screen edge, so the lid reads without shrinking the board.
+        /// </summary>
+        public const float LidFrameHeight = 3.5f;
         private const float SurfaceSize = 90f;
 
         [SerializeField] private string[] levelIds = { "lv1-fit", "lv2-rotate" };
@@ -85,11 +95,11 @@ namespace ZipTrip.Unity
                 boardDepth = Mathf.Max(boardDepth, frame.Height);
             }
             Tray.Clear();
-            Tray.Scale = TrayScale;
-            Tray.Gap = 0.5f;
+            Tray.Gap = TrayItemGap;
             Tray.CenterRows = true;
-            // Rows may use the suitcase's full outer width and stay centred under it (keeps the framing symmetric).
-            Tray.RowWidth = Mathf.Max(boardWidth + SuitcaseShell.Wall * 2f, 4f);
+            // One centred row a little wider than the suitcase (keeps framing symmetric); wraps only if it cannot fit.
+            Tray.RowWidth = Mathf.Max(boardWidth + SuitcaseShell.Wall * 2f + TrayOverhang, 4f);
+            Tray.Scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
             Tray.transform.localPosition = new Vector3((boardWidth - Tray.RowWidth) * 0.5f, 0f, -(boardDepth + TrayGap));
             PlaceSurface(boardWidth * 0.5f, -boardDepth);
             Drag.Initialize(Session, Board, Tray, Camera);
@@ -173,11 +183,35 @@ namespace ZipTrip.Unity
                 FrameCamera();
         }
 
+        // Largest scale (within bounds) that lays every Source Tray item, at its display rotation, in one row.
+        private static float FitTrayScale(PuzzleState state, float rowWidth)
+        {
+            float cells = 0f;
+            var count = 0;
+            foreach (var item in state.GetItems(ItemLocationKind.SourceTray))
+            {
+                item.State.TryGetFootprint(item.State.AllowedRotations[0], out var footprint);
+                var width = 0;
+                foreach (var cell in footprint.OccupiedCells)
+                    width = Mathf.Max(width, cell.X + 1);
+                cells += width;
+                count++;
+            }
+            if (count == 0)
+                return MaxTrayScale;
+            // 0.995: an exact fit must not wrap the last item on float rounding.
+            return Mathf.Clamp((rowWidth - (count - 1) * TrayItemGap) / cells * 0.995f, MinTrayScale, MaxTrayScale);
+        }
+
         public void FrameCamera()
         {
             var bounds = new Bounds(Board.transform.position, Vector3.zero);
+            var lid = Board.Shell != null ? Board.Shell.Lid : null;
             foreach (var renderer in Board.GetComponentsInChildren<Renderer>())
-                bounds.Encapsulate(renderer.bounds);
+                if (lid == null || !renderer.transform.IsChildOf(lid))
+                    bounds.Encapsulate(renderer.bounds);
+            if (lid != null)
+                bounds.Encapsulate(lid.position + Vector3.up * LidFrameHeight);
             foreach (var renderer in Tray.GetComponentsInChildren<Renderer>())
                 bounds.Encapsulate(renderer.bounds);
             PuzzleCameraFraming.Frame(Camera, bounds, PuzzleHud.TopFraction(Camera.pixelWidth, Camera.pixelHeight),

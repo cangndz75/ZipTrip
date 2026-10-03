@@ -18,7 +18,9 @@ namespace ZipTrip.Unity
         /// <summary>Height of the packing surface the suitcase and the loose source items rest on.</summary>
         public const float SurfaceY = -0.03f;
         /// <summary>How far the open lid leans back past vertical.</summary>
-        public const float LidLeanDegrees = 4f;
+        public const float LidLeanDegrees = 2f;
+        /// <summary>The lid hinge sits this far inside the body's back edge so the lid rises straight from the rim.</summary>
+        public const float LidTuck = 0.12f;
 
         private readonly List<Object> _owned = new List<Object>();
         private Transform _root;
@@ -34,11 +36,11 @@ namespace ZipTrip.Unity
         public void Build(Rect interior, IEnumerable<Rect> fillers, Material template)
         {
             Clear();
+            Interior = interior;
+            Body = new Rect(interior.xMin - Wall, interior.yMin - Wall, interior.width + 2f * Wall, interior.height + 2f * Wall);
             template = PresentationKit.TemplateOrFallback(template);
             if (template == null)
                 return;
-            Interior = interior;
-            Body = new Rect(interior.xMin - Wall, interior.yMin - Wall, interior.width + 2f * Wall, interior.height + 2f * Wall);
             _root = new GameObject("Suitcase Visual").transform;
             _root.SetParent(transform, false);
 
@@ -90,7 +92,7 @@ namespace ZipTrip.Unity
             var depth = Body.height;
             Lid = new GameObject("Open Lid").transform;
             Lid.SetParent(_root, false);
-            Lid.localPosition = new Vector3(0f, RimY * 0.55f, Body.yMax);
+            Lid.localPosition = new Vector3(0f, RimY * 0.55f, Body.yMax - LidTuck);
             Lid.localRotation = Quaternion.Euler(-(90f - LidLeanDegrees), 0f, 0f);
 
             var lidBody = new Rect(Body.xMin, 0f, Body.width, depth);

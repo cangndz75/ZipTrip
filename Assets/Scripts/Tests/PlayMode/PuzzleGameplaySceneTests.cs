@@ -231,6 +231,52 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(main.VisibleGuideCount, Is.Zero, "guides disappear after cancel");
         }
 
+        // ZT-040B composition guard at the Huawei portrait resolution: the suitcase fills most of the width, loose items
+        // lie in one row at a readable size, and nothing is pushed under the HUD bands.
+        [UnityTest]
+        public IEnumerator Portrait1080x2340_SuitcaseFillsTheWidth_LooseItemsAreOneReadableRow()
+        {
+            var scene = Scene(0);
+            yield return null;
+            var camera = scene.Camera;
+            var target = new RenderTexture(1080, 2340, 24);
+            camera.targetTexture = target;
+            try
+            {
+                scene.FrameCamera();
+                var shell = scene.Board.Shell;
+                var origin = shell.transform.position;
+                var body = shell.Body;
+                var left = camera.WorldToViewportPoint(origin + new Vector3(body.xMin, 0f, body.center.y)).x;
+                var right = camera.WorldToViewportPoint(origin + new Vector3(body.xMax, 0f, body.center.y)).x;
+                Assert.That(right - left, Is.GreaterThanOrEqualTo(0.75f), "suitcase body width on screen");
+                Assert.That(left, Is.GreaterThanOrEqualTo(0f));
+                Assert.That(right, Is.LessThanOrEqualTo(1f));
+
+                var rows = scene.Tray.ItemViews.Values.Select(v => v.transform.localPosition.z).Distinct().Count();
+                Assert.That(rows, Is.EqualTo(1), "Lv1 loose items lie in one row");
+                var pixelsPerCell = scene.Tray.Scale * camera.pixelHeight / (2f * camera.orthographicSize);
+                Assert.That(pixelsPerCell, Is.GreaterThanOrEqualTo(75f), "loose items are not tiny icons");
+
+                var top = PuzzleHud.TopFraction(camera.pixelWidth, camera.pixelHeight);
+                var bottom = PuzzleHud.BottomFraction(camera.pixelWidth, camera.pixelHeight);
+                Assert.That(camera.WorldToViewportPoint(origin + new Vector3(body.center.x, 0f, body.yMax)).y,
+                    Is.LessThanOrEqualTo(1f - top + 0.001f), "suitcase body stays below the top HUD band");
+                foreach (var view in scene.Tray.ItemViews.Values)
+                {
+                    var depth = view.Footprint.OccupiedCells.Max(c => c.Y) + 1;
+                    var lowest = view.transform.position + new Vector3(0f, 0f, -depth * scene.Tray.Scale);
+                    Assert.That(camera.WorldToViewportPoint(lowest).y, Is.GreaterThanOrEqualTo(bottom - 0.001f),
+                        view.InstanceId + " stays above the controls");
+                }
+            }
+            finally
+            {
+                camera.targetTexture = null;
+                Object.Destroy(target);
+            }
+        }
+
 #if UNITY_EDITOR
         // ZT-040B: Lv1-Lv2 show item art only (golden prefabs or the procedural book), never footprint blocks.
         [UnityTest]
@@ -326,6 +372,10 @@ namespace ZipTrip.Tests.PlayMode
 
             yield return Capture(scene, folder, "lv1-A-idle", 1080, 2340);
             yield return Capture(scene, folder, "lv1-A-idle-1080x1920", 1080, 1920);
+            scene.Drag.BeginDrag("sneaker-1", TrayGrab(scene.Tray.ItemViews["sneaker-1"]));
+            scene.Drag.UpdateDrag(main + new Vector3(3.5f, 0f, -0.5f));
+            yield return Capture(scene, folder, "lv1-B-drag-sneaker", 1080, 2340);
+            scene.Drag.Cancel();
             scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
             scene.Drag.UpdateDrag(main + new Vector3(0.5f, 0f, -0.5f));
             yield return Capture(scene, folder, "lv1-B-drag-valid", 1080, 2340);
