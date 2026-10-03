@@ -76,6 +76,7 @@ Roll, Vacuum, Protected and Travel Bottle are not separate states.
       - Completion requires every required Source Tray item to have entered the suitcase where the objective requires it (Decision 16).
 12. **2.5D board, `L = 2`.**
     - Board is `W × H × L`; zones are per cell. Pockets are separate compartments with their own small grids (typically `L = 1`).
+    - **Zone granularity (clarification).** Zones are XY-column metadata: a zone on `(x, y)` applies to every layer of that column, each column has at most one zone, and layer-sensitive play is expressed through Layer / Access, never per-layer zones.
     - Item thickness is per state (1 or 2 layers).
     - **Full support:** every occupied cell of an upper-layer item's footprint must be supported by some lower-layer item. Multiple lower items may share support. No physics, centre of mass or partial-support thresholds.
     - **Blocking:** `blockers(i)` = items on a higher layer whose footprint overlaps `i`. `accessible(i) ⇔ blockers(i) = ∅`.
