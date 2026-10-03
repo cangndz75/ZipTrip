@@ -320,3 +320,26 @@ Execution detail:
 > mevcut Phase A planı / ticket
 
 Dokümantasyon ilerleme hissi yaratmak için çoğaltılmaz; execution'a hizmet eder.
+
+## Δ-21 — ADR-0006 Dynamic Packing Puzzle Contract
+
+`Docs/ADR/ADR-0006-dynamic-packing-puzzle-contract.md` kabul edilmiştir ve dinamik packing gameplay kontratının implementation authority'sidir.
+
+ADR-0006, Blueprint v1.1 ve bu Delta'daki çelişen gameplay hükümlerinin yerine geçer:
+
+- Pack / Extract / Repack semantiği
+- `W × H × L` 2.5D board temsili
+- layer / access modeli
+- staging capacity
+- Source Tray ile staging ayrımı
+- Fold / Compress / Nest semantiği
+- rule / objective / invariant ayrımı
+- completion kontratları
+- atomic move semantiği
+- Extract destination semantiği
+- bu mekaniklerin gerektirdiği solver / validator modeli
+- 10 level'lık DESIGN VALIDATION slice
+
+Çelişmeyen mimari kararlar geçerliliğini korur. `Domain → Application → Unity` bağımlılık yönü değişmez. ADR-0001, ADR-0002, ADR-0003, ADR-0004 ve çelişmeyen diğer ADR'ler yürürlüktedir.
+
+ZipTrip GDD v0.3 yalnız gelecek içerik keşfidir; implementation authority değildir.

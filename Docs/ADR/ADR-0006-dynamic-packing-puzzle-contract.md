@@ -50,6 +50,12 @@ Player loop: **prepare → place → cover → re-access when needed → add new
 
 Roll, Vacuum, Protected and Travel Bottle are not separate states.
 
+- **Where Fold and Compress happen (clarification).** Fold and Compress are preparation operations. An item's Fold/Compress state may be configured only while the item is outside the suitcase: in the Source Tray (Decision 11) or in staging.
+  - They may not be applied in place to an item occupying suitcase cells, nor to a nested child while it remains nested.
+  - If a packed item needs a different Fold/Compress state (e.g. during Repack), it must first become accessible, be relocated to staging, and then be re-placed in the desired authored state.
+  - There is no separate zero-cost Fold/Compress gameplay action. The chosen authored state is committed as part of the next placement/relocation; previewing or selecting a state before commit is not a move (Decision 18).
+  - Nest remains a containment relocation: accessible child → accessible compatible parent is one move, and a parent moves with all its nested children (Decision 17).
+
 ### Ritual and scope
 
 9. **Zip It is a completion ritual, not a mini-game.** Final legal placement → short pause → rule indicators complete → straps snap → lid closes → zip → victory burst. X-Ray Control is the only mini-game research candidate; all others are backlog.
@@ -61,6 +67,13 @@ Roll, Vacuum, Protected and Travel Bottle are not separate states.
     - Slice: `stagingCapacity = 2`. Later levels may use 1 / 2 / 3; capacity is a difficulty knob in its own right (3 = easy, 2 = normal, 1 = hard on the same board).
     - Each slot holds exactly one item (a parent with nested children counts as one item and keeps its children).
     - Slots carry no geometry or rotation, accept no nesting, and never block each other. Bed/table is a visual metaphor only.
+    - **Source Tray vs staging (clarification).** The Source Tray (unplaced pool) is distinct from staging.
+      - The Source Tray holds required items that have not yet entered the suitcase. Pack starts with its unpacked required items there; Repack may introduce new incoming items (e.g. souvenirs) there.
+      - The Source Tray has no capacity limit in the validation slice and does not consume staging capacity.
+      - Staging is only temporary holding space for items removed from the suitcase during rearrangement.
+      - Source Tray items take no part in suitcase blocking, support or adjacency until placed.
+      - A committed Source Tray → suitcase placement is one move (Decision 18). Source Tray → staging is not supported in the slice.
+      - Completion requires every required Source Tray item to have entered the suitcase where the objective requires it (Decision 16).
 12. **2.5D board, `L = 2`.**
     - Board is `W × H × L`; zones are per cell. Pockets are separate compartments with their own small grids (typically `L = 1`).
     - Item thickness is per state (1 or 2 layers).
@@ -68,6 +81,21 @@ Roll, Vacuum, Protected and Travel Bottle are not separate states.
     - **Blocking:** `blockers(i)` = items on a higher layer whose footprint overlaps `i`. `accessible(i) ⇔ blockers(i) = ∅`.
     - **Adjacency counts vertical neighbours** as well as lateral ones (a snow globe on a sweater is protected; shoes on clothes are touching).
     - Hidden lower-layer content must be readable while the upper layer is occupied (ghost / X-ray view).
+    - **Physical occupancy (clarification).** "Overlap" always means physical volume overlap, never XY overlap.
+      - A placement with footprint `F` (current state, current rotation), base layer `layer` and current-state `thickness` occupies the physical cells `{ (x, y, z) | (x, y) ∈ F, z ∈ [layer, layer + thickness) }`.
+      - A placement is valid only when (1) `layer ≥ 0` and `layer + thickness ≤ L` for its compartment, and (2) no two items occupy the same physical `(x, y, z)` cell. Footprint cells must also lie inside the compartment's valid cells.
+      - XY footprint overlap across **different** layers is legal and intentional: it is what creates support and blocking.
+      - With launch board `L = 2`: a thickness-1 item may sit on layer 0 or layer 1; a thickness-2 item can only start at layer 0.
+      - Full support still applies on top of this: for every footprint cell `(x, y)` of an item with `layer > 0`, the cell `(x, y, layer − 1)` must be occupied by some item.
+      - Occupancy is always computed from the item's current state. Fold changes `F`; Compress changes `thickness`. Because those states are chosen outside the suitcase (Decision 8), occupancy is evaluated for the state committed with the placement.
+      - `blockers(i)` = items `j ≠ i` whose footprint overlaps `i`'s footprint in XY **and** whose base layer is `≥ i.layer + i.thickness`.
+      - **Vertical adjacency:** `i` and `j` touch vertically when their footprints overlap in XY and one's base layer equals the other's `layer + thickness`. **Lateral adjacency:** some occupied cell of `i` and some occupied cell of `j` are orthogonal XY neighbours at the same `z`.
+      - Nested children occupy no board cells (Decision 8) and are not part of this occupancy computation.
+      - This is a discrete layered-cell model. No arbitrary voxel physics, centre of mass, or partial support.
+    - **Automatic layer resolution (clarification).** The player never chooses a layer in the validation slice. A 2D drop candidate resolves to the **lowest legal layer**.
+      - For `L = 2`: if layer 0 satisfies bounds, mask and physical occupancy, use layer 0; otherwise evaluate layer 1, which is legal only if full support is satisfied. A thickness-2 item cannot start on layer 1.
+      - If no layer is legal, the placement preview is invalid.
+      - No layer toggle, layer button or explicit Z-axis control in the slice. Presentation may show the resolved candidate layer during preview.
 13. **Rules and Objectives are separate concepts.** Rules describe what a legal layout is; objectives describe what a level asks for (Pack / Extract / Repack).
 
 ### Validation architecture
@@ -77,7 +105,7 @@ Roll, Vacuum, Protected and Travel Bottle are not separate states.
 
 | Layer | Enforced at every intermediate state? | Contents |
 |---|---|---|
-| Board Invariants | Yes, illegal moves are rejected | No overlap, in bounds, full support, staging capacity |
+| Board Invariants | Yes, illegal moves are rejected | No physical volume overlap (Decision 12), in bounds, full support, staging capacity |
 | Puzzle Rules | No, evaluated live and shown as indicators | Zone, Adjacency ±, Group, Access, Balance |
 | Objective | At completion only | Profile-specific (see 16) |
 
@@ -87,10 +115,29 @@ A move that temporarily breaks a rule (e.g. moving headphones to staging splits 
     - **Pack:** all required items inside ∧ board invariants valid ∧ all rules satisfied ∧ staging empty.
     - **Repack:** all existing required items + all new items inside ∧ board invariants valid ∧ all rules satisfied ∧ staging empty.
     - **Extract:** extraction target is in its extraction destination (e.g. security tray) ∧ remaining suitcase satisfies invariants and rules ∧ staging empty. Moving the target to a staging slot is **not** completion.
+    - **Active rule domain (clarification).** Puzzle rules are evaluated against the active item set: the items participating in the suitcase objective.
+      - An item that has been moved to an extraction destination leaves the suitcase rule domain. Items on the board, nested inside board items, or in staging remain in the domain.
+      - A rule that references an item outside the domain no longer has to be satisfied for that item, unless the rule explicitly declares a post-extraction scope. Tag-based rules (e.g. Group) evaluate over the in-domain members of the tag; item-pair rules (e.g. Adjacency) whose subject has left the domain are satisfied for that pair.
+      - Extract completion still requires: target at its extraction destination ∧ remaining suitcase invariants valid ∧ remaining applicable rules satisfied ∧ staging empty.
+      - Example: if Laptop took part in a Group or Adjacency rule, extracting Laptop must not make completion impossible solely because Laptop is no longer inside the suitcase.
+      - This is generic evaluator/data-model behaviour. Rule data declares its scope; no item-specific or X-Ray-specific code paths.
+    - **Extraction destination (clarification).** An extraction destination is a level-defined external objective sink.
+      - Slice: one destination, capacity 1, no geometry or grid. It accepts the authored extraction target, does not consume staging capacity, and is outside the suitcase rule domain.
+      - Moving an accessible target there is one move (Decision 18). After commit the target cannot be moved back by normal gameplay; Undo may restore the previous state.
+      - Placing the target in staging is not extraction completion.
+      - Data model stays generic (`id`, `capacity`, accepted item ids / tags / objective roles), but multi-destination gameplay is not part of the slice.
 17. **Nest access follows the parent.**
     - A nested child is accessible only if its parent is accessible.
     - When the parent is accessible, the child can be taken out without removing the parent from the suitcase; the child goes to staging or the board.
     - Moving a parent moves its nested children with it as one move.
+18. **Atomic move semantics (clarification).** Min-move metrics, telemetry, undo and the planning solver share one definition: **one committed relocation of one accessible item is one move.**
+    - Each of these costs exactly one move: Source Tray → suitcase; suitcase → another legal suitcase placement; suitcase → staging; staging → suitcase; accessible nested child → staging; accessible nested child → board; accessible child → accessible compatible parent (nest); accessible target → extraction destination.
+    - Previewing a placement is not a move. Invalid or uncommitted previews are not moves.
+    - Rotating, or selecting a Fold/Compress state, before committing a placement is not a separate move; the rotation and the authored state are part of the committed relocation (Decision 8).
+    - Undo reverses state but does not increment the move counter. The move counter is session-level data, not canonical puzzle state (Delta Δ-09), so it is not part of the state hash.
+    - Moving a parent item carries all its nested children and remains one move.
+    - Camera movement, selection, UI taps and inspection are never moves.
+    - Pack min-move stays outside scoring. For Extract and Repack, solver `minMoves` remains an **authoring metric only** until playtest data justifies player-facing stars.
 
 ## Validation slice
 
@@ -137,7 +184,7 @@ A move that temporarily breaks a rule (e.g. moving headphones to staging splits 
 
 - **Min moves is an authoring metric only.** It is logged with player moves in telemetry, but not tied to stars until human play data shows how mathematical and intuitive optima differ.
 - **Canonical state hashing** may merge items only when truly interchangeable. Equivalence key ≈ `itemDefinition + state + tags + objectiveRole + mutableProperties`. Two identical T-shirts where one is objective-required are not equivalent.
-- Move types for search: take an accessible item (to staging or a free legal cell); place a staged item into a legal cell.
+- Move types for search: place a Source Tray item into a legal cell; take an accessible item (to staging, a free legal cell, a compatible parent, or the extraction destination); place a staged item into a legal cell. Fold/Compress states are chosen as part of placements from the Source Tray or staging. Each search edge is exactly one move as defined in Decision 18, so solver `minMoves` and player move counts are directly comparable.
 
 ## Consequences
 

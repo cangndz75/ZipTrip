@@ -7,6 +7,8 @@ ZipTrip'in ürün ve teknik kararlarında tek source of truth:
 1. Blueprint v1.1
 2. Blueprint v1.2 Delta
 
+Delta'nın yetkilendirdiği kabul edilmiş ADR'ler bu kaynakların parçasıdır. Dinamik packing gameplay kontratı için implementation authority `Docs/ADR/ADR-0006-dynamic-packing-puzzle-contract.md`'dir (Δ-21).
+
 `ZipTrip_Phase_A_Execution_Plan.md` yalnızca execution order'dır.
 Phase A ticket'ları yalnızca Blueprint + Delta kararlarını uygular.
 

@@ -36,6 +36,8 @@ Product and technical decisions are governed by:
 1. ZipTrip Blueprint v1.1
 2. ZipTrip Blueprint v1.2 Delta
 
+Accepted ADRs authorised by the Delta are part of that authority. ADR-0006 (`Docs/ADR/ADR-0006-dynamic-packing-puzzle-contract.md`) is the implementation authority for the dynamic packing gameplay contract (Δ-21).
+
 Execution plans and tickets implement those documents and do not override them.
 
 ## Opening the Project
