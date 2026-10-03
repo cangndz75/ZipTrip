@@ -249,9 +249,9 @@ namespace ZipTrip.Tests.PlayMode
         [UnityTest, Explicit("Writes screenshots for the ZT-039 visual smoke check")]
         public IEnumerator CaptureHarnessScreenshots()
         {
-            yield return SceneManager.LoadSceneAsync("GameplaySandbox");
+            yield return SceneManager.LoadSceneAsync("PuzzleGameplay");
             yield return null;
-            var template = Object.FindFirstObjectByType<BoardPresenter>().RuntimeMaterialTemplate;
+            var template = Object.FindFirstObjectByType<PuzzleGameplayScene>().MaterialTemplate;
             var catalog = Object.FindFirstObjectByType<GoldenItemPrefabCatalog>();
             foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
                 if (root.GetComponent<Light>() == null)

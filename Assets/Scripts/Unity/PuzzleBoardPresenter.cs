@@ -35,7 +35,7 @@ namespace ZipTrip.Unity
         /// <summary>Board views keyed by item instance id (suitcase-resident items only).</summary>
         public IReadOnlyDictionary<string, PuzzleItemView> ItemViews => _items;
 
-        /// <param name="materialTemplate">Shared runtime material (e.g. BoardPresenter.RuntimeMaterialTemplate); may be null.</param>
+        /// <param name="materialTemplate">Shared runtime material (e.g. PuzzleGameplayScene.MaterialTemplate); may be null.</param>
         /// <param name="visualResolver">Optional prefab lookup per item; null or a null result uses footprint blocks.</param>
         /// <param name="compartmentOrigins">Optional scene-authored local origins per compartment id; missing ids use the
         /// deterministic side-by-side fallback (PuzzleBoardLayout), which is not a production layout contract.</param>

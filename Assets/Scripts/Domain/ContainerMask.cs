@@ -11,12 +11,6 @@ namespace ZipTrip.Domain
         public int Height { get; }
         public int ValidCellCount { get; }
 
-        // Legacy fixed-grid mask (8x10). Kept byte-identical for the existing Pack runtime until ZT-049.
-        public ContainerMask(IEnumerable<Cell> validCells)
-            : this(GridSize.Width, GridSize.Height, validCells)
-        {
-        }
-
         public ContainerMask(int width, int height, IEnumerable<Cell> validCells)
         {
             if (width <= 0)

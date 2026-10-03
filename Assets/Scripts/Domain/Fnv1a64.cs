@@ -4,7 +4,7 @@ namespace ZipTrip.Domain
 {
     /// <summary>
     /// Stable 64-bit FNV-1a over canonical bytes. Neutral shared primitive (no gameplay semantics):
-    /// used by the ADR-0006 board model and by legacy StateHash. Retained across ZT-049.
+    /// used by the ADR-0006 board model and PuzzleState hashing.
     /// </summary>
     public static class Fnv1a64
     {

@@ -15,7 +15,7 @@ namespace ZipTrip.Unity
     // (layer 1) and an optional golden sweater. Keys: R rotate while dragging, Esc / right click cancel, X X-Ray, U undo.
     public sealed class PuzzleHarness : MonoBehaviour
     {
-        private const float CameraPitch = 75f; // Same pitch as FixedGameplayCamera.
+        private const float CameraPitch = 75f; // ADR-0002 fixed camera pitch.
         private const float CameraDistance = 12f;
         private const float FrameMargin = 0.5f;
 

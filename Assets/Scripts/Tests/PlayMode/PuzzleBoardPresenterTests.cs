@@ -222,9 +222,9 @@ namespace ZipTrip.Tests.PlayMode
         [UnityTest]
         public IEnumerator XRay_GhostsOnlyUpperItems_RestoresAndNeverTouchesState()
         {
-            yield return SceneManager.LoadSceneAsync("GameplaySandbox");
+            yield return SceneManager.LoadSceneAsync("PuzzleGameplay");
             yield return null;
-            var template = Object.FindFirstObjectByType<BoardPresenter>().RuntimeMaterialTemplate;
+            var template = Object.FindFirstObjectByType<PuzzleGameplayScene>().MaterialTemplate;
             Assert.That(template, Is.Not.Null);
 
             var board = Board();
@@ -262,23 +262,35 @@ namespace ZipTrip.Tests.PlayMode
         [UnityTest]
         public IEnumerator GoldenPrefabs_AlignWithTheV2FootprintInAnOffsetCompartment()
         {
-            yield return SceneManager.LoadSceneAsync("GameplaySandbox");
+            yield return SceneManager.LoadSceneAsync("PuzzleGameplay");
             yield return null;
             var catalog = Object.FindFirstObjectByType<GoldenItemPrefabCatalog>();
-            var legacy = PhaseAItemCatalog.Create(true).ToDictionary(item => item.Id);
+            var upright = new[] { Rotation.Degrees0, Rotation.Degrees90 };
+            // Approved golden footprints (golden-item-footprints.md), including the folded sweater that the
+            // first-playable catalog does not author yet.
+            var golden = new[]
+            {
+                new ItemSpec("laptop", "open", new[] { new ItemStateSpec("open", new ItemShape(Rect(3, 4)), 1, upright) }),
+                new ItemSpec("sneaker", "open", new[]
+                {
+                    new ItemStateSpec("open", new ItemShape(new[] { new Cell(0, 0), new Cell(0, 1), new Cell(0, 2), new Cell(1, 2) }), 1, All)
+                }),
+                new ItemSpec("sweater", "open", new[]
+                {
+                    new ItemStateSpec("open", new ItemShape(Rect(3, 3)), 1, upright),
+                    new ItemStateSpec("folded", new ItemShape(Rect(2, 4)), 1, upright)
+                })
+            };
             var board = new BoardSpec(new[]
             {
                 new Compartment("a-pocket", 2, 1, 1, Rect(2, 1)),
                 new Compartment("main", 7, 7, 2, Rect(7, 7))
             });
 
-            foreach (var id in new[] { "laptop", "sneaker", "sweater" })
+            foreach (var spec in golden)
             {
-                // v2 spec mirroring the approved legacy footprints and state ids (test-only bridge, no runtime dependency).
-                var definition = legacy[id];
-                var spec = new ItemSpec(id, definition.BaseStateId,
-                    definition.ShapeStates.Select(s => new ItemStateSpec(s.Key, s.Value, 1, definition.AllowedRotations)));
-                var presenter = Presenter(board, null, item => catalog.Resolve(definition.VisualPrefabId, item.StateId));
+                var id = spec.Id;
+                var presenter = Presenter(board, null, item => PuzzleItemCatalog.ResolveGolden(catalog, item.Definition.Id, item.StateId));
                 foreach (var state in spec.States)
                     foreach (var rotation in state.AllowedRotations)
                     {

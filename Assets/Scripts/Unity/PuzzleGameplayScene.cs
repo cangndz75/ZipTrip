@@ -32,6 +32,7 @@ namespace ZipTrip.Unity
         public PuzzleDragController Drag { get; private set; }
         public PuzzleHud Hud { get; private set; }
         public Camera Camera { get; private set; }
+        public Material MaterialTemplate => materialTemplate;
         public int LevelIndex { get; private set; }
         public string LevelId => levelIds[LevelIndex];
         /// <summary>incomplete -> complete edges seen in this scene (Δ-11 semantics come from PuzzleSession).</summary>

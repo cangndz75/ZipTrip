@@ -210,7 +210,8 @@ namespace ZipTrip.Tests.PlayMode
             var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
             Assert.That(scene, Is.Not.Null);
             Assert.That(scene.Level.Id, Is.EqualTo("lv1-fit"));
-            Assert.That(Object.FindFirstObjectByType<PackGameplayController>(), Is.Null, "no legacy gameplay controller");
+            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+                Assert.That(root.GetComponentsInChildren<Component>(true), Has.None.Null, root.name + " has no missing scripts");
             scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
             scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(0.5f, 0f, -0.5f));
             scene.Drag.Drop();

@@ -87,10 +87,10 @@ namespace ZipTrip.Unity
 
             if (prefab != null)
             {
-                // Same orientation helper as the legacy ItemView, so golden meshes keep their accepted alignment.
+                // Orientation helper carried over from the ZT-016 ItemView, so golden meshes keep their accepted alignment.
                 var visual = Instantiate(prefab, VisualRoot, false);
                 visual.name = prefab.name;
-                ItemView.ApplyVisualRotation(item.State.Footprint, rotation, visual.transform);
+                ApplyVisualRotation(item.State.Footprint, rotation, visual.transform);
                 return;
             }
 
@@ -160,6 +160,38 @@ namespace ZipTrip.Unity
             block.SetColor(PresentationKit.BaseColorId, color);
             block.SetColor(PresentationKit.ColorId, color);
             renderer.SetPropertyBlock(block);
+        }
+
+        private static void ApplyVisualRotation(ItemShape authoredShape, Rotation rotation,
+            Transform visual)
+        {
+            var width = 0;
+            var height = 0;
+            for (var i = 0; i < authoredShape.OccupiedCells.Count; i++)
+            {
+                width = Math.Max(width, authoredShape.OccupiedCells[i].X + 1);
+                height = Math.Max(height, authoredShape.OccupiedCells[i].Y + 1);
+            }
+
+            visual.localRotation = Quaternion.Euler(0f, (int)rotation, 0f);
+            visual.localScale = Vector3.one;
+            switch (rotation)
+            {
+                case Rotation.Degrees0:
+                    visual.localPosition = Vector3.zero;
+                    break;
+                case Rotation.Degrees90:
+                    visual.localPosition = new Vector3(height, 0f, 0f);
+                    break;
+                case Rotation.Degrees180:
+                    visual.localPosition = new Vector3(width, 0f, -height);
+                    break;
+                case Rotation.Degrees270:
+                    visual.localPosition = new Vector3(0f, 0f, -width);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(rotation));
+            }
         }
     }
 }

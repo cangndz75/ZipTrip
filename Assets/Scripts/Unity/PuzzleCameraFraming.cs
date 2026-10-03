@@ -2,11 +2,11 @@ using UnityEngine;
 
 namespace ZipTrip.Unity
 {
-    // Fixed, controlled framing for the ADR-0006 playable scene: the FixedGameplayCamera pitch and orthographic
+    // Fixed, controlled framing for the ADR-0006 playable scene: the ADR-0002 fixed pitch and orthographic
     // projection, sized so the gameplay bounds fit between the HUD bands at the current aspect. No free camera.
     public static class PuzzleCameraFraming
     {
-        public const float Pitch = 75f; // Same as FixedGameplayCamera.
+        public const float Pitch = 75f; // ADR-0002 fixed camera pitch.
         public const float Distance = 12f;
         public const float Margin = 0.35f;
 

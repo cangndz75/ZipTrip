@@ -11,8 +11,8 @@ namespace ZipTrip.Unity
     /// <summary>
     /// Schema v2 adapter (Δ-10): JSON DTO -> parse -> map to Domain. All content validation beyond JSON shape is done
     /// by the Domain constructors (BoardSpec, PuzzleState, RuleSet, PuzzleObjective, PuzzleLevel). Item definitions are
-    /// resolved from a caller-supplied ItemSpec catalog, as the v1 loader does with ItemDefinition. v1 content stays on
-    /// <see cref="LevelJsonLoader"/>; this loader rejects every schemaVersion other than 2, including a missing one.
+    /// resolved from a caller-supplied ItemSpec catalog. This loader rejects every schemaVersion other than 2,
+    /// including a missing one; v1 JSON is never reinterpreted.
     /// </summary>
     public static class LevelJsonLoaderV2
     {

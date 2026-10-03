@@ -87,13 +87,12 @@ namespace ZipTrip.Tests.EditMode
         }
 
         [Test]
-        public void Fnv1a64_MatchesReferenceVectors_AndLegacyStateHashDelegatesToIt()
+        public void Fnv1a64_MatchesReferenceVectors()
         {
             Assert.That(Fnv1a64.Compute(new byte[0]), Is.EqualTo(14695981039346656037UL));
             Assert.That(Fnv1a64.Compute(new[] { (byte)'a' }), Is.EqualTo(0xaf63dc4c8601ec8cUL));
             Assert.That(Fnv1a64.Compute(new[] { (byte)'b' }), Is.Not.EqualTo(Fnv1a64.Compute(new[] { (byte)'a' })));
-            var bytes = new BoardSpec(new[] { Main(), Pocket() }).ToStableBytes();
-            Assert.That(StateHash.Compute(bytes), Is.EqualTo(Fnv1a64.Compute(bytes)));
+            Assert.That(Fnv1a64.Compute(System.Text.Encoding.ASCII.GetBytes("hello")), Is.EqualTo(0xA430D84680AABD0BUL));
             Assert.That(() => Fnv1a64.Compute(null), Throws.ArgumentNullException);
         }
 

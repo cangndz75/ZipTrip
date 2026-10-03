@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using System.Linq;
+using NUnit.Framework;
 using ZipTrip.Domain;
 
 namespace ZipTrip.Tests.EditMode
@@ -11,6 +12,13 @@ namespace ZipTrip.Tests.EditMode
             var value = new DomainSmokeValue(42);
 
             Assert.That(value.Value, Is.EqualTo(42));
+        }
+
+        [Test]
+        public void DomainAssembly_DoesNotReferenceUnityEngine()
+        {
+            Assert.That(typeof(DomainSmokeValue).Assembly.GetReferencedAssemblies()
+                .Select(assembly => assembly.Name), Has.None.StartsWith("UnityEngine"));
         }
     }
 }
