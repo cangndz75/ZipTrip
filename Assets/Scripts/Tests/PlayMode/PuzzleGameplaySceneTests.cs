@@ -165,6 +165,20 @@ namespace ZipTrip.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator SwitchingLevels_FramesOnlyTheNewLevel()
+        {
+            var scene = Scene(0);
+            yield return null;
+            scene.Perform(PuzzleHudAction.Next);
+            var frame = scene.Board.CompartmentFrames().Single();
+            var center = frame.Origin + new Vector3(frame.Width * 0.5f, 0f, 0f);
+            Assert.That(scene.Camera.WorldToViewportPoint(center).x, Is.EqualTo(0.5f).Within(0.02f),
+                "Lv2's 4-wide board is centred, not framed with Lv1's leftover 5-wide board");
+            yield return null;
+            Assert.That(scene.Camera.WorldToViewportPoint(center).x, Is.EqualTo(0.5f).Within(0.02f));
+        }
+
+        [UnityTest]
         public IEnumerator ScreenSpacePointer_PicksTrayItemsAndPlacesThroughTheRealCamera()
         {
             var scene = Scene(0);

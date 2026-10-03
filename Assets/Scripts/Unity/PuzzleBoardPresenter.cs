@@ -48,8 +48,13 @@ namespace ZipTrip.Unity
             if (_ghostMaterial == null && materialTemplate != null)
                 _ghostMaterial = PresentationKit.Transparent(materialTemplate, GhostColor);
 
+            // Deactivate as well as destroy: Destroy is deferred to the end of the frame, and the old level must not
+            // count towards bounds (camera framing) measured in this frame.
             foreach (var view in _compartments.Values)
+            {
+                view.gameObject.SetActive(false);
                 Destroy(view.gameObject);
+            }
             _compartments.Clear();
             _items.Clear();
             PresentedState = null;

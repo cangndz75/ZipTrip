@@ -43,7 +43,10 @@ namespace ZipTrip.Unity
         public void Clear()
         {
             foreach (var view in _items.Values)
+            {
+                view.gameObject.SetActive(false); // excluded from same-frame bounds; Destroy is deferred
                 Destroy(view.gameObject);
+            }
             _items.Clear();
             _displayRotations.Clear();
             SelectedInstanceId = null;
