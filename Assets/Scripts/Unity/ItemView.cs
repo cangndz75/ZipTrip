@@ -233,7 +233,7 @@ namespace ZipTrip.Unity
 
         private static float EaseOut(float t) => 1f - (1f - t) * (1f - t) * (1f - t);
 
-        private static void ApplyVisualRotation(ItemShape authoredShape, Rotation rotation,
+        internal static void ApplyVisualRotation(ItemShape authoredShape, Rotation rotation,
             Transform visual)
         {
             var width = 0;
