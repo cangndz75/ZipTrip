@@ -7,13 +7,23 @@ namespace ZipTrip.Domain.Puzzle
 {
     public enum PackSolveStatus
     {
-        /// <summary>At least one complete final state was found with the authored suitcase layout held fixed.</summary>
+        /// <summary>At least one complete final state was found within the ZT-037 search scope.</summary>
         Solvable = 0,
-        /// <summary>No solution was found while holding authored pre-placed suitcase items fixed. Not proof that no
-        /// player-reachable solution exists after rearranging those items.</summary>
+        /// <summary>No solution was found while holding authored pre-placed suitcase items fixed (Source Tray items
+        /// only, no Nest planning). Not proof that no player-reachable solution exists after rearranging those items.</summary>
         Unsolvable = 1,
         /// <summary>Only Pack is supported; Extract / Repack planning belongs to ZT-046.</summary>
-        UnsupportedProfile = 2
+        UnsupportedProfile = 2,
+        /// <summary>The initial state is outside the ZT-037 search scope; see <see cref="PackSolveResult.UnsupportedReason"/>.</summary>
+        UnsupportedInitialState = 3
+    }
+
+    public enum PackSolveUnsupportedReason
+    {
+        None = 0,
+        /// <summary>The initial state has an item in staging. Only Source Tray items are decision variables, and
+        /// completion needs staging empty, so staged items would require temporal planning.</summary>
+        InitialStagingNotSupported = 1
     }
 
     public enum RuleCoupling
@@ -69,14 +79,17 @@ namespace ZipTrip.Domain.Puzzle
     }
 
     /// <summary>
-    /// Authoring result. With pre-placed suitcase items, every field is relative to preserving the authored starting
-    /// suitcase layout (<see cref="PreplacedItemsHeldFixed"/>).
+    /// Authoring result. Solvable / Unsolvable, the solution count, the greedy result and rule coupling are all
+    /// conditional on the ZT-037 search scope: fixed authored suitcase layout (<see cref="PreplacedItemsHeldFixed"/>),
+    /// Source Tray decision items, no Nest planning.
     /// </summary>
     public sealed class PackSolveResult
     {
         public const int SolutionCountCap = 50;
 
         public PackSolveStatus Status { get; }
+        /// <summary>Why the level is outside the search scope (<see cref="PackSolveStatus.UnsupportedInitialState"/>); None otherwise.</summary>
+        public PackSolveUnsupportedReason UnsupportedReason { get; }
         public PackSolution Solution { get; }
         /// <summary>Distinct solutions found, at most <see cref="SolutionCountCap"/>.</summary>
         public int SolutionCount { get; }
@@ -89,9 +102,11 @@ namespace ZipTrip.Domain.Puzzle
         public PackSolveMetrics Metrics { get; }
 
         internal PackSolveResult(PackSolveStatus status, PackSolution solution, int count, bool capped, bool greedy,
-            IReadOnlyList<RuleCouplingResult> couplings, int preplaced, PackSolveMetrics metrics)
+            IReadOnlyList<RuleCouplingResult> couplings, int preplaced, PackSolveMetrics metrics,
+            PackSolveUnsupportedReason unsupportedReason = PackSolveUnsupportedReason.None)
         {
             Status = status;
+            UnsupportedReason = unsupportedReason;
             Solution = solution;
             SolutionCount = count;
             SolutionCountCapped = capped;
@@ -104,14 +119,16 @@ namespace ZipTrip.Domain.Puzzle
     }
 
     /// <summary>
-    /// Offline Pack solver (ADR-0006 solver table, ZT-037). Deterministic backtracking over Source Tray / staged items
-    /// only; items in the suitcase at the start are fixed context (Option A). Nest is not searched.
+    /// Offline Pack solver (ADR-0006 solver table, ZT-037). Deterministic backtracking over Source Tray items only;
+    /// items in the suitcase at the start are fixed context (Option A). Nest is not searched. An initial state with
+    /// staged items is reported as UnsupportedInitialState without searching.
     ///
     /// Every candidate is a real player move run through <see cref="PuzzleTransitions.Apply"/> (layer from
     /// LayerResolver, legality from BoardInvariants), and a solution is a state where CompletionEvaluator reports
     /// complete. Because players cannot choose layers, the search is phased bottom-up: in phase L each variable either
     /// takes a placement that resolves to layer L or defers to a later phase (optional Source Tray items may also stay
-    /// in the tray). Every valid final layout is therefore built exactly once, in an order a player could replay.
+    /// in the tray). The search therefore enumerates final layouts within the ZT-037 Pack search scope (fixed authored
+    /// suitcase layout, Source Tray decision items, no Nest planning) exactly once each, in an order a player could replay.
     ///
     /// Variable order (static, computed on the initial state): fewest legal placements first, then larger default
     /// footprint, then instance id. Candidate order: selectable state id, unique rotation, compartment id, y, x.
@@ -133,6 +150,9 @@ namespace ZipTrip.Domain.Puzzle
             if (level.Objective.Profile != ObjectiveProfile.Pack)
                 return new PackSolveResult(PackSolveStatus.UnsupportedProfile, null, 0, false, false,
                     Array.Empty<RuleCouplingResult>(), preplaced, metrics);
+            if (level.InitialState.GetItems(ItemLocationKind.Staging).Count > 0)
+                return new PackSolveResult(PackSolveStatus.UnsupportedInitialState, null, 0, false, false,
+                    Array.Empty<RuleCouplingResult>(), preplaced, metrics, PackSolveUnsupportedReason.InitialStagingNotSupported);
 
             var variables = OrderVariables(level, metrics);
 
@@ -179,7 +199,7 @@ namespace ZipTrip.Domain.Puzzle
             foreach (var item in level.InitialState.Items)
             {
                 var kind = item.Location.Kind;
-                if (kind != ItemLocationKind.SourceTray && kind != ItemLocationKind.Staging)
+                if (kind != ItemLocationKind.SourceTray)
                     continue;
                 var count = 0;
                 for (var layer = 0; layer < MaxLayers(level); layer++)
@@ -308,7 +328,7 @@ namespace ZipTrip.Domain.Puzzle
                 }
 
                 var lastPhase = phase + 1 >= _phases;
-                var canDefer = !lastPhase || (item.Location.Kind == ItemLocationKind.SourceTray && !_required.Contains(id));
+                var canDefer = !lastPhase || !_required.Contains(id);
                 var candidates = Candidates(state, id, phase, _metrics);
                 if (candidates.Count == 0 && !canDefer)
                 {

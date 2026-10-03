@@ -266,6 +266,25 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(Get(result.Solution.FinalState, "spare").Location.Kind, Is.EqualTo(ItemLocationKind.SourceTray));
         }
 
+        [Test]
+        public void InitialStaging_IsUnsupportedWithoutSearching()
+        {
+            var shoe = Block("shoe", 2, 1, nest: new NestSpec(1, new[] { "socks" }, null));
+            var level = Level(Board(3, 1, 1), new PuzzleRule[0], new[] { "a", "shoe-1" },
+                T("a", Block("a", 1, 1)), Item("shoe-1", shoe, ItemLocation.Staging), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
+            var result = Solve(level);
+            Assert.That(result.Status, Is.EqualTo(PackSolveStatus.UnsupportedInitialState));
+            Assert.That(result.UnsupportedReason, Is.EqualTo(PackSolveUnsupportedReason.InitialStagingNotSupported));
+            Assert.That(result.Solution, Is.Null);
+            Assert.That(result.SolutionCount, Is.Zero);
+            Assert.That(result.Metrics.NodesVisited, Is.Zero);
+            Assert.That(result.Metrics.CandidatesTested, Is.Zero);
+
+            var plain = Solve(Level(Board(2, 1, 1), new PuzzleRule[0], null, T("a", Block("a", 1, 1)), T("b", Block("b", 1, 1))));
+            Assert.That(plain.Status, Is.EqualTo(PackSolveStatus.Solvable));
+            Assert.That(plain.UnsupportedReason, Is.EqualTo(PackSolveUnsupportedReason.None));
+        }
+
         // ---- Profiles ----
 
         [Test]
