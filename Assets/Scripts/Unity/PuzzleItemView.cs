@@ -10,12 +10,22 @@ namespace ZipTrip.Unity
 {
     // One PuzzleItem visual (one view per instance; thickness is a dimension, not extra views). On the board the root
     // is the placement inside its compartment; in the Source Tray or while dragged it is positioned by presentation
-    // only. VisualRoot holds either the resolved prefab or footprint blocks for the shown rotation.
+    // only. VisualRoot holds either the resolved prefab or footprint blocks for the shown rotation. A soft contact
+    // shadow (ZT-040B) sits beside VisualRoot, never inside it, and is hidden while the view is ghosted.
     public sealed class PuzzleItemView : MonoBehaviour
     {
+        public const float ShadowPad = 0.22f;
+        private const float ShadowAlpha = 0.42f;
+        private static readonly Vector3 ShadowOffset = new Vector3(0.06f, 0f, -0.08f);
+
         private readonly List<(Renderer Renderer, Material[] Materials, MaterialPropertyBlock Block)> _original =
             new List<(Renderer, Material[], MaterialPropertyBlock)>();
         private string _visualKey;
+        private GameObject _shadow;
+        private Mesh _shadowMesh;
+        private Material _shadowMaterial;
+        private Texture2D _shadowTexture;
+        private float _shadowDrop;
 
         public string InstanceId { get; private set; }
         public string DefinitionId { get; private set; }
@@ -30,12 +40,14 @@ namespace ZipTrip.Unity
         public Transform VisualRoot { get; private set; }
         public bool UsesPrefab { get; private set; }
         public bool IsGhosted { get; private set; }
+        public bool ShadowVisible => _shadow != null && _shadow.activeSelf;
 
         internal void Bind(PuzzleItem item, Transform compartmentItems, GameObject prefab, Material template, Color color)
         {
             var placement = item.Location.Placement;
             Placement = placement;
             IsOnBoard = true;
+            _shadowDrop = 0f;
             transform.SetParent(compartmentItems, false);
             transform.localPosition = PuzzleBoardLayout.ItemLocalPosition(placement);
             SetVisual(item, placement.Rotation, prefab, template, color);
@@ -84,12 +96,16 @@ namespace ZipTrip.Unity
             VisualRoot = new GameObject("Visual Root").transform;
             VisualRoot.SetParent(transform, false);
             UsesPrefab = prefab != null;
+            BuildShadow(footprint, template);
 
             if (prefab != null)
             {
                 // Orientation helper carried over from the ZT-016 ItemView, so golden meshes keep their accepted alignment.
                 var visual = Instantiate(prefab, VisualRoot, false);
                 visual.name = prefab.name;
+                // Procedural visual templates are kept inactive and hidden; golden prefabs are already active.
+                visual.hideFlags = HideFlags.None;
+                visual.SetActive(true);
                 ApplyVisualRotation(item.State.Footprint, rotation, visual.transform);
                 return;
             }
@@ -107,12 +123,65 @@ namespace ZipTrip.Unity
             }
         }
 
+        // Soft footprint-shaped shadow on the surface under the item (presentation only, no gameplay meaning).
+        private void BuildShadow(ItemShape footprint, Material template)
+        {
+            template = PresentationKit.TemplateOrFallback(template);
+            if (template == null || footprint == null)
+                return;
+            if (_shadow == null)
+            {
+                _shadowMesh = new Mesh { name = "Contact shadow" };
+                _shadow = PresentationKit.MeshObject("Contact Shadow", transform, _shadowMesh, null);
+            }
+            if (_shadowTexture != null)
+                Destroy(_shadowTexture);
+            if (_shadowMaterial != null)
+                Destroy(_shadowMaterial);
+            _shadowTexture = PresentationKit.FootprintShadow(footprint, 12, ShadowPad, 0.14f);
+            _shadowMaterial = PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, ShadowAlpha), _shadowTexture);
+            _shadow.GetComponent<MeshRenderer>().sharedMaterial = _shadowMaterial;
+
+            int width = 0, depth = 0;
+            foreach (var cell in footprint.OccupiedCells)
+            {
+                width = Math.Max(width, cell.X + 1);
+                depth = Math.Max(depth, cell.Y + 1);
+            }
+            var rect = new Rect(-ShadowPad, -(depth + ShadowPad), width + 2f * ShadowPad, depth + 2f * ShadowPad);
+            var quad = PresentationKit.Quad(rect, 0.004f);
+            _shadowMesh.Clear();
+            _shadowMesh.SetVertices(quad.vertices);
+            _shadowMesh.SetUVs(0, quad.uv);
+            _shadowMesh.SetTriangles(quad.triangles, 0);
+            _shadowMesh.RecalculateNormals();
+            _shadowMesh.RecalculateBounds();
+            Destroy(quad);
+            _shadow.SetActive(!IsGhosted);
+            PlaceShadow();
+        }
+
+        /// <summary>Keeps the contact shadow on the surface while the item is lifted by <paramref name="localLift"/>.</summary>
+        internal void SetShadowDrop(float localLift)
+        {
+            _shadowDrop = localLift;
+            PlaceShadow();
+        }
+
+        private void PlaceShadow()
+        {
+            if (_shadow != null)
+                _shadow.transform.localPosition = ShadowOffset - Vector3.up * _shadowDrop;
+        }
+
         // Presentation-only: swaps this view's renderers to the shared ghost material (or hides them without one).
         internal void SetGhost(bool ghost, Material ghostMaterial)
         {
             if (ghost == IsGhosted)
                 return;
             IsGhosted = ghost;
+            if (_shadow != null)
+                _shadow.SetActive(!ghost);
             if (VisualRoot == null)
                 return;
             if (ghost)
@@ -150,6 +219,16 @@ namespace ZipTrip.Unity
                 renderer.enabled = true;
             }
             _original.Clear();
+        }
+
+        private void OnDestroy()
+        {
+            if (_shadowMesh != null)
+                Destroy(_shadowMesh);
+            if (_shadowMaterial != null)
+                Destroy(_shadowMaterial);
+            if (_shadowTexture != null)
+                Destroy(_shadowTexture);
         }
 
         internal static void Paint(Renderer renderer, Material template, Color color)

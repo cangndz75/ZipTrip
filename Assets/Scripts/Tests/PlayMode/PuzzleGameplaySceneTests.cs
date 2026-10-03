@@ -200,7 +200,54 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Session.MoveCount, Is.Zero, "HUD tap reached Undo, not the board");
         }
 
+        // ZT-040B: the grid is a hidden snapping aid. Idle shows no cell guides; a drag reveals only the cells around the
+        // snapped footprint; drop / cancel hide them again. The suitcase interior is exactly the playable board.
+        [UnityTest]
+        public IEnumerator CellGuides_AreHiddenWhenIdle_LocalDuringDrag_AndGoneAfterDropOrCancel()
+        {
+            var scene = Scene(0);
+            yield return null;
+            var main = scene.Board.Compartments["main"];
+            Assert.That(scene.Board.Shell.Interior, Is.EqualTo(new Rect(0f, -7f, 5f, 7f)), "suitcase lining matches the 5x7 board");
+            Assert.That(main.VisibleGuideCount, Is.Zero, "no grid while idle");
+
+            var origin = main.transform.position;
+            scene.Drag.BeginDrag("book-1", TrayGrab(scene.Tray.ItemViews["book-1"]));
+            scene.Drag.UpdateDrag(origin + new Vector3(0.5f, 0f, -0.5f));
+            Assert.That(scene.Drag.CandidateAnchor, Is.EqualTo(new Cell(0, 0)));
+            // Book 2x3 at (0,0): guides on the 3x4 neighbourhood inside the board minus the 6 covered cells.
+            Assert.That(main.VisibleGuideCount, Is.EqualTo(6));
+            Assert.That(main.IsGuideVisible(new Cell(2, 0)) && main.IsGuideVisible(new Cell(0, 3)), Is.True);
+            Assert.That(main.IsGuideVisible(new Cell(4, 6)), Is.False, "far cells stay hidden");
+            scene.Drag.Drop();
+            Assert.That(main.VisibleGuideCount, Is.Zero, "guides disappear after drop");
+            Assert.That(scene.Board.ItemViews["book-1"].IsGhosted, Is.False);
+            Assert.That(scene.Board.ItemViews["book-1"].ShadowVisible, Is.True, "packed item rests with its contact shadow");
+
+            scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
+            scene.Drag.UpdateDrag(origin + new Vector3(2.5f, 0f, -0.5f));
+            Assert.That(main.VisibleGuideCount, Is.GreaterThan(0));
+            scene.Drag.Cancel();
+            Assert.That(main.VisibleGuideCount, Is.Zero, "guides disappear after cancel");
+        }
+
 #if UNITY_EDITOR
+        // ZT-040B: Lv1-Lv2 show item art only (golden prefabs or the procedural book), never footprint blocks.
+        [UnityTest]
+        public IEnumerator FirstPlayableItems_UseItemArt_NotFootprintBlocks()
+        {
+            yield return UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(
+                "Assets/Scenes/PuzzleGameplay.unity", new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            for (var level = 0; level < 2; level++)
+            {
+                foreach (var view in scene.Tray.ItemViews.Values)
+                    Assert.That(view.UsesPrefab, Is.True, scene.LevelId + " " + view.InstanceId + " uses item art");
+                scene.NextLevel();
+            }
+        }
+
         [UnityTest]
         public IEnumerator SceneAsset_IsWiredToTheV2RuntimeWithGoldenArt()
         {
@@ -261,6 +308,52 @@ namespace ZipTrip.Tests.PlayMode
             yield return Capture(scene, folder, "lv2-5-complete", 1080, 1920);
             yield return Capture(scene, folder, "lv2-5-complete-20x9", 1080, 2400);
             Debug.Log("[zt040-screens] " + folder);
+        }
+
+        // ZT-040B visual proof: idle, drag over the suitcase, partially packed and complete for Lv1 and Lv2, at the
+        // Huawei 1080x2340 portrait resolution (plus a 1080x1920 idle reference).
+        [UnityTest, Explicit("Writes ZT-040B screenshots")]
+        public IEnumerator CaptureSuitcasePresentationScreenshots()
+        {
+            yield return UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(
+                "Assets/Scenes/PuzzleGameplay.unity", new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            scene.Hud.RenderThrough(scene.Camera);
+            var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../Builds/zt040b-screens"));
+            Directory.CreateDirectory(folder);
+            var main = scene.Board.Compartments["main"].transform.position;
+
+            yield return Capture(scene, folder, "lv1-A-idle", 1080, 2340);
+            yield return Capture(scene, folder, "lv1-A-idle-1080x1920", 1080, 1920);
+            scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
+            scene.Drag.UpdateDrag(main + new Vector3(0.5f, 0f, -0.5f));
+            yield return Capture(scene, folder, "lv1-B-drag-valid", 1080, 2340);
+            scene.Drag.UpdateDrag(main + new Vector3(3.5f, 0f, -4.5f));
+            yield return Capture(scene, folder, "lv1-B-drag-invalid", 1080, 2340);
+            scene.Drag.Cancel();
+            Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
+            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
+            yield return Capture(scene, folder, "lv1-C-partial", 1080, 2340);
+            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
+            Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0));
+            yield return Capture(scene, folder, "lv1-D-complete", 1080, 2340);
+
+            scene.Perform(PuzzleHudAction.Next);
+            main = scene.Board.Compartments["main"].transform.position;
+            yield return Capture(scene, folder, "lv2-A-idle", 1080, 2340);
+            scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
+            scene.Drag.Cancel();
+            scene.Perform(PuzzleHudAction.Rotate);
+            scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
+            scene.Drag.UpdateDrag(main + new Vector3(0.5f, 0f, -0.5f));
+            yield return Capture(scene, folder, "lv2-B-drag-rotated", 1080, 2340);
+            scene.Drag.Drop();
+            yield return Capture(scene, folder, "lv2-C-partial", 1080, 2340);
+            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 3));
+            Place(scene, "sneaker-1", Rotation.Degrees270, new Cell(1, 5));
+            yield return Capture(scene, folder, "lv2-D-complete", 1080, 2340);
+            Debug.Log("[zt040b-screens] " + folder);
         }
 
         private static IEnumerator Capture(PuzzleGameplayScene scene, string folder, string name, int width, int height)

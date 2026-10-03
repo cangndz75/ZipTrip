@@ -23,6 +23,8 @@ namespace ZipTrip.Unity
         /// <summary>Maximum row width in world units; 0 = a single row.</summary>
         public float RowWidth { get; set; }
         public float Gap { get; set; } = 1f;
+        /// <summary>Centres each wrapped row within RowWidth (ZT-040B loose items laid out under the suitcase).</summary>
+        public bool CenterRows { get; set; }
         public string SelectedInstanceId { get; private set; }
 
         /// <summary>Uses the board presenter's material and visual resolver so tray and board items look alike.</summary>
@@ -60,6 +62,7 @@ namespace ZipTrip.Unity
                 throw new InvalidOperationException("Configure the tray before syncing.");
 
             var live = new HashSet<string>(StringComparer.Ordinal);
+            var row = new List<(PuzzleItemView View, float X)>();
             float x = 0f, z = 0f, rowDepth = 0f;
             foreach (var item in state.GetItems(ItemLocationKind.SourceTray))
             {
@@ -79,6 +82,7 @@ namespace ZipTrip.Unity
                 }
                 if (RowWidth > 0f && x > 0f && x + width * Scale > RowWidth)
                 {
+                    CenterRow(row, x - Gap);
                     x = 0f;
                     z -= rowDepth + Gap;
                     rowDepth = 0f;
@@ -87,10 +91,13 @@ namespace ZipTrip.Unity
                 view.BindLoose(item, transform, new Vector3(x, lift, z), rotation, _board.ResolveVisual(item), _board.Template,
                     _board.ColorFor(item.Definition.Id));
                 view.transform.localScale = Vector3.one * Scale;
+                view.SetShadowDrop(Mathf.Approximately(Scale, 0f) ? 0f : lift / Scale);
                 view.SetGhost(false, null);
+                row.Add((view, x));
                 x += width * Scale + Gap;
                 rowDepth = Mathf.Max(rowDepth, depth * Scale);
             }
+            CenterRow(row, x - Gap);
 
             var stale = new List<string>();
             foreach (var id in _items.Keys)
@@ -104,6 +111,20 @@ namespace ZipTrip.Unity
             }
             if (SelectedInstanceId != null && !live.Contains(SelectedInstanceId))
                 SelectedInstanceId = null;
+        }
+
+        private void CenterRow(List<(PuzzleItemView View, float X)> row, float usedWidth)
+        {
+            if (CenterRows && RowWidth > 0f && row.Count > 0)
+            {
+                var shift = Mathf.Max(0f, (RowWidth - usedWidth) * 0.5f);
+                foreach (var (view, x) in row)
+                {
+                    var position = view.transform.localPosition;
+                    view.transform.localPosition = new Vector3(x + shift, position.y, position.z);
+                }
+            }
+            row.Clear();
         }
     }
 }

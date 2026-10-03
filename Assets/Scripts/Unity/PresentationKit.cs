@@ -17,6 +17,13 @@ namespace ZipTrip.Unity
         public static readonly Color Paper = Hex(0xF7F4EE);
         public static readonly Color TrayShelf = Hex(0xDDD6CA);
         public static readonly Color TrayCard = Hex(0xF2EEE6);
+        // ZT-040B suitcase scene: terracotta shell, deep blue-green quilted lining, warm linen packing surface.
+        public static readonly Color SuitcaseShell = Hex(0xC36F58);
+        public static readonly Color SuitcaseLining = Hex(0x355A66);
+        public static readonly Color LiningPiping = Hex(0x5E8590);
+        public static readonly Color ZipperTape = Hex(0x26414A);
+        public static readonly Color Linen = Hex(0xEDE7DC);
+        public static readonly Color Shadow = Hex(0x1F3138);
 
         public static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         public static readonly int ColorId = Shader.PropertyToID("_Color");
@@ -31,6 +38,37 @@ namespace ZipTrip.Unity
             material.SetColor(BaseColorId, color);
             material.SetColor(ColorId, color);
             return material;
+        }
+
+        /// <summary>Opaque matte material with an optional albedo texture (fabric, linen).</summary>
+        public static Material Matte(Material template, Color color, Texture texture = null, float smoothness = 0.12f)
+        {
+            var material = Colored(template, color);
+            material.SetTexture(BaseMapId, texture);
+            material.SetFloat("_Smoothness", smoothness);
+            return material;
+        }
+
+        /// <summary>Colour scaled in RGB only (alpha kept).</summary>
+        public static Color Shade(Color color, float factor) =>
+            new Color(color.r * factor, color.g * factor, color.b * factor, color.a);
+
+        public static Color WithAlpha(Color color, float alpha) => new Color(color.r, color.g, color.b, alpha);
+
+        private static Material _fallbackLit;
+
+        /// <summary>The given template, or a plain URP Lit material when a caller has none (tests, harness).</summary>
+        public static Material TemplateOrFallback(Material template)
+        {
+            if (template != null)
+                return template;
+            if (_fallbackLit == null)
+            {
+                var shader = Shader.Find("Universal Render Pipeline/Lit");
+                if (shader != null)
+                    _fallbackLit = new Material(shader) { name = "Fallback Lit" };
+            }
+            return _fallbackLit;
         }
 
         public static Material Transparent(Material template, Color color, Texture texture = null)
@@ -326,6 +364,124 @@ namespace ZipTrip.Unity
             return texture;
         }
 
+        // Quilted lining: soft diagonal channels (not aligned to the cell grid) with slight puff and weave noise.
+        // White-ish so the material colour carries the hue.
+        public static Texture2D QuiltTexture(int size, int channels, int seed)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true)
+            {
+                wrapMode = TextureWrapMode.Repeat, name = "Quilted lining"
+            };
+            var random = new System.Random(seed);
+            for (var y = 0; y < size; y++)
+                for (var x = 0; x < size; x++)
+                {
+                    var u = (float)x / size;
+                    var v = (float)y / size;
+                    var a = Mathf.Repeat((u + v) * channels, 1f);
+                    var b = Mathf.Repeat((u - v) * channels, 1f);
+                    var da = Mathf.Min(a, 1f - a);
+                    var db = Mathf.Min(b, 1f - b);
+                    var stitch = Mathf.Exp(-da * da / 0.0012f) + Mathf.Exp(-db * db / 0.0012f);
+                    var puff = 0.5f * (Mathf.Sin(a * Mathf.PI) + Mathf.Sin(b * Mathf.PI));
+                    var weave = 0.012f * Mathf.Sin(x * 2.1f) * Mathf.Sin(y * 2.3f);
+                    var noise = ((float)random.NextDouble() - 0.5f) * 0.035f;
+                    var value = Mathf.Clamp01(0.86f + 0.1f * puff - 0.16f * Mathf.Min(1f, stitch) + weave + noise);
+                    texture.SetPixel(x, y, new Color(value, value, value, 1f));
+                }
+            texture.Apply(true, true);
+            return texture;
+        }
+
+        // Fine low-contrast woven linen for the packing surface.
+        public static Texture2D LinenTexture(int size, int seed)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true)
+            {
+                wrapMode = TextureWrapMode.Repeat, name = "Linen"
+            };
+            var random = new System.Random(seed);
+            var slubX = new float[size];
+            var slubY = new float[size];
+            for (var i = 0; i < size; i++)
+            {
+                slubX[i] = ((float)random.NextDouble() - 0.5f) * 0.03f;
+                slubY[i] = ((float)random.NextDouble() - 0.5f) * 0.03f;
+            }
+            for (var y = 0; y < size; y++)
+                for (var x = 0; x < size; x++)
+                {
+                    var warp = (x & 1) == 0 ? 0.012f : -0.012f;
+                    var weft = (y & 1) == 0 ? 0.012f : -0.012f;
+                    var noise = ((float)random.NextDouble() - 0.5f) * 0.03f;
+                    var value = Mathf.Clamp01(0.95f + warp * weft * 40f * 0.5f + slubX[x] + slubY[y] + noise);
+                    texture.SetPixel(x, y, new Color(value, value, value, 1f));
+                }
+            texture.Apply(true, true);
+            return texture;
+        }
+
+        /// <summary>
+        /// Soft contact shadow for a footprint: alpha mask of the occupied cells, blurred. The texture covers the
+        /// footprint bounding box plus <paramref name="padCells"/> on every side.
+        /// </summary>
+        public static Texture2D FootprintShadow(ItemShape footprint, int pixelsPerCell, float padCells, float blurCells)
+        {
+            int width = 0, depth = 0;
+            foreach (var cell in footprint.OccupiedCells)
+            {
+                width = Mathf.Max(width, cell.X + 1);
+                depth = Mathf.Max(depth, cell.Y + 1);
+            }
+            var w = Mathf.CeilToInt((width + 2f * padCells) * pixelsPerCell);
+            var h = Mathf.CeilToInt((depth + 2f * padCells) * pixelsPerCell);
+            var occupied = new HashSet<Cell>(footprint.OccupiedCells);
+            var mask = new float[w * h];
+            for (var y = 0; y < h; y++)
+                for (var x = 0; x < w; x++)
+                {
+                    // Row 0 is the near (-z) edge: the quad maps v = 0 to z = -(depth + pad).
+                    var cx = (x + 0.5f) / pixelsPerCell - padCells;
+                    var cy = depth + padCells - (y + 0.5f) / pixelsPerCell;
+                    if (occupied.Contains(new Cell(Mathf.FloorToInt(cx), Mathf.FloorToInt(cy))))
+                        mask[y * w + x] = 1f;
+                }
+            var radius = Mathf.Max(1, Mathf.RoundToInt(blurCells * pixelsPerCell));
+            mask = BoxBlur(BoxBlur(mask, w, h, radius), w, h, radius);
+            var texture = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp, name = "Footprint shadow"
+            };
+            for (var y = 0; y < h; y++)
+                for (var x = 0; x < w; x++)
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, mask[y * w + x]));
+            texture.Apply(false, true);
+            return texture;
+        }
+
+        private static float[] BoxBlur(float[] source, int w, int h, int radius)
+        {
+            var temp = new float[source.Length];
+            var result = new float[source.Length];
+            for (var y = 0; y < h; y++)
+                for (var x = 0; x < w; x++)
+                {
+                    var sum = 0f;
+                    for (var k = -radius; k <= radius; k++)
+                        sum += source[y * w + Mathf.Clamp(x + k, 0, w - 1)];
+                    temp[y * w + x] = sum / (2 * radius + 1);
+                }
+            for (var y = 0; y < h; y++)
+                for (var x = 0; x < w; x++)
+                {
+                    var sum = 0f;
+                    for (var k = -radius; k <= radius; k++)
+                        sum += temp[Mathf.Clamp(y + k, 0, h - 1) * w + x];
+                    result[y * w + x] = sum / (2 * radius + 1);
+                }
+            return result;
+        }
+
         public static Sprite RoundedSprite(int size, int radius)
         {
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
@@ -345,20 +501,29 @@ namespace ZipTrip.Unity
         }
 
         // Clockwise arrow on a ring, drawn as an anti-aliased mask.
-        public static Sprite RotateIcon(int size)
+        public static Sprite RotateIcon(int size) => ArcArrowIcon(size, 120f, 280f, true, "Rotate icon");
+
+        // Counter-clockwise hook arrow (undo glyph).
+        public static Sprite UndoIcon(int size) => ArcArrowIcon(size, -30f, 210f, false, "Undo icon");
+
+        // Counter-clockwise ring arrow (restart glyph).
+        public static Sprite RestartIcon(int size) => ArcArrowIcon(size, 70f, 290f, false, "Restart icon");
+
+        // Arrow on an arc from startDeg sweeping sweepDeg (clockwise or counter-clockwise), head at the end.
+        public static Sprite ArcArrowIcon(int size, float startDeg, float sweepDeg, bool clockwise, string name)
         {
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
             {
-                wrapMode = TextureWrapMode.Clamp, name = "Rotate icon"
+                wrapMode = TextureWrapMode.Clamp, name = name
             };
             var c = new Vector2(size * 0.5f, size * 0.5f);
             var r = size * 0.3f;
             var thickness = size * 0.1f;
-            const float startDeg = 120f;
-            const float sweepDeg = 280f;
-            var endAngle = (startDeg - sweepDeg) * Mathf.Deg2Rad;
+            var endAngle = (clockwise ? startDeg - sweepDeg : startDeg + sweepDeg) * Mathf.Deg2Rad;
             var tip = c + new Vector2(Mathf.Cos(endAngle), Mathf.Sin(endAngle)) * r;
-            var tangent = new Vector2(Mathf.Sin(endAngle), -Mathf.Cos(endAngle));
+            var tangent = clockwise
+                ? new Vector2(Mathf.Sin(endAngle), -Mathf.Cos(endAngle))
+                : new Vector2(-Mathf.Sin(endAngle), Mathf.Cos(endAngle));
             var normal = new Vector2(Mathf.Cos(endAngle), Mathf.Sin(endAngle));
             var headA = tip + normal * thickness * 1.6f;
             var headB = tip - normal * thickness * 1.6f;
@@ -368,9 +533,9 @@ namespace ZipTrip.Unity
                 {
                     var p = new Vector2(x + 0.5f, y + 0.5f);
                     var v = p - c;
-                    // Clockwise from startDeg: angle decreases.
+                    // Distance travelled along the arc from startDeg in the arrow's direction.
                     var angle = Mathf.Atan2(v.y, v.x) * Mathf.Rad2Deg;
-                    var along = Mathf.Repeat(startDeg - angle, 360f);
+                    var along = Mathf.Repeat(clockwise ? startDeg - angle : angle - startDeg, 360f);
                     var ring = Mathf.Abs(v.magnitude - r) - thickness * 0.5f;
                     var a = along <= sweepDeg ? Mathf.Clamp01(0.5f - ring) : 0f;
                     a = Mathf.Max(a, TriangleCoverage(p, headA, headB, headC));
