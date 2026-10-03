@@ -61,6 +61,7 @@ namespace ZipTrip.Unity
         public PuzzleRulesPresenter Rules { get; private set; }
         public PuzzleDragController Drag { get; private set; }
         public PuzzleHud Hud { get; private set; }
+        public PuzzleCompletionPresenter Completion { get; private set; }
         public Camera Camera { get; private set; }
         /// <summary>Linen packing table under the suitcase (excluded from camera framing).</summary>
         public GameObject Surface => _table != null ? _table.Surface : null;
@@ -126,6 +127,7 @@ namespace ZipTrip.Unity
 
         private void Present(PuzzleLevel level, string label)
         {
+            Completion.ResetForLevel(null, default, 0f, Hud);
             Level = level;
             Session = new PuzzleSession(Level);
 
@@ -168,6 +170,9 @@ namespace ZipTrip.Unity
             Rules.Build(Level, Hud, Board, materialTemplate);
             Rules.Sync(Session.CurrentCompletion.Rules, false);
             _ruleDragKey = null;
+            Hud.SetCompletionMode(Session.CurrentCompletion.IsComplete);
+            Completion.ResetForLevel(Board.Container, Board.ContainerFootprint,
+                Board.Container != null ? Board.Container.Base.GetComponent<Renderer>().bounds.max.y + 0.04f : 0f, Hud);
             Hud.SetCompletionVisible(Session.CurrentCompletion.IsComplete);
             FrameCamera();
         }
@@ -222,7 +227,7 @@ namespace ZipTrip.Unity
 
         public bool Undo()
         {
-            if (Drag.IsDragging || !Session.Undo().StateChanged)
+            if (Completion.CurrentPhase != PuzzleCompletionPresenter.Phase.Idle || Drag.IsDragging || !Session.Undo().StateChanged)
                 return false;
             Drag.SyncPresenters();
             RefreshCompletion();
@@ -249,11 +254,16 @@ namespace ZipTrip.Unity
                     _gestureOnHud = false;
                 return;
             }
+            if (Hud.CompletionMode)
+                return;
             Drag.HandlePointer(signal);
         }
 
         public void Perform(PuzzleHudAction action)
         {
+            if (Hud.CompletionMode && (Completion.CurrentPhase != PuzzleCompletionPresenter.Phase.Confirmed
+                || action != PuzzleHudAction.Restart && action != PuzzleHudAction.Next))
+                return;
             switch (action)
             {
                 case PuzzleHudAction.Rotate: Drag.RotateSelection(); break;
@@ -268,8 +278,21 @@ namespace ZipTrip.Unity
             if (edge)
                 CompletionCount++;
             var complete = Session.CurrentCompletion.IsComplete;
-            Rules.Sync(Session.CurrentCompletion.Rules, true);
-            Hud.SetCompletionVisible(complete);
+            Rules.Sync(Session.CurrentCompletion.Rules, !edge);
+            if (edge)
+            {
+                Drag.Cancel();
+                _ruleDragKey = null;
+                Staging.SetHover(-1, false);
+                Rules.ClearForCompletion();
+                Hud.SetCompletionMode(true);
+                Completion.Begin();
+            }
+            else if (!complete)
+            {
+                Completion.ResetForLevel(Board.Container, Board.ContainerFootprint, 0f, Hud);
+                Hud.SetCompletionMode(false);
+            }
             Drag.InteractionEnabled = !complete;
         }
 
@@ -277,13 +300,14 @@ namespace ZipTrip.Unity
         {
             if (Session == null)
                 return;
-            Hud.SetRotateVisible(!Hud.CompletionVisible && Drag.CanRotateSelection);
-            Hud.SetUndoEnabled(Session.UndoDepth > 0 && !Hud.CompletionVisible);
-            UpdateRuleDragContext();
+            Hud.SetRotateVisible(!Hud.CompletionMode && Drag.CanRotateSelection);
+            Hud.SetUndoEnabled(Session.UndoDepth > 0 && !Hud.CompletionMode);
+            if (!Hud.CompletionMode)
+                UpdateRuleDragContext();
             var keyboard = Keyboard.current;
-            if (keyboard != null && !Drag.IsDragging && keyboard.rKey.wasPressedThisFrame)
+            if (!Hud.CompletionMode && keyboard != null && !Drag.IsDragging && keyboard.rKey.wasPressedThisFrame)
                 Drag.RotateSelection();
-            if (keyboard != null && keyboard.uKey.wasPressedThisFrame)
+            if (!Hud.CompletionMode && keyboard != null && keyboard.uKey.wasPressedThisFrame)
                 Undo();
         }
 
@@ -315,6 +339,8 @@ namespace ZipTrip.Unity
 
         public void FrameCamera()
         {
+            if (Completion != null && Completion.CurrentPhase != PuzzleCompletionPresenter.Phase.Idle)
+                return;
             var bounds = new Bounds(Board.transform.position, Vector3.zero);
             var lid = Board.Lid;
             foreach (var renderer in Board.GetComponentsInChildren<Renderer>())
@@ -356,6 +382,8 @@ namespace ZipTrip.Unity
             Hud = new GameObject("Puzzle HUD").AddComponent<PuzzleHud>();
             Hud.transform.SetParent(transform, false);
             Hud.Build(uiFont, displayFont);
+            Completion = new GameObject("Zip It Completion").AddComponent<PuzzleCompletionPresenter>();
+            Completion.transform.SetParent(transform, false);
             _pointer = GetComponent<PointerInteractor>();
             if (_pointer == null)
                 _pointer = gameObject.AddComponent<PointerInteractor>();

@@ -291,6 +291,9 @@ namespace ZipTrip.Tests.PlayMode
             scene.Drag.UpdateDrag(origin + new Vector3(2.5f, 0f, -0.5f));
             var last = scene.Drag.Drop();
             Assert.That(last.Move.IsAccepted && last.CompletionReached, Is.True, "staging empty -> complete");
+            Assert.That(scene.Staging.ItemViews, Is.Empty);
+            Assert.That(scene.Staging.HoverSlot, Is.EqualTo(-1));
+            scene.Completion.Advance(2f);
             Assert.That(scene.Hud.CompletionVisible, Is.True);
         }
     }

@@ -13,9 +13,9 @@ namespace ZipTrip.Unity
         Next = 4
     }
 
-    // Minimal first-playable HUD (ZT-040): level label, Rotate / Undo / Restart buttons and a plain "Packed!" card.
+    // First-playable HUD: level label, Rotate / Undo / Restart buttons and the Zip It luggage tag.
     // Like the legacy GameplayHud, taps are hit-tested through the single PointerInteractor flow (no EventSystem).
-    // Not the Zip It ritual (ZT-043). ZT-040B styling: compact rounded icon buttons with small captions, a level pill
+    // ZT-040B styling: compact rounded icon buttons with small captions, a level pill
     // and a rounded card, all subordinate to the suitcase. ZT-040D: one paper-and-ink shape language with soft drop
     // shadows, a pressed state, a dimmed Undo when there is nothing to undo, mustard reserved for Rotate, and the
     // temporary Packed card moved off the suitcase. Hit targets are unchanged.
@@ -31,6 +31,7 @@ namespace ZipTrip.Unity
         private Font _display;
         private bool _customFont;
         private Text _label;
+        private RectTransform _levelShadow;
         private RectTransform _card;
         private Sprite _rounded;
         private readonly List<Object> _owned = new List<Object>();
@@ -45,6 +46,7 @@ namespace ZipTrip.Unity
         public Font Font => _font;
 
         public bool CompletionVisible => _card != null && _card.gameObject.activeSelf;
+        public bool CompletionMode { get; private set; }
         public bool RotateVisible => _buttons.TryGetValue(PuzzleHudAction.Rotate, out var rotate) && rotate.gameObject.activeSelf;
         public string LevelLabel => _label != null ? _label.text : null;
 
@@ -79,7 +81,7 @@ namespace ZipTrip.Unity
                 Own(icon.texture);
 
             // Level pass: paper pill with a teal tab, top centre.
-            Shadowed(transform, new Vector2(0.5f, 1f), new Vector2(0f, -TopBand * 0.5f), new Vector2(300f, 84f));
+            _levelShadow = Shadowed(transform, new Vector2(0.5f, 1f), new Vector2(0f, -TopBand * 0.5f), new Vector2(300f, 84f));
             var pill = Panel(transform, "Level Pill", new Vector2(0.5f, 1f), new Vector2(0f, -TopBand * 0.5f), new Vector2(300f, 84f), PaperFill);
             var tab = Panel(pill, "Tab", new Vector2(0f, 0.5f), new Vector2(34f, 0f), new Vector2(44f, 44f), PresentationKit.Teal);
             tab.sizeDelta = new Vector2(18f, 18f);
@@ -92,15 +94,17 @@ namespace ZipTrip.Unity
             AddButton(PuzzleHudAction.Rotate, "Rotate", new Vector2(1f, 0f), new Vector2(-135f, row), new Vector2(190f, 190f),
                 PresentationKit.Mustard, icon: rotateIcon);
 
-            // Temporary completion (ZT-043 replaces it): sits low, over the emptied mat, so the packed suitcase stays visible.
-            var cardShadow = Shadowed(transform, new Vector2(0.5f, 0f), new Vector2(0f, 560f), new Vector2(760f, 340f));
-            _card = Panel(transform, "Packed Card", new Vector2(0.5f, 0f), new Vector2(0f, 560f), new Vector2(760f, 340f), PaperFill);
+            // Compact travel tag over the emptied mat; the closed suitcase remains unobstructed.
+            var cardShadow = Shadowed(transform, new Vector2(0.5f, 0f), new Vector2(0f, 390f), new Vector2(640f, 245f));
+            _card = Panel(transform, "Packed Tag", new Vector2(0.5f, 0f), new Vector2(0f, 390f), new Vector2(640f, 245f), PaperFill);
             cardShadow.SetParent(_card, true);
             cardShadow.SetAsFirstSibling();
-            Label(_card, "PACKED", 88, Ink, new Vector2(0.5f, 1f), new Vector2(0f, -95f), new Vector2(700f, 110f)).font = _display;
-            AddButton(PuzzleHudAction.Next, "Next", new Vector2(0.5f, 0f), new Vector2(170f, 95f), new Vector2(280f, 120f), PresentationKit.Teal, _card,
+            var tagHole = Panel(_card, "Tag Hole", new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(28f, 28f), PresentationKit.TrayCard);
+            tagHole.GetComponent<Image>().type = Image.Type.Simple;
+            Label(_card, "Packed!", 68, Ink, new Vector2(0.5f, 1f), new Vector2(0f, -75f), new Vector2(590f, 82f)).font = _display;
+            AddButton(PuzzleHudAction.Next, "Next", new Vector2(0.5f, 0f), new Vector2(140f, 70f), new Vector2(245f, 92f), PresentationKit.Teal, _card,
                 textColor: PaperFill);
-            AddButton(PuzzleHudAction.Restart, "Replay", new Vector2(0.5f, 0f), new Vector2(-170f, 95f), new Vector2(280f, 120f), PresentationKit.TrayCard, _card, register: false);
+            AddButton(PuzzleHudAction.Restart, "Replay", new Vector2(0.5f, 0f), new Vector2(-140f, 70f), new Vector2(245f, 92f), PresentationKit.TrayCard, _card, register: false);
             _card.gameObject.SetActive(false);
         }
 
@@ -156,10 +160,23 @@ namespace ZipTrip.Unity
 
         public void SetCompletionVisible(bool visible) => _card.gameObject.SetActive(visible);
 
+        public void SetCompletionMode(bool active)
+        {
+            CompletionMode = active;
+            _buttons[PuzzleHudAction.Undo].gameObject.SetActive(!active);
+            _buttons[PuzzleHudAction.Restart].gameObject.SetActive(!active);
+            if (active)
+                SetRotateVisible(false);
+            _label.transform.parent.gameObject.SetActive(!active);
+            _levelShadow.gameObject.SetActive(!active);
+            if (!active)
+                SetCompletionVisible(false);
+        }
+
         /// <summary>Topmost visible HUD action under a screen point, or None.</summary>
         public PuzzleHudAction Hit(Vector2 screenPosition)
         {
-            if (CompletionVisible)
+            if (CompletionMode)
             {
                 foreach (Transform child in _card)
                     if (child.name.StartsWith("Button ") && child.gameObject.activeSelf

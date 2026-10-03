@@ -118,6 +118,7 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 3)).Step.Move.IsAccepted, Is.True);
             var last = Place(scene, "sneaker-1", Rotation.Degrees270, new Cell(1, 5));
             Assert.That(last.Step.CompletionReached, Is.True);
+            scene.Completion.Advance(2f);
             yield return null;
             Assert.That(scene.Session.MoveCount, Is.EqualTo(3));
             Assert.That(scene.Hud.CompletionVisible, Is.True);
@@ -160,8 +161,117 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Hud.CompletionVisible, Is.False);
             var last = Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0));
             Assert.That(last.Step.CompletionReached, Is.True);
+            scene.Completion.Advance(2f);
             Assert.That(scene.Hud.CompletionVisible, Is.EqualTo(scene.Session.CurrentCompletion.IsComplete));
             Assert.That(scene.CompletionCount, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator ZipIt_GoldenLid_UsesOnlyCompletionEdge_AndKeepsCanonicalStateAndCamera()
+        {
+            yield return LoadGameplayScene();
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            var rig = scene.Board.Container;
+            Assert.That(rig, Is.Not.Null);
+            Assert.That(Quaternion.Angle(rig.Lid.localRotation, rig.LidOpenLocalRotation), Is.LessThan(0.01f));
+            var basePosition = rig.Base.position;
+            var baseRotation = rig.Base.rotation;
+            Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
+            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
+            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
+            var view = scene.Tray.ItemViews["sneaker-1"];
+            scene.Drag.BeginDrag("sneaker-1", TrayGrab(view));
+            scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(3.5f, 0f, -0.5f));
+            Assert.That(scene.Drag.PreviewValid, Is.True);
+            Assert.That(scene.Drag.Preview.State.Hash, Is.Not.EqualTo(scene.Session.CurrentState.Hash));
+            Assert.That(scene.Completion.PlayCount, Is.Zero, "a complete preview is not a commit");
+            var cameraPosition = scene.Camera.transform.position;
+            var cameraSize = scene.Camera.orthographicSize;
+            var step = scene.Drag.Drop();
+            Assert.That(step.CompletionReached, Is.True);
+            Assert.That(scene.Completion.PlayCount, Is.EqualTo(1));
+            Assert.That(scene.Hud.CompletionVisible, Is.False, "confirmation follows closure");
+            Assert.That(scene.Drag.InteractionEnabled, Is.False);
+            Assert.That(scene.Rules.VisibleCues, Is.Empty);
+            Assert.That(scene.Staging.HoverSlot, Is.EqualTo(-1));
+            Assert.That(scene.Drag.GhostCellCount, Is.Zero);
+            var state = scene.Session.CurrentState;
+            var hash = state.Hash;
+            var moves = scene.Session.MoveCount;
+            scene.FrameCamera();
+            Assert.That(scene.Camera.transform.position, Is.EqualTo(cameraPosition));
+            Assert.That(scene.Camera.orthographicSize, Is.EqualTo(cameraSize));
+            scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration + PuzzleCompletionPresenter.AnticipationDuration
+                + PuzzleCompletionPresenter.LidDuration * 0.3f);
+            Assert.That(scene.Completion.CurrentPhase, Is.EqualTo(PuzzleCompletionPresenter.Phase.Lid));
+            Assert.That(Quaternion.Angle(rig.Lid.localRotation, rig.LidOpenLocalRotation), Is.GreaterThan(1f));
+            scene.Completion.Advance(2f);
+            Assert.That(rig.Lid.localRotation, Is.EqualTo(Quaternion.identity));
+            Assert.That(rig.Base.position, Is.EqualTo(basePosition));
+            Assert.That(rig.Base.rotation, Is.EqualTo(baseRotation));
+            Assert.That(scene.Hud.CompletionVisible, Is.True);
+            Assert.That(scene.Session.CurrentState, Is.SameAs(state));
+            Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(hash));
+            Assert.That(scene.Session.MoveCount, Is.EqualTo(moves));
+            Assert.That(scene.Undo(), Is.False, "presentation lock leaves session undo history intact");
+            scene.Completion.Advance(1f);
+            Assert.That(scene.Completion.PlayCount, Is.EqualTo(1));
+            scene.Perform(PuzzleHudAction.Restart);
+            Assert.That(scene.Session.MoveCount, Is.Zero);
+            Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(scene.Level.InitialState.Hash));
+            Assert.That(scene.Hud.CompletionVisible, Is.False);
+            Assert.That(scene.Drag.InteractionEnabled, Is.True);
+            Assert.That(Quaternion.Angle(rig.Lid.localRotation, rig.LidOpenLocalRotation), Is.LessThan(0.01f));
+            Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
+            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
+            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
+            Assert.That(Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0)).Step.CompletionReached, Is.True);
+            scene.Completion.Advance(2f);
+            scene.Perform(PuzzleHudAction.Next);
+            Assert.That(scene.Level.Id, Is.EqualTo("lv2-rotate"));
+            Assert.That(Quaternion.Angle(rig.Lid.localRotation, rig.LidOpenLocalRotation), Is.LessThan(0.01f));
+            Assert.That(scene.Drag.InteractionEnabled, Is.True);
+            var frame = scene.Board.CompartmentFrames().Single();
+            Assert.That(scene.Camera.WorldToViewportPoint(frame.Origin + new Vector3(frame.Width * 0.5f, 0f, 0f)).x,
+                Is.EqualTo(0.5f).Within(0.02f), "closed Lv1 rig does not shift Lv2 framing");
+        }
+
+        [UnityTest]
+        public IEnumerator ZipIt_FallbackCompletesWithoutGoldenLid_AndNextFramesLv2()
+        {
+            var scene = Scene();
+            yield return null;
+            Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
+            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
+            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
+            Assert.That(scene.Completion.PlayCount, Is.Zero);
+            Assert.That(Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0)).Step.CompletionReached, Is.True);
+            scene.Completion.Advance(2f);
+            Assert.That(scene.Hud.CompletionVisible, Is.True);
+            scene.Perform(PuzzleHudAction.Next);
+            Assert.That(scene.Level.Id, Is.EqualTo("lv2-rotate"));
+            Assert.That(scene.Completion.CurrentPhase, Is.EqualTo(PuzzleCompletionPresenter.Phase.Idle));
+            Assert.That(scene.Drag.InteractionEnabled, Is.True);
+            var frame = scene.Board.CompartmentFrames().Single();
+            Assert.That(scene.Camera.WorldToViewportPoint(frame.Origin + new Vector3(frame.Width * 0.5f, 0f, 0f)).x,
+                Is.EqualTo(0.5f).Within(0.02f));
+        }
+
+        [UnityTest]
+        public IEnumerator ZipIt_CompletedRulesStopPulsingAndHideTheirOverlays()
+        {
+            var scene = Scene();
+            scene.LoadLevel(RulesFixture.Load(RulesFixture.LaptopExtracted), "Rules");
+            yield return null;
+            Assert.That(scene.Rules.StripVisible, Is.True);
+            Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(0, 3));
+            Assert.That(scene.Session.CurrentCompletion.IsComplete, Is.False);
+            var last = Place(scene, "sweater-1", Rotation.Degrees0, new Cell(2, 4));
+            Assert.That(last.Step.CompletionReached, Is.True, string.Join(", ", last.Step.Completion.Failures));
+            Assert.That(scene.Rules.StripVisible, Is.False);
+            Assert.That(scene.Rules.VisibleCues, Is.Empty);
+            foreach (var id in scene.Rules.RuleIds)
+                Assert.That(scene.Rules.IsPulsing(id), Is.False, id);
         }
 
         [UnityTest]
@@ -476,6 +586,42 @@ namespace ZipTrip.Tests.PlayMode
             scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(0.5f, 0f, -0.5f));
             scene.Drag.Drop();
             Assert.That(scene.Board.ItemViews["laptop-1"].UsesPrefab, Is.True, "golden laptop");
+        }
+
+        // Visual smoke check: renders both levels at 1080x1920 and a 20:9 device aspect.
+        [UnityTest, Explicit("Writes ZT-043 sequence screenshots")]
+        public IEnumerator CaptureZipItSequence1080x2340()
+        {
+            yield return LoadGameplayScene();
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            scene.Hud.RenderThrough(scene.Camera);
+            scene.Completion.AutoAdvance = false;
+            var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../Builds/zt043-screens"));
+            Directory.CreateDirectory(folder);
+            Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
+            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
+            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
+            yield return Capture(scene, folder, "01-before-final-drop", 1080, 2340);
+            Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0));
+            yield return Capture(scene, folder, "02-final-item-settle", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration);
+            yield return Capture(scene, folder, "03-anticipation", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.AnticipationDuration + PuzzleCompletionPresenter.LidDuration * 0.3f);
+            yield return Capture(scene, folder, "04-lid-30-percent", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.LidDuration * 0.4f);
+            yield return Capture(scene, folder, "05-lid-70-percent", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.LidDuration * 0.3f);
+            yield return Capture(scene, folder, "06-lid-closed", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.ZipDuration * 0.55f);
+            yield return Capture(scene, folder, "07-zip-highlight", 1080, 2340);
+            scene.Completion.Advance(1f);
+            yield return Capture(scene, folder, "08-packed-confirmation", 1080, 2340);
+            scene.Perform(PuzzleHudAction.Restart);
+            yield return Capture(scene, folder, "09-replay-open", 1080, 2340);
+            // Review-only level switch uses the same authored Next path; gameplay still requires completion for the button.
+            scene.NextLevel();
+            yield return Capture(scene, folder, "10-next-lv2-open", 1080, 2340);
+            Debug.Log("[zt043-screens] " + folder);
         }
 
         // Visual smoke check: renders both levels at 1080x1920 and a 20:9 device aspect.

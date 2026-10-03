@@ -177,6 +177,20 @@ namespace ZipTrip.Unity
             ShowIdleCues();
         }
 
+        public void ClearForCompletion()
+        {
+            _dragKey = null;
+            foreach (var tag in _tags)
+            {
+                tag.Pulse = -1f;
+                tag.Root.localScale = Vector3.one;
+            }
+            BeginCues();
+            EndCues();
+            if (_strip != null)
+                _strip.gameObject.SetActive(false);
+        }
+
         /// <summary>
         /// Drag-time context for the dragged item (null clears it). <paramref name="preview"/> is RuleEvaluator on the
         /// drag controller's accepted Domain preview state, or null when there is no valid preview.
