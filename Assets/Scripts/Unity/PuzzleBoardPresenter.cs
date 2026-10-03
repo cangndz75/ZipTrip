@@ -14,11 +14,16 @@ namespace ZipTrip.Unity
     public sealed class PuzzleBoardPresenter : MonoBehaviour
     {
         public static readonly Color GhostColor = new Color(0.55f, 0.75f, 0.78f, 0.22f);
+        // Functional fallback-block colours (not final art): palette family plus two muted extras to reduce collisions.
         private static readonly Color[] Palette =
-            { PresentationKit.Teal, PresentationKit.Terracotta, PresentationKit.Mustard, PresentationKit.DeepBlueGreen };
+        {
+            PresentationKit.Teal, PresentationKit.Terracotta, PresentationKit.Mustard, PresentationKit.DeepBlueGreen,
+            PresentationKit.Hex(0x7FA88B), PresentationKit.Hex(0xB98AA0)
+        };
 
         private readonly Dictionary<string, PuzzleCompartmentView> _compartments = new Dictionary<string, PuzzleCompartmentView>();
         private readonly Dictionary<string, PuzzleItemView> _items = new Dictionary<string, PuzzleItemView>();
+        private readonly Dictionary<string, Color> _colors = new Dictionary<string, Color>();
         private Func<PuzzleItem, GameObject> _visualResolver;
         private Material _template;
         private Material _ghostMaterial;
@@ -32,7 +37,10 @@ namespace ZipTrip.Unity
 
         /// <param name="materialTemplate">Shared runtime material (e.g. BoardPresenter.RuntimeMaterialTemplate); may be null.</param>
         /// <param name="visualResolver">Optional prefab lookup per item; null or a null result uses footprint blocks.</param>
-        public void Present(BoardSpec board, Material materialTemplate = null, Func<PuzzleItem, GameObject> visualResolver = null)
+        /// <param name="compartmentOrigins">Optional scene-authored local origins per compartment id; missing ids use the
+        /// deterministic side-by-side fallback (PuzzleBoardLayout), which is not a production layout contract.</param>
+        public void Present(BoardSpec board, Material materialTemplate = null, Func<PuzzleItem, GameObject> visualResolver = null,
+            IReadOnlyDictionary<string, Vector3> compartmentOrigins = null)
         {
             Board = board ?? throw new ArgumentNullException(nameof(board));
             _template = materialTemplate;
@@ -51,7 +59,8 @@ namespace ZipTrip.Unity
             {
                 var view = new GameObject("Compartment " + compartment.Id).AddComponent<PuzzleCompartmentView>();
                 view.transform.SetParent(transform, false);
-                view.transform.localPosition = origins[compartment.Id];
+                view.transform.localPosition = compartmentOrigins != null && compartmentOrigins.TryGetValue(compartment.Id, out var authored)
+                    ? authored : origins[compartment.Id];
                 view.Build(compartment, _template);
                 _compartments.Add(compartment.Id, view);
             }
@@ -74,7 +83,7 @@ namespace ZipTrip.Unity
                     _items.Add(item.InstanceId, view);
                 }
                 view.Bind(item, _compartments[item.Location.Placement.Compartment].ItemsRoot,
-                    _visualResolver?.Invoke(item), _template, ColorFor(item.Definition.Id));
+                    ResolveVisual(item), _template, ColorFor(item.Definition.Id));
             }
 
             var stale = new List<string>();
@@ -91,6 +100,22 @@ namespace ZipTrip.Unity
             ApplyXRay();
         }
 
+        /// <summary>World frames of the compartment roots, for pointer projection.</summary>
+        public IReadOnlyList<CompartmentFrame> CompartmentFrames()
+        {
+            var frames = new List<CompartmentFrame>();
+            foreach (var view in _compartments.Values)
+                frames.Add(new CompartmentFrame(view.CompartmentId, view.transform.position, view.Width, view.Height));
+            frames.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+            return frames.AsReadOnly();
+        }
+
+        internal Material Template => _template;
+
+        internal Material GhostMaterial => _ghostMaterial;
+
+        internal GameObject ResolveVisual(PuzzleItem item) => _visualResolver?.Invoke(item);
+
         /// <summary>Lower-layer readability: ghosts every item above layer 0. Rendering only.</summary>
         public void SetXRayEnabled(bool enabled)
         {
@@ -104,12 +129,13 @@ namespace ZipTrip.Unity
                 view.SetGhost(XRayEnabled && view.Placement.Layer > 0, _ghostMaterial);
         }
 
-        private static Color ColorFor(string definitionId)
+        // Fallback-block colour per definition, assigned in first-seen order (deterministic for a given sync order) so
+        // up to six definitions never share a colour. Instances of one definition share it.
+        internal Color ColorFor(string definitionId)
         {
-            var hash = 0;
-            foreach (var c in definitionId)
-                hash = unchecked(hash * 31 + c);
-            return Palette[(hash & int.MaxValue) % Palette.Length];
+            if (!_colors.TryGetValue(definitionId, out var color))
+                _colors.Add(definitionId, color = Palette[_colors.Count % Palette.Length]);
+            return color;
         }
 
         private void OnDestroy()
