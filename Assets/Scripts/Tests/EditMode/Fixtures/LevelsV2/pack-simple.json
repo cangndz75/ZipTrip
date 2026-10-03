@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "id": "fixture-pack-simple",
+  "board": { "compartments": [
+    { "id": "main", "width": 4, "height": 3, "layers": 1, "rows": ["####", "####", "####"] }
+  ] },
+  "stagingCapacity": 2,
+  "items": [
+    { "id": "book-1", "definitionId": "book", "role": "required", "location": { "kind": "sourceTray" } },
+    { "id": "laptop-1", "definitionId": "laptop", "role": "required", "location": { "kind": "sourceTray" } },
+    { "id": "socks-1", "definitionId": "socks", "role": "required", "location": { "kind": "sourceTray" } }
+  ],
+  "rules": [],
+  "objective": { "profile": "pack", "requiredInstanceIds": ["book-1", "laptop-1", "socks-1"] }
+}

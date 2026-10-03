@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "id": "fixture-extract",
+  "board": { "compartments": [
+    { "id": "main", "width": 4, "height": 3, "layers": 2, "rows": ["####", "####", "####"] }
+  ] },
+  "stagingCapacity": 2,
+  "destinations": [
+    { "id": "security-tray", "capacity": 1, "acceptedInstanceIds": ["laptop-a"] }
+  ],
+  "items": [
+    { "id": "laptop-a", "definitionId": "laptop", "role": "extractionTarget",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 0, "y": 0, "layer": 0, "rotation": 0 } },
+    { "id": "laptop-b", "definitionId": "laptop",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 2, "y": 0, "layer": 0, "rotation": 0 } },
+    { "id": "book-1", "definitionId": "book",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 0, "y": 0, "layer": 1, "rotation": 0 } },
+    { "id": "shoe-1", "definitionId": "shoe",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 0, "y": 2, "layer": 0, "rotation": 0 } },
+    { "id": "socks-1", "definitionId": "socks", "location": { "kind": "nested", "parentId": "shoe-1" } },
+    { "id": "cable-1", "definitionId": "cable",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 2, "y": 2, "layer": 0, "rotation": 0 } }
+  ],
+  "rules": [
+    { "id": "cable-near-target", "kind": "adjacencyRequired", "subject": { "kind": "instance", "value": "cable-1" }, "target": { "kind": "instance", "value": "laptop-a" } }
+  ],
+  "objective": { "profile": "extract", "targetInstanceId": "laptop-a", "destinationId": "security-tray" }
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "id": "fixture-repack",
+  "board": { "compartments": [
+    { "id": "main", "width": 4, "height": 3, "layers": 2, "rows": ["####", "####", "####"] }
+  ] },
+  "stagingCapacity": 1,
+  "items": [
+    { "id": "book-1", "definitionId": "book", "role": "required",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 0, "y": 0, "layer": 0, "rotation": 0 } },
+    { "id": "laptop-1", "definitionId": "laptop", "role": "required",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 2, "y": 0, "layer": 0, "rotation": 0 } },
+    { "id": "socks-1", "definitionId": "socks", "role": "required",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 0, "y": 1, "layer": 0, "rotation": 0 } },
+    { "id": "mug-1", "definitionId": "mug", "role": "required", "location": { "kind": "sourceTray" } },
+    { "id": "globe-1", "definitionId": "globe", "role": "required", "location": { "kind": "sourceTray" } }
+  ],
+  "rules": [
+    { "id": "fragile-away-from-tech", "kind": "adjacencyForbidden", "subject": { "kind": "tag", "value": "fragile" }, "target": { "kind": "tag", "value": "tech" } }
+  ],
+  "objective": { "profile": "repack", "existingInstanceIds": ["book-1", "laptop-1", "socks-1"], "incomingInstanceIds": ["mug-1", "globe-1"] }
+}
