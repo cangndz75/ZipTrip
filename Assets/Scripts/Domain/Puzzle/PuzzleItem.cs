@@ -67,16 +67,24 @@ namespace ZipTrip.Domain.Puzzle
         public Placement Placement { get; }
         /// <summary>Parent instance id (Nested) or destination id (Destination); null otherwise.</summary>
         public string TargetId { get; }
+        /// <summary>
+        /// Staging slot index (ZT-041; ADR-0006 D11 "each slot holds exactly one item"); 0 for every other kind. Slots
+        /// carry no geometry and never block each other; the index is the slot's canonical identity (undo-exact).
+        /// </summary>
+        public int StagingSlot { get; }
 
-        private ItemLocation(ItemLocationKind kind, Placement placement, string targetId)
+        private ItemLocation(ItemLocationKind kind, Placement placement, string targetId, int stagingSlot = 0)
         {
             Kind = kind;
             Placement = placement;
             TargetId = targetId;
+            StagingSlot = stagingSlot;
         }
 
         public static ItemLocation SourceTray => new ItemLocation(ItemLocationKind.SourceTray, default, null);
-        public static ItemLocation Staging => new ItemLocation(ItemLocationKind.Staging, default, null);
+        public static ItemLocation InStaging(int slot) =>
+            slot >= 0 ? new ItemLocation(ItemLocationKind.Staging, default, null, slot)
+                : throw new ArgumentOutOfRangeException(nameof(slot), slot, "Staging slot must be >= 0.");
         public static ItemLocation InSuitcase(Placement placement) => new ItemLocation(ItemLocationKind.Suitcase, placement, null);
         public static ItemLocation NestedIn(string parentInstanceId) =>
             new ItemLocation(ItemLocationKind.Nested, default, parentInstanceId ?? throw new ArgumentNullException(nameof(parentInstanceId)));
@@ -84,14 +92,18 @@ namespace ZipTrip.Domain.Puzzle
             new ItemLocation(ItemLocationKind.Destination, default, destinationId ?? throw new ArgumentNullException(nameof(destinationId)));
 
         public bool Equals(ItemLocation other) =>
-            Kind == other.Kind && Placement.Equals(other.Placement) && string.Equals(TargetId, other.TargetId, StringComparison.Ordinal);
+            Kind == other.Kind && Placement.Equals(other.Placement) && string.Equals(TargetId, other.TargetId, StringComparison.Ordinal)
+            && StagingSlot == other.StagingSlot;
 
         public override bool Equals(object obj) => obj is ItemLocation other && Equals(other);
 
-        public override int GetHashCode() => unchecked(((int)Kind * 397 ^ Placement.GetHashCode()) * 397 ^ (TargetId?.GetHashCode() ?? 0));
+        public override int GetHashCode() =>
+            unchecked((((int)Kind * 397 ^ Placement.GetHashCode()) * 397 ^ (TargetId?.GetHashCode() ?? 0)) * 397 ^ StagingSlot);
 
         public override string ToString() =>
-            Kind == ItemLocationKind.Suitcase ? "Suitcase " + Placement : TargetId == null ? Kind.ToString() : $"{Kind} {TargetId}";
+            Kind == ItemLocationKind.Suitcase ? "Suitcase " + Placement
+            : Kind == ItemLocationKind.Staging ? "Staging " + StagingSlot
+            : TargetId == null ? Kind.ToString() : $"{Kind} {TargetId}";
     }
 
     /// <summary>

@@ -43,7 +43,7 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(result.Failures.Single().Kind, Is.EqualTo(CompletionFailureKind.RequiredItemNotInSuitcase));
             Assert.That(result.Failures.Single().InstanceId, Is.EqualTo("b"));
 
-            var staged = State(Spec(), Placed("a", Block("a", 1, 1), At(0, 0)), Item("b", Block("b", 1, 1), ItemLocation.Staging));
+            var staged = State(Spec(), Placed("a", Block("a", 1, 1), At(0, 0)), Item("b", Block("b", 1, 1), ItemLocation.InStaging(0)));
             Assert.That(Kinds(Evaluate(staged, PuzzleObjective.Pack(new[] { "a", "b" }))),
                 Is.EqualTo(new[] { CompletionFailureKind.RequiredItemNotInSuitcase, CompletionFailureKind.StagingNotEmpty }));
         }
@@ -64,7 +64,7 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(Evaluate(inSuitcase, PuzzleObjective.Pack(new[] { "shoe-1", "socks-1" })).IsComplete, Is.True);
             Assert.That(CompletionEvaluator.IsInSuitcase(inSuitcase, "socks-1"), Is.True);
 
-            var staged = State(Spec(), Item("shoe-1", Shoe(), ItemLocation.Staging), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
+            var staged = State(Spec(), Item("shoe-1", Shoe(), ItemLocation.InStaging(0)), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
             var result = Evaluate(staged, PuzzleObjective.Pack(new[] { "socks-1" }));
             Assert.That(result.Failures.Select(f => (f.Kind, f.InstanceId)), Is.EqualTo(new[]
             {
@@ -76,7 +76,7 @@ namespace ZipTrip.Tests.EditMode
         [Test]
         public void Pack_NonEmptyStaging_BlocksEvenWithOptionalItem()
         {
-            var state = State(Spec(), Placed("a", Block("a", 1, 1), At(0, 0)), Item("spare", Block("spare", 1, 1), ItemLocation.Staging, ObjectiveRole.None));
+            var state = State(Spec(), Placed("a", Block("a", 1, 1), At(0, 0)), Item("spare", Block("spare", 1, 1), ItemLocation.InStaging(0), ObjectiveRole.None));
             Assert.That(Kinds(Evaluate(state, PuzzleObjective.Pack(new[] { "a" }))), Is.EqualTo(new[] { CompletionFailureKind.StagingNotEmpty }));
         }
 
@@ -228,8 +228,8 @@ namespace ZipTrip.Tests.EditMode
         [Test]
         public void Evaluation_IsPureDeterministicAndOrdered()
         {
-            var state = State(Spec(), Item("z", Block("z", 1, 1), ItemLocation.Staging), Item("b", Block("b", 1, 1), ItemLocation.SourceTray),
-                Item("a", Block("a", 1, 1), ItemLocation.Staging), Placed("p", Block("p", 1, 1), At(0, 0)), Placed("q", Block("q", 1, 1), At(0, 0)));
+            var state = State(Spec(), Item("z", Block("z", 1, 1), ItemLocation.InStaging(0)), Item("b", Block("b", 1, 1), ItemLocation.SourceTray),
+                Item("a", Block("a", 1, 1), ItemLocation.InStaging(1)), Placed("p", Block("p", 1, 1), At(0, 0)), Placed("q", Block("q", 1, 1), At(0, 0)));
             var bytes = state.ToStableBytes();
             var objective = PuzzleObjective.Pack(new[] { "z", "b", "a" });
             var first = Evaluate(state, objective);

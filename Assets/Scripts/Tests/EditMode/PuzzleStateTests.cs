@@ -29,7 +29,7 @@ namespace ZipTrip.Tests.EditMode
             var bag = Block("bag", 2, 2, nest: new NestSpec(1, new[] { "socks" }, null));
             var state = State(Spec(),
                 Item("tray-1", Block("shirt", 1, 2), ItemLocation.SourceTray),
-                Item("staged-1", Block("book", 1, 1), ItemLocation.Staging),
+                Item("staged-1", Block("book", 1, 1), ItemLocation.InStaging(0)),
                 Placed("bag-1", bag, At(0, 0)),
                 Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("bag-1")),
                 Item("laptop-1", Block("laptop", 2, 2), ItemLocation.InDestination("tray"), ObjectiveRole.ExtractionTarget));
@@ -45,7 +45,7 @@ namespace ZipTrip.Tests.EditMode
         public void SameInstance_CannotBeInTwoContainers()
         {
             var shirt = Block("shirt", 1, 2);
-            AssertRejected(() => State(Spec(), Item("s", shirt, ItemLocation.SourceTray), Item("s", shirt, ItemLocation.Staging)),
+            AssertRejected(() => State(Spec(), Item("s", shirt, ItemLocation.SourceTray), Item("s", shirt, ItemLocation.InStaging(0))),
                 "DuplicateInstanceId");
         }
 
@@ -99,7 +99,7 @@ namespace ZipTrip.Tests.EditMode
                 Placed("bag-1", bag, At(0, 0)),
                 Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("bag-1")),
                 Item("tray-1", Block("shirt", 1, 1), ItemLocation.SourceTray),
-                Item("staged-1", Block("book", 1, 1), ItemLocation.Staging),
+                Item("staged-1", Block("book", 1, 1), ItemLocation.InStaging(0)),
                 Item("out-1", Block("laptop", 1, 1), ItemLocation.InDestination("tray"), ObjectiveRole.ExtractionTarget));
             foreach (var id in new[] { "socks-1", "tray-1", "staged-1", "out-1" })
             {
@@ -113,7 +113,7 @@ namespace ZipTrip.Tests.EditMode
         [Test]
         public void CanonicalBytes_AreDeterministicAndIndependentOfInputOrder()
         {
-            var a = new[] { Placed("b-1", Block("book", 1, 1), At(0, 0)), Item("s-1", Block("shirt", 1, 1), ItemLocation.Staging) };
+            var a = new[] { Placed("b-1", Block("book", 1, 1), At(0, 0)), Item("s-1", Block("shirt", 1, 1), ItemLocation.InStaging(0)) };
             var first = new PuzzleState(Spec(), a);
             var second = new PuzzleState(Spec(), a.Reverse());
             Assert.That(second, Is.EqualTo(first));
@@ -135,7 +135,7 @@ namespace ZipTrip.Tests.EditMode
                 State(Spec(), Placed("b", book, At(0, 0, rotation: Rotation.Degrees90))),
                 State(Spec(), Placed("b", book, At(0, 0, compartment: "pocket"))),
                 State(Spec(), Placed("b", book, At(0, 0), ObjectiveRole.None)),
-                State(Spec(), Item("b", book, ItemLocation.Staging)),
+                State(Spec(), Item("b", book, ItemLocation.InStaging(0))),
                 State(Spec(), Item("b", book, ItemLocation.SourceTray)),
                 State(Spec(), Placed("c", book, At(0, 0)))
             };
@@ -145,8 +145,8 @@ namespace ZipTrip.Tests.EditMode
                 Assert.That(variant.Hash, Is.Not.EqualTo(baseline.Hash));
             }
 
-            var sweater = State(Spec(), Item("w", Sweater(), ItemLocation.Staging));
-            Assert.That(State(Spec(), Item("w", Sweater(), ItemLocation.Staging, stateId: "folded")).Hash, Is.Not.EqualTo(sweater.Hash));
+            var sweater = State(Spec(), Item("w", Sweater(), ItemLocation.InStaging(0)));
+            Assert.That(State(Spec(), Item("w", Sweater(), ItemLocation.InStaging(0), stateId: "folded")).Hash, Is.Not.EqualTo(sweater.Hash));
         }
 
         [Test]
@@ -160,8 +160,8 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(twin.EquivalenceKey, Is.EqualTo(required.EquivalenceKey));
             Assert.That(optional.EquivalenceKey, Is.Not.EqualTo(required.EquivalenceKey), "objective role differs");
             Assert.That(required.EquivalenceKey.Tags, Is.EqualTo(new[] { "clothes" }));
-            Assert.That(Item("w-1", Sweater(), ItemLocation.Staging).EquivalenceKey,
-                Is.Not.EqualTo(Item("w-2", Sweater(), ItemLocation.Staging, stateId: "folded").EquivalenceKey), "state differs");
+            Assert.That(Item("w-1", Sweater(), ItemLocation.InStaging(0)).EquivalenceKey,
+                Is.Not.EqualTo(Item("w-2", Sweater(), ItemLocation.InStaging(1), stateId: "folded").EquivalenceKey), "state differs");
 
             var state = State(Spec(), required, twin);
             Assert.That(state.Items.Select(i => i.InstanceId), Is.EqualTo(new[] { "t-1", "t-2" }), "instances stay distinct");
@@ -172,7 +172,7 @@ namespace ZipTrip.Tests.EditMode
         {
             var book = Placed("b", Block("book", 1, 1), At(0, 0));
             var before = State(Spec(), book);
-            var after = before.With(book.With(ItemLocation.Staging));
+            var after = before.With(book.With(ItemLocation.InStaging(0)));
             Assert.That(after.GetItems(ItemLocationKind.Staging).Count, Is.EqualTo(1));
             Assert.That(before.GetItems(ItemLocationKind.Suitcase).Count, Is.EqualTo(1));
             Assert.That(() => ((IList<PuzzleItem>)before.Items).Clear(), Throws.InstanceOf<NotSupportedException>());

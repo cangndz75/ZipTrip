@@ -271,7 +271,7 @@ namespace ZipTrip.Tests.EditMode
         {
             var shoe = Block("shoe", 2, 1, nest: new NestSpec(1, new[] { "socks" }, null));
             var level = Level(Board(3, 1, 1), new PuzzleRule[0], new[] { "a", "shoe-1" },
-                T("a", Block("a", 1, 1)), Item("shoe-1", shoe, ItemLocation.Staging), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
+                T("a", Block("a", 1, 1)), Item("shoe-1", shoe, ItemLocation.InStaging(0)), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
             var result = Solve(level);
             Assert.That(result.Status, Is.EqualTo(PackSolveStatus.UnsupportedInitialState));
             Assert.That(result.UnsupportedReason, Is.EqualTo(PackSolveUnsupportedReason.InitialStagingNotSupported));

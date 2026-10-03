@@ -19,7 +19,9 @@ namespace ZipTrip.Domain.Puzzle
         NestOverCapacity = 5,
         NestIncompatible = 6,
         DestinationOverCapacity = 7,
-        DestinationNotAccepted = 8
+        DestinationNotAccepted = 8,
+        /// <summary>ZT-041: a staged item sits in an out-of-range slot or shares its slot with another item.</summary>
+        StagingSlotConflict = 9
     }
 
     public readonly struct InvariantViolation
@@ -125,8 +127,17 @@ namespace ZipTrip.Domain.Puzzle
                 }
             }
 
-            if (state.GetItems(ItemLocationKind.Staging).Count > state.Spec.StagingCapacity)
+            var staged = state.GetItems(ItemLocationKind.Staging);
+            if (staged.Count > state.Spec.StagingCapacity)
                 violations.Add(new InvariantViolation(InvariantKind.StagingOverCapacity, null));
+            else
+            {
+                // ZT-041: each staged item owns one distinct in-range slot (ADR-0006 D11).
+                var used = new HashSet<int>();
+                foreach (var item in staged)
+                    if (item.Location.StagingSlot >= state.Spec.StagingCapacity || !used.Add(item.Location.StagingSlot))
+                        violations.Add(new InvariantViolation(InvariantKind.StagingSlotConflict, item.InstanceId));
+            }
 
             foreach (var parent in state.Items)
             {

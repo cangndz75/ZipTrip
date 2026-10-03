@@ -74,6 +74,7 @@ Roll, Vacuum, Protected and Travel Bottle are not separate states.
     - Slice: `stagingCapacity = 2`. Later levels may use 1 / 2 / 3; capacity is a difficulty knob in its own right (3 = easy, 2 = normal, 1 = hard on the same board).
     - Each slot holds exactly one item (a parent with nested children counts as one item and keeps its children).
     - Slots carry no geometry or rotation, accept no nesting, and never block each other. Bed/table is a visual metaphor only.
+    - **Slot identity (clarification, ZT-041, human-approved 2026-10-03).** A staged item's location carries its slot index `0 … stagingCapacity − 1`; the index is canonical state (part of the state hash) so undo restores the exact slot. A move into staging names a slot or takes the lowest free one; naming an occupied or out-of-range slot is rejected. Two items never share a slot. Staging → staging is not a Decision 18 move and stays unsupported.
     - **Source Tray vs staging (clarification).** The Source Tray (unplaced pool) is distinct from staging.
       - The Source Tray holds required items that have not yet entered the suitcase. Pack starts with its unpacked required items there; Repack may introduce new incoming items (e.g. souvenirs) there.
       - The Source Tray has no capacity limit in the validation slice and does not consume staging capacity.

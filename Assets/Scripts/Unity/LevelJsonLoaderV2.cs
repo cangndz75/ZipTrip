@@ -149,13 +149,18 @@ namespace ZipTrip.Unity
                 throw new ArgumentException($"UnexpectedField: {instanceId} parentId on a {kind} location");
             if (kind != "destination" && !string.IsNullOrEmpty(dto.destinationId))
                 throw new ArgumentException($"UnexpectedField: {instanceId} destinationId on a {kind} location");
+            if (kind != "staging" && dto.slot != MissingInteger)
+                throw new ArgumentException($"UnexpectedField: {instanceId} slot on a {kind} location");
 
             switch (kind)
             {
                 case "sourceTray":
                     return ItemLocation.SourceTray;
                 case "staging":
-                    return ItemLocation.Staging;
+                    Require(dto.slot != MissingInteger, "location.slot " + instanceId);
+                    if (dto.slot < 0)
+                        throw new ArgumentException($"InvalidStagingSlot: {instanceId} slot {dto.slot}");
+                    return ItemLocation.InStaging(dto.slot);
                 case "nested":
                     Require(!string.IsNullOrEmpty(dto.parentId), "location.parentId " + instanceId);
                     return ItemLocation.NestedIn(dto.parentId);
@@ -340,6 +345,8 @@ namespace ZipTrip.Unity
             public int rotation = MissingInteger;
             public string parentId = null;
             public string destinationId = null;
+            /// <summary>ZT-041: required for a staging location (explicit slot identity, no implicit assignment).</summary>
+            public int slot = MissingInteger;
         }
 
         [Serializable] private sealed class RuleDto

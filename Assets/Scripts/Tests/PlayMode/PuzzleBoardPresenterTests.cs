@@ -119,7 +119,7 @@ namespace ZipTrip.Tests.PlayMode
             {
                 At("shoe-1", shoe, 0, 0), Off("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")),
                 At("twin-a", twin, 0, 1), At("twin-b", twin, 1, 1),
-                Off("tray-1", Block("x", 1, 1), ItemLocation.SourceTray), Off("staged-1", Block("y", 1, 1), ItemLocation.Staging)
+                Off("tray-1", Block("x", 1, 1), ItemLocation.SourceTray), Off("staged-1", Block("y", 1, 1), ItemLocation.InStaging(0))
             }));
             yield return null;
 
@@ -181,7 +181,7 @@ namespace ZipTrip.Tests.PlayMode
             var level = new PuzzleLevel("presenter", new PuzzleState(Spec(board), new[]
             {
                 At("rod", Block("rod", 2, 1), 0, 0), At("shoe-1", shoe, 0, 2), Off("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")),
-                Off("j", Jacket(), ItemLocation.Staging)
+                Off("j", Jacket(), ItemLocation.InStaging(0))
             }), new RuleSet(board, null), PuzzleObjective.Pack(new[] { "rod", "shoe-1" }));
             var session = new PuzzleSession(level);
             var presenter = Presenter(board);

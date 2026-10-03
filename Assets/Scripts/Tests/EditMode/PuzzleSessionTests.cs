@@ -115,6 +115,42 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(Get(session.CurrentState, "shoe-1").Location.Kind, Is.EqualTo(ItemLocationKind.Suitcase));
         }
 
+        // ZT-041: suitcase <-> staging relocations are one move each; undo restores exact placements and slot identity;
+        // a state that otherwise satisfies Pack is not complete while anything is staged.
+        [Test]
+        public void StagingRoundTrip_OneMoveEach_UndoRestoresSlotAndPlacement_CompletionWaitsForEmptyStaging()
+        {
+            var session = new PuzzleSession(Level(PuzzleObjective.Pack(new[] { "a", "b" }), new PuzzleRule[0],
+                Placed("a", Block("a", 1, 1), At(0, 0)), Placed("b", Block("b", 1, 1), At(1, 0))));
+            var initial = session.CurrentState;
+            Assert.That(session.CurrentCompletion.IsComplete, Is.True);
+
+            // A: suitcase -> staging slot 1, undo -> exact suitcase placement.
+            Assert.That(session.Apply(PuzzleMove.MoveToStaging("a", 1)).Move.IsAccepted, Is.True);
+            Assert.That(session.MoveCount, Is.EqualTo(1));
+            Assert.That(Get(session.CurrentState, "a").Location, Is.EqualTo(ItemLocation.InStaging(1)));
+            Assert.That(session.CurrentCompletion.IsComplete, Is.False, "staging must be empty for completion");
+            session.Undo();
+            Assert.That(session.CurrentState.Hash, Is.EqualTo(initial.Hash));
+            Assert.That(session.MoveCount, Is.Zero);
+            Assert.That(session.CurrentCompletion.IsComplete, Is.True);
+
+            // B: suitcase -> staging -> suitcase; undo -> back in the same slot; undo -> original placement.
+            session.Apply(PuzzleMove.MoveToStaging("a", 1));
+            var staged = session.CurrentState;
+            Assert.That(session.Apply(PuzzleMove.PlaceInSuitcase("a", "main", new Cell(3, 2), Rotation.Degrees0)).Move.IsAccepted, Is.True);
+            Assert.That(session.MoveCount, Is.EqualTo(2), "one move per accepted relocation");
+            var occupiedFull = session.Apply(PuzzleMove.MoveToStaging("b", 7));
+            Assert.That(occupiedFull.Move.IsAccepted, Is.False);
+            Assert.That(session.MoveCount, Is.EqualTo(2), "a rejected staging move changes nothing");
+            session.Undo();
+            Assert.That(session.CurrentState.Hash, Is.EqualTo(staged.Hash));
+            Assert.That(Get(session.CurrentState, "a").Location, Is.EqualTo(ItemLocation.InStaging(1)), "slot identity restored");
+            session.Undo();
+            Assert.That(session.CurrentState.Hash, Is.EqualTo(initial.Hash));
+            Assert.That(Get(session.CurrentState, "a").Location, Is.EqualTo(initial.Items.Single(i => i.InstanceId == "a").Location));
+        }
+
         // ---- Rotation / Fold / Compress ----
 
         [Test]
@@ -123,7 +159,7 @@ namespace ZipTrip.Tests.EditMode
             var session = new PuzzleSession(new PuzzleLevel("test", State(Spec(board: Board(6, 4)),
                     Item("rod", Block("rod", 3, 1), ItemLocation.SourceTray),
                     Item("sw", Sweater(), ItemLocation.SourceTray),
-                    Item("j", Jacket(), ItemLocation.Staging)),
+                    Item("j", Jacket(), ItemLocation.InStaging(0))),
                 new RuleSet(Board(6, 4), null), PuzzleObjective.Pack(new[] { "rod", "sw", "j" })));
 
             session.Apply(PuzzleMove.PlaceInSuitcase("rod", "main", new Cell(5, 0), Rotation.Degrees90));
@@ -257,7 +293,7 @@ namespace ZipTrip.Tests.EditMode
         {
             var session = new PuzzleSession(Level(PuzzleObjective.Pack(new[] { "shoe-1" }), new PuzzleRule[0],
                 Placed("shoe-1", Shoe(), At(0, 0)), Placed("top", Block("top", 1, 1), At(0, 0, layer: 1)),
-                Item("cam", Block("camera", 1, 1), ItemLocation.Staging), Item("cup", Block("cup", 1, 1), ItemLocation.Staging)));
+                Item("cam", Block("camera", 1, 1), ItemLocation.InStaging(0)), Item("cup", Block("cup", 1, 1), ItemLocation.InStaging(1))));
             Assert.That(() => session.Apply(PuzzleMove.MoveToStaging("shoe-1")), Throws.Nothing);
             Assert.That(session.Apply(PuzzleMove.MoveToStaging("shoe-1")).Move.Rejection, Is.EqualTo(MoveRejection.NotAccessible));
             Assert.That(session.Apply(PuzzleMove.NestInto("cam", "shoe-1")).Move.Rejection, Is.EqualTo(MoveRejection.ParentNotAccessible));

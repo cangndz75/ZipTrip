@@ -47,11 +47,15 @@ namespace ZipTrip.Unity
         private float _framedAspect;
         private Vector2Int _framedScreen;
         private PackingTable _table;
+        private PuzzleLevel _fixture;
+        private string _fixtureLabel;
 
         public PuzzleLevel Level { get; private set; }
         public PuzzleSession Session { get; private set; }
         public PuzzleBoardPresenter Board { get; private set; }
         public PuzzleTrayPresenter Tray { get; private set; }
+        /// <summary>ZT-041 limited staging pads; inactive when the level's staging capacity is 0.</summary>
+        public PuzzleStagingPresenter Staging { get; private set; }
         public PuzzleDragController Drag { get; private set; }
         public PuzzleHud Hud { get; private set; }
         public Camera Camera { get; private set; }
@@ -101,7 +105,25 @@ namespace ZipTrip.Unity
             var json = Resources.Load<TextAsset>(LevelFolder + LevelId);
             if (json == null)
                 throw new InvalidOperationException("Missing level " + LevelFolder + LevelId);
-            Level = LevelJsonLoaderV2.Load(json.text, PuzzleItemCatalog.Create());
+            _fixture = null;
+            Present(LevelJsonLoaderV2.Load(json.text, PuzzleItemCatalog.Create()), $"Level {LevelIndex + 1}");
+        }
+
+        /// <summary>
+        /// Loads an authored level that is not part of the shipped progression (test / staging fixtures, ZT-041).
+        /// Restart reloads it; Next continues the shipped progression.
+        /// </summary>
+        public void LoadLevel(PuzzleLevel level, string label)
+        {
+            EnsureRuntimeObjects();
+            _fixture = level ?? throw new ArgumentNullException(nameof(level));
+            _fixtureLabel = label;
+            Present(level, label);
+        }
+
+        private void Present(PuzzleLevel level, string label)
+        {
+            Level = level;
             Session = new PuzzleSession(Level);
 
             Board.UseContainer(containerPrefab);
@@ -134,16 +156,41 @@ namespace ZipTrip.Unity
                 Tray.Scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
                 Tray.transform.localPosition = new Vector3((boardWidth - Tray.RowWidth) * 0.5f, 0f, -(boardDepth + TrayGap));
             }
-            Drag.Initialize(Session, Board, Tray, Camera);
+            LayoutStaging();
+            Drag.Initialize(Session, Board, Tray, Camera, null, Staging);
             LayoutTable();
             Drag.InteractionEnabled = !Session.CurrentCompletion.IsComplete;
 
-            Hud.SetLevel($"Level {LevelIndex + 1}");
+            Hud.SetLevel(label);
             Hud.SetCompletionVisible(Session.CurrentCompletion.IsComplete);
             FrameCamera();
         }
 
-        public void Restart() => LoadLevel(LevelIndex);
+        public void Restart()
+        {
+            if (_fixture != null)
+                LoadLevel(_fixture, _fixtureLabel);
+            else
+                LoadLevel(LevelIndex);
+        }
+
+        /// <summary>Gap between the loose-item row and the staging pads.</summary>
+        public const float StagingGap = 0.6f;
+
+        // ZT-041: with staging capacity > 0 the pads share the packing row with the loose items (pads on the right, the
+        // loose row narrowed), at the same resting height, so staging adds no extra band and the suitcase keeps its size.
+        // Capacity 0 (Lv1 / Lv2) leaves the ZT-040D layout untouched.
+        private void LayoutStaging()
+        {
+            Staging.Build(Level.Spec.StagingCapacity, materialTemplate);
+            if (Staging.Capacity == 0)
+                return;
+            var total = Tray.RowWidth;
+            Tray.RowWidth = Mathf.Max(total - Staging.RowWidth - StagingGap, 3f);
+            Tray.Scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
+            var origin = Tray.transform.localPosition;
+            Staging.transform.localPosition = new Vector3(origin.x + Tray.RowWidth + StagingGap, origin.y, origin.z);
+        }
 
         public void NextLevel() => LoadLevel(LevelIndex + 1);
 
@@ -249,6 +296,9 @@ namespace ZipTrip.Unity
                 bounds.Encapsulate(lid.position + Vector3.up * LidFrameHeight);
             foreach (var renderer in Tray.GetComponentsInChildren<Renderer>())
                 bounds.Encapsulate(renderer.bounds);
+            if (Staging.Capacity > 0)
+                foreach (var renderer in Staging.GetComponentsInChildren<Renderer>())
+                    bounds.Encapsulate(renderer.bounds);
             PuzzleCameraFraming.Frame(Camera, bounds, PuzzleHud.TopFraction(Camera.pixelWidth, Camera.pixelHeight),
                 PuzzleHud.BottomFraction(Camera.pixelWidth, Camera.pixelHeight));
             _framedAspect = Camera.aspect;
@@ -267,6 +317,9 @@ namespace ZipTrip.Unity
             Tray = new GameObject("Source Tray").AddComponent<PuzzleTrayPresenter>();
             Tray.transform.SetParent(transform, false);
             Tray.Configure(Board);
+            Staging = new GameObject("Staging").AddComponent<PuzzleStagingPresenter>();
+            Staging.transform.SetParent(transform, false);
+            Staging.Configure(Board);
             Drag = new GameObject("Drag Controller").AddComponent<PuzzleDragController>();
             Drag.transform.SetParent(transform, false);
             Drag.StepCommitted += step => RefreshCompletion(step.CompletionReached);

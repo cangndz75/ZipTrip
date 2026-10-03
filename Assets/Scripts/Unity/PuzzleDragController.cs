@@ -56,6 +56,7 @@ namespace ZipTrip.Unity
         private Vector3 _lastPointer;
         private Vector3 _dragStart;
         private Transform _ghostRoot;
+        private PuzzleStagingPresenter _staging;
 
         public PuzzleSession Session => _session;
         public bool IsDragging => _view != null;
@@ -63,6 +64,8 @@ namespace ZipTrip.Unity
         public Rotation CandidateRotation { get; private set; }
         /// <summary>True when the dragged footprint is over a compartment (a drop then attempts a move).</summary>
         public bool HasCandidate { get; private set; }
+        /// <summary>ZT-041: staging slot under the pointer that a drop would target (-1 = none). Excludes the item's own slot.</summary>
+        public int CandidateStagingSlot { get; private set; } = -1;
         public string CandidateCompartment { get; private set; }
         public Cell CandidateAnchor { get; private set; }
         /// <summary>Domain outcome of the candidate move on the current state; null without a candidate.</summary>
@@ -83,8 +86,9 @@ namespace ZipTrip.Unity
         public bool InteractionEnabled { get; set; } = true;
 
         public void Initialize(PuzzleSession session, PuzzleBoardPresenter board, PuzzleTrayPresenter tray, Camera camera,
-            PointerInteractor pointer = null)
+            PointerInteractor pointer = null, PuzzleStagingPresenter staging = null)
         {
+            _staging = staging;
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _board = board ?? throw new ArgumentNullException(nameof(board));
             _tray = tray ?? throw new ArgumentNullException(nameof(tray));
@@ -133,6 +137,11 @@ namespace ZipTrip.Unity
                     if (!_board.ItemViews.TryGetValue(instanceId, out view))
                         return DragBeginResult.UnknownItem;
                     break;
+                case ItemLocationKind.Staging:
+                    // ZT-041: a staged item is external (always reachable) and may go back into the suitcase.
+                    if (_staging == null || !_staging.ItemViews.TryGetValue(instanceId, out view))
+                        return DragBeginResult.UnknownItem;
+                    break;
                 default:
                     return DragBeginResult.NotDraggable;
             }
@@ -162,6 +171,20 @@ namespace ZipTrip.Unity
             _view.transform.position = anchorWorld + Vector3.up * LiftHeight;
 
             _marked.Clear();
+            // ZT-041: a staging pad under the finger takes priority over the board; the Domain previews the slot move.
+            CandidateStagingSlot = StagingSlotUnder(pointerWorld);
+            if (CandidateStagingSlot >= 0)
+            {
+                HasCandidate = false;
+                CandidateCompartment = null;
+                CandidateAnchor = default;
+                Preview = PuzzleTransitions.Apply(_session.CurrentState, PuzzleMove.MoveToStaging(_item.InstanceId, CandidateStagingSlot));
+                PreviewLayer = -1;
+                _staging.SetHover(CandidateStagingSlot, Preview.IsAccepted);
+                RenderGhost();
+                return;
+            }
+            _staging?.SetHover(-1, false);
             HasCandidate = PuzzleBoardProjection.TryProject(_board.CompartmentFrames(), anchorWorld, _view.Footprint,
                 out var compartment, out var anchor);
             CandidateCompartment = HasCandidate ? compartment : null;
@@ -248,22 +271,23 @@ namespace ZipTrip.Unity
         {
             if (!IsDragging)
                 return null;
-            if (!HasCandidate)
+            if (!HasCandidate && CandidateStagingSlot < 0)
             {
                 Cancel();
                 return null;
             }
-            var step = _session.Apply(CandidateMove());
+            var step = _session.Apply(CandidateStagingSlot >= 0
+                ? PuzzleMove.MoveToStaging(_item.InstanceId, CandidateStagingSlot) : CandidateMove());
             LastStep = step;
             var id = _item.InstanceId;
             var direction = _lastPointer - _dragStart;
             EndDrag();
             // Feedback follows state: the view that now shows the item (placed or returned) plays it.
-            if (step.Move.IsAccepted && _board.ItemViews.TryGetValue(id, out var placed))
-                placed.Feedback?.PlaySettle();
-            else if (!step.Move.IsAccepted)
-                (_board.ItemViews.TryGetValue(id, out var home) ? home : _tray.ItemViews.TryGetValue(id, out home) ? home : null)
-                    ?.Feedback?.PlayReject(direction);
+            var shown = ViewOf(id);
+            if (step.Move.IsAccepted)
+                shown?.Feedback?.PlaySettle();
+            else
+                shown?.Feedback?.PlayReject(direction);
             StepCommitted?.Invoke(step);
             return step;
         }
@@ -272,6 +296,26 @@ namespace ZipTrip.Unity
         {
             if (IsDragging)
                 EndDrag();
+        }
+
+        /// <summary>The view currently presenting an item: board, staging or tray.</summary>
+        private PuzzleItemView ViewOf(string id) =>
+            _board.ItemViews.TryGetValue(id, out var view) ? view
+            : _staging != null && _staging.ItemViews.TryGetValue(id, out view) ? view
+            : _tray.ItemViews.TryGetValue(id, out view) ? view : null;
+
+        // Staging pad under the pointer, measured on the pads' own plane (they rest below the board plane). The item's
+        // own slot is not a target (dropping there is a cancel, never a staging -> staging move).
+        private int StagingSlotUnder(Vector3 pointerWorld)
+        {
+            if (_staging == null || _staging.Capacity == 0)
+                return -1;
+            var onPads = pointerWorld;
+            if (_camera != null)
+                onPads = GridProjector.ScreenToWorld(_camera, _camera.WorldToScreenPoint(new Vector3(pointerWorld.x, 0f, pointerWorld.z)),
+                    _staging.transform.position.y);
+            var slot = _staging.SlotAt(onPads);
+            return slot >= 0 && _item.Location.Kind == ItemLocationKind.Staging && _item.Location.StagingSlot == slot ? -1 : slot;
         }
 
         /// <summary>Topmost board item (higher layer first), then tray items, whose shown footprint covers the point.</summary>
@@ -287,6 +331,10 @@ namespace ZipTrip.Unity
             foreach (var view in _board.ItemViews.Values)
                 if (view.ContainsWorldPointXZ(boardWorld) && (best == null || view.Placement.Layer > best.Placement.Layer))
                     best = view;
+            if (best == null && _staging != null)
+                foreach (var view in _staging.ItemViews.Values)
+                    if (view.ContainsWorldPointXZ(trayWorld))
+                        best = view;
             if (best == null)
                 foreach (var view in _tray.ItemViews.Values)
                     if (view.ContainsWorldPointXZ(trayWorld))
@@ -299,6 +347,7 @@ namespace ZipTrip.Unity
         {
             _board.Sync(_session.CurrentState);
             _tray.Sync(_session.CurrentState);
+            _staging?.Sync(_session.CurrentState);
         }
 
         private PuzzleMove CandidateMove() =>
@@ -307,6 +356,8 @@ namespace ZipTrip.Unity
         private void EndDrag()
         {
             _view?.Feedback?.CompleteAll();
+            CandidateStagingSlot = -1;
+            _staging?.SetHover(-1, false);
             _view = null;
             _item = null;
             HasCandidate = false;
@@ -329,7 +380,7 @@ namespace ZipTrip.Unity
                     if (!IsDragging && TryPickItem(world, trayWorld, out var id))
                     {
                         // Grab offset from where the item is drawn; from then on the drag follows the board plane.
-                        var onTray = _tray.ItemViews.ContainsKey(id);
+                        var onTray = _tray.ItemViews.ContainsKey(id) || _staging != null && _staging.ItemViews.ContainsKey(id);
                         if (BeginDrag(id, onTray ? trayWorld : world) == DragBeginResult.Started && onTray)
                             UpdateDrag(world);
                     }

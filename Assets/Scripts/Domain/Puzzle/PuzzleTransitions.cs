@@ -30,10 +30,14 @@ namespace ZipTrip.Domain.Puzzle
         public Rotation Rotation { get; }
         /// <summary>NestInto: parent instance id. MoveToDestination: destination id.</summary>
         public string TargetId { get; }
+        /// <summary>MoveToStaging: requested slot, or <see cref="AnyStagingSlot"/> for the lowest free slot.</summary>
+        public int StagingSlot { get; }
+        public const int AnyStagingSlot = -1;
 
         private PuzzleMove(PuzzleMoveKind kind, string instanceId, string stateId, string compartmentId, Cell anchor,
-            Rotation rotation, string targetId)
+            Rotation rotation, string targetId, int stagingSlot = AnyStagingSlot)
         {
+            StagingSlot = stagingSlot;
             Kind = kind;
             InstanceId = instanceId;
             StateId = stateId;
@@ -47,8 +51,13 @@ namespace ZipTrip.Domain.Puzzle
             string stateId = null) =>
             new PuzzleMove(PuzzleMoveKind.PlaceInSuitcase, instanceId, stateId, compartmentId, anchor, rotation, null);
 
+        /// <summary>Into the lowest free staging slot (deterministic).</summary>
         public static PuzzleMove MoveToStaging(string instanceId) =>
             new PuzzleMove(PuzzleMoveKind.MoveToStaging, instanceId, null, null, default, default, null);
+
+        /// <summary>Into a specific staging slot; an occupied or out-of-range slot is rejected.</summary>
+        public static PuzzleMove MoveToStaging(string instanceId, int slot) =>
+            new PuzzleMove(PuzzleMoveKind.MoveToStaging, instanceId, null, null, default, default, null, slot);
 
         public static PuzzleMove NestInto(string instanceId, string parentInstanceId) =>
             new PuzzleMove(PuzzleMoveKind.NestInto, instanceId, null, null, default, default, parentInstanceId);
@@ -56,7 +65,9 @@ namespace ZipTrip.Domain.Puzzle
         public static PuzzleMove MoveToDestination(string instanceId, string destinationId) =>
             new PuzzleMove(PuzzleMoveKind.MoveToDestination, instanceId, null, null, default, default, destinationId);
 
-        public override string ToString() => $"{Kind} {InstanceId} {StateId} {CompartmentId}({Anchor.X},{Anchor.Y}) r{(int)Rotation} {TargetId}";
+        public override string ToString() =>
+            $"{Kind} {InstanceId} {StateId} {CompartmentId}({Anchor.X},{Anchor.Y}) r{(int)Rotation} {TargetId}"
+            + (Kind == PuzzleMoveKind.MoveToStaging ? " slot " + StagingSlot : "");
     }
 
     public enum MoveRejection
@@ -85,7 +96,11 @@ namespace ZipTrip.Domain.Puzzle
         /// <summary>The item would be nested inside itself or one of its own children.</summary>
         NestCycle = 13,
         /// <summary>The relocation would not change the state.</summary>
-        NoChange = 14
+        NoChange = 14,
+        /// <summary>MoveToStaging named a slot outside [0, stagingCapacity).</summary>
+        InvalidStagingSlot = 15,
+        /// <summary>MoveToStaging named a slot that already holds an item (ADR-0006 D11: one item per slot).</summary>
+        StagingSlotOccupied = 16
     }
 
     /// <summary>Outcome of applying a move. A rejected move returns the original state unchanged.</summary>
@@ -144,7 +159,20 @@ namespace ZipTrip.Domain.Puzzle
                 case PuzzleMoveKind.MoveToStaging:
                     if (from != ItemLocationKind.Suitcase && from != ItemLocationKind.Nested)
                         return MoveResult.Rejected(state, MoveRejection.UnsupportedRoute);
-                    return Commit(state, item, item.With(ItemLocation.Staging));
+                    var slot = move.StagingSlot;
+                    if (slot == PuzzleMove.AnyStagingSlot)
+                    {
+                        // Lowest free slot; with none free the capacity index is used so the invariants report
+                        // StagingOverCapacity exactly as before slots had identity.
+                        slot = 0;
+                        while (slot < state.Spec.StagingCapacity && StagingSlotOccupied(state, slot))
+                            slot++;
+                    }
+                    else if (slot < 0 || slot >= state.Spec.StagingCapacity)
+                        return MoveResult.Rejected(state, MoveRejection.InvalidStagingSlot);
+                    else if (StagingSlotOccupied(state, slot))
+                        return MoveResult.Rejected(state, MoveRejection.StagingSlotOccupied);
+                    return Commit(state, item, item.With(ItemLocation.InStaging(slot)));
 
                 case PuzzleMoveKind.NestInto:
                     if (from == ItemLocationKind.SourceTray)
@@ -234,6 +262,14 @@ namespace ZipTrip.Domain.Puzzle
             if (!report.IsValid)
                 return MoveResult.Rejected(state, MoveRejection.InvariantViolation, report);
             return MoveResult.Accepted(next, Carried(next, item.InstanceId));
+        }
+
+        private static bool StagingSlotOccupied(PuzzleState state, int slot)
+        {
+            foreach (var staged in state.GetItems(ItemLocationKind.Staging))
+                if (staged.Location.StagingSlot == slot)
+                    return true;
+            return false;
         }
 
         private static bool IsSelfOrDescendant(PuzzleState state, PuzzleItem candidate, string ancestorId)

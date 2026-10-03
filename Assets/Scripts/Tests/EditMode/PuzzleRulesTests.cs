@@ -68,7 +68,7 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(Single(placed, new ZoneRule("z", ItemSelector.Instance("socks-1"), "bottom")).IsSatisfied, Is.True);
             Assert.That(Single(placed, new ZoneRule("z", ItemSelector.Instance("socks-1"), "top")).IsSatisfied, Is.False);
 
-            var staged = State(ZonedSpec(), Item("shoe-1", Shoe(), ItemLocation.Staging), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
+            var staged = State(ZonedSpec(), Item("shoe-1", Shoe(), ItemLocation.InStaging(0)), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
             var result = Single(staged, new ZoneRule("z", ItemSelector.Instance("socks-1"), "bottom"));
             Assert.That(result.IsSatisfied, Is.False);
             Assert.That(result.SubjectIds, Is.EqualTo(new[] { "socks-1" }), "still in the active domain");

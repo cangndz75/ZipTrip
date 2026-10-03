@@ -47,7 +47,7 @@ namespace ZipTrip.Tests.EditMode
         public void NestedChildren_ProvideNoSupport()
         {
             // The shoe is staged; its nested socks occupy no cells, so nothing supports "top" at (0, 0, 1).
-            var state = State(Spec(), Item("shoe-1", Shoe(), ItemLocation.Staging), Item("socks-1", Socks(), ItemLocation.NestedIn("shoe-1")),
+            var state = State(Spec(), Item("shoe-1", Shoe(), ItemLocation.InStaging(0)), Item("socks-1", Socks(), ItemLocation.NestedIn("shoe-1")),
                 Placed("top", Block("box", 1, 1), At(0, 0, layer: 1)));
             var violation = BoardInvariants.Evaluate(state).Violations.Single();
             Assert.That(violation.Kind, Is.EqualTo(InvariantKind.Unsupported));
@@ -82,7 +82,7 @@ namespace ZipTrip.Tests.EditMode
         [Test]
         public void StagedItem_ValidFoldTargetButIllegalPlacement_StaysStagedInOriginalState()
         {
-            var state = State(Spec(), Item("sw", Sweater(), ItemLocation.Staging), Placed("base", Block("book", 1, 1), At(0, 0)));
+            var state = State(Spec(), Item("sw", Sweater(), ItemLocation.InStaging(0)), Placed("base", Block("book", 1, 1), At(0, 0)));
             Assert.That(PuzzleTransitions.GetSelectableStates(Get(state, "sw")), Has.Member("folded"));
             AssertRejectedUnchanged(state, PuzzleMove.PlaceInSuitcase("sw", "main", new Cell(0, 0), Rotation.Degrees90, "folded"),
                 MoveRejection.NoLegalLayer);
@@ -96,7 +96,7 @@ namespace ZipTrip.Tests.EditMode
             var state = State(Spec(stagingCapacity: 1),
                 Placed("shoe-1", Shoe(), At(0, 0)), Item("socks-1", Socks(), ItemLocation.NestedIn("shoe-1")),
                 Placed("base", Block("book", 2, 1), At(2, 0)), Placed("top", Block("box", 1, 1), At(2, 0, layer: 1)),
-                Item("staged", Block("cup", 1, 1), ItemLocation.Staging),
+                Item("staged", Block("cup", 1, 1), ItemLocation.InStaging(0)),
                 Item("tray-1", Block("shirt", 1, 1), ItemLocation.SourceTray),
                 Placed("laptop", Block("laptop", 1, 1), At(0, 2), ObjectiveRole.ExtractionTarget),
                 Item("cam", Block("camera", 1, 1), ItemLocation.InDestination("tray"), ObjectiveRole.ExtractionTarget));
@@ -203,13 +203,19 @@ namespace ZipTrip.Tests.EditMode
 
         // ---- A. Canonical staging ----
 
+        // ZT-041 (approved contract change): staging slots have canonical identity. The default move fills the lowest
+        // free slot deterministically, and the slot is part of the canonical bytes, so undo restores it exactly.
         [Test]
-        public void Staging_IsAnUnorderedSet_InCanonicalBytes()
+        public void Staging_SlotIdentity_IsCanonicalAndDeterministic()
         {
             var a = State(Spec(), Placed("x", Block("x", 1, 1), At(0, 0)), Placed("y", Block("y", 1, 1), At(1, 0)));
             var xFirst = PuzzleTransitions.Apply(PuzzleTransitions.Apply(a, PuzzleMove.MoveToStaging("x")).State, PuzzleMove.MoveToStaging("y")).State;
+            var again = PuzzleTransitions.Apply(PuzzleTransitions.Apply(a, PuzzleMove.MoveToStaging("x")).State, PuzzleMove.MoveToStaging("y")).State;
             var yFirst = PuzzleTransitions.Apply(PuzzleTransitions.Apply(a, PuzzleMove.MoveToStaging("y")).State, PuzzleMove.MoveToStaging("x")).State;
-            Assert.That(yFirst.ToStableBytes(), Is.EqualTo(xFirst.ToStableBytes()));
+            Assert.That(again.ToStableBytes(), Is.EqualTo(xFirst.ToStableBytes()), "deterministic");
+            Assert.That(xFirst.TryGetItem("x", out var x) && x.Location.Equals(ItemLocation.InStaging(0)), Is.True);
+            Assert.That(xFirst.TryGetItem("y", out var y) && y.Location.Equals(ItemLocation.InStaging(1)), Is.True);
+            Assert.That(yFirst.ToStableBytes(), Is.Not.EqualTo(xFirst.ToStableBytes()), "slot identity is canonical");
         }
 
         // ---- L. Cross-ticket integration ----

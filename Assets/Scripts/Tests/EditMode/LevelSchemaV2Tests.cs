@@ -49,8 +49,8 @@ namespace ZipTrip.Tests.EditMode
         private static string InTray(string id, string definition, string extra = "") =>
             "{'id':'" + id + "','definitionId':'" + definition + "'" + extra + ",'location':{'kind':'sourceTray'}}";
 
-        private static string Staged(string id, string definition) =>
-            "{'id':'" + id + "','definitionId':'" + definition + "','location':{'kind':'staging'}}";
+        private static string Staged(string id, string definition, int slot = 0) =>
+            "{'id':'" + id + "','definitionId':'" + definition + "','location':{'kind':'staging','slot':" + slot + "}}";
 
         private static string Nested(string id, string definition, string parent) =>
             "{'id':'" + id + "','definitionId':'" + definition + "','location':{'kind':'nested','parentId':'" + parent + "'}}";
@@ -154,7 +154,11 @@ namespace ZipTrip.Tests.EditMode
         {
             Rejected(Json("{'id':'book-1','definitionId':'book','location':{'kind':'shelf'}}"), "UnknownLocationKind");
             Rejected(Json("{'id':'book-1','definitionId':'book','location':{'kind':'sourceTray','x':1}}"), "UnexpectedField");
-            Rejected(Json("{'id':'book-1','definitionId':'book','location':{'kind':'staging','parentId':'x'}}"), "UnexpectedField");
+            Rejected(Json("{'id':'book-1','definitionId':'book','location':{'kind':'staging','slot':0,'parentId':'x'}}"), "UnexpectedField");
+            // ZT-041: staging slot identity is explicit, never assigned implicitly by the loader.
+            Rejected(Json("{'id':'book-1','definitionId':'book','location':{'kind':'staging'}}"), "MalformedRequiredField");
+            Rejected(Json("{'id':'book-1','definitionId':'book','location':{'kind':'staging','slot':-1}}"), "InvalidStagingSlot");
+            Rejected(Json("{'id':'book-1','definitionId':'book','location':{'kind':'sourceTray','slot':0}}"), "UnexpectedField");
             Rejected(Json("{'id':'book-1','definitionId':'book','location':{'kind':'suitcase','compartmentId':'main','x':0,'y':0,'rotation':0}}"),
                 "MalformedRequiredField");
             Rejected(Json("{'id':'book-1','definitionId':'book'}"), "MalformedRequiredField");
@@ -202,8 +206,10 @@ namespace ZipTrip.Tests.EditMode
         public void StagingCapacity_IsValidated()
         {
             Rejected(Json(InTray("book-1", "book"), staging: -1), "InvalidStagingCapacity");
-            Rejected(Json(InTray("book-1", "book") + "," + Staged("a", "mug") + "," + Staged("b", "globe"), staging: 1),
+            Rejected(Json(InTray("book-1", "book") + "," + Staged("a", "mug") + "," + Staged("b", "globe", 1), staging: 1),
                 "InvalidInitialBoardState: T StagingOverCapacity");
+            Rejected(Json(InTray("book-1", "book") + "," + Staged("a", "mug") + "," + Staged("b", "globe"), staging: 2),
+                "InvalidInitialBoardState: T StagingSlotConflict");
             Assert.That(Load(Json(InTray("book-1", "book") + "," + Staged("shoe-1", "shoe") + "," + Nested("socks-1", "socks", "shoe-1"), staging: 1)),
                 Is.Not.Null, "nested children do not take their own staging slot");
         }

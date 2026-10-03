@@ -120,10 +120,10 @@ namespace ZipTrip.Tests.EditMode
         [Test]
         public void StagingCapacity_IsEnforced()
         {
-            var two = State(Spec(stagingCapacity: 2), Item("a", Block("a", 1, 1), ItemLocation.Staging), Item("b", Block("b", 1, 1), ItemLocation.Staging));
+            var two = State(Spec(stagingCapacity: 2), Item("a", Block("a", 1, 1), ItemLocation.InStaging(0)), Item("b", Block("b", 1, 1), ItemLocation.InStaging(1)));
             Assert.That(BoardInvariants.Evaluate(two).IsValid, Is.True);
-            var three = State(Spec(stagingCapacity: 2), Item("a", Block("a", 1, 1), ItemLocation.Staging),
-                Item("b", Block("b", 1, 1), ItemLocation.Staging), Item("c", Block("c", 1, 1), ItemLocation.Staging));
+            var three = State(Spec(stagingCapacity: 2), Item("a", Block("a", 1, 1), ItemLocation.InStaging(0)),
+                Item("b", Block("b", 1, 1), ItemLocation.InStaging(1)), Item("c", Block("c", 1, 1), ItemLocation.InStaging(2)));
             Assert.That(Kinds(three), Is.EqualTo(new[] { InvariantKind.StagingOverCapacity }));
         }
 
@@ -202,7 +202,7 @@ namespace ZipTrip.Tests.EditMode
         [Test]
         public void Resolver_UsesRequestedStateAndRejectsBadInputWithoutThrowing()
         {
-            var state = State(Spec(), Placed("base", Block("book", 2, 2), At(0, 0)), Item("j", Jacket(), ItemLocation.Staging));
+            var state = State(Spec(), Placed("base", Block("book", 2, 2), At(0, 0)), Item("j", Jacket(), ItemLocation.InStaging(0)));
             var compressed = LayerResolver.ResolveLowestLegalLayer(state, "j", "compressed", "main", new Cell(0, 0), Rotation.Degrees0);
             Assert.That(compressed.Layer, Is.EqualTo(1), "compressed thickness 1 fits on top");
 

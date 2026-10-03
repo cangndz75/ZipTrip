@@ -36,7 +36,7 @@ namespace ZipTrip.Tests.EditMode
         {
             var blocked = State(Spec(), Placed("base", Block("book", 2, 2), At(0, 0)), Placed("top", Block("box", 1, 1), At(1, 1, layer: 1)));
             blocked.TryGetItem("top", out var top);
-            var cleared = blocked.With(top.With(ItemLocation.Staging));
+            var cleared = blocked.With(top.With(ItemLocation.InStaging(0)));
             Assert.That(AccessQueries.IsAccessible(blocked, "base"), Is.False);
             Assert.That(AccessQueries.IsAccessible(cleared, "base"), Is.True);
         }
@@ -60,7 +60,7 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(AccessQueries.GetAccess(covered, "socks-1"), Is.EqualTo(ItemAccess.ParentBlocked));
             Assert.That(AccessQueries.CanTake(covered, "socks-1"), Is.False);
 
-            var staged = State(Spec(), Item("shoe-1", shoe, ItemLocation.Staging), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
+            var staged = State(Spec(), Item("shoe-1", shoe, ItemLocation.InStaging(0)), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
             Assert.That(AccessQueries.GetAccess(staged, "socks-1"), Is.EqualTo(ItemAccess.External), "follows its staged parent");
             Assert.That(AccessQueries.CanTake(staged, "socks-1"), Is.True);
         }
@@ -68,7 +68,7 @@ namespace ZipTrip.Tests.EditMode
         [Test]
         public void ExternalAndTerminalLocations_AreDistinctFromAccessible()
         {
-            var state = State(Spec(), Item("t", Block("shirt", 1, 1), ItemLocation.SourceTray), Item("s", Block("book", 1, 1), ItemLocation.Staging),
+            var state = State(Spec(), Item("t", Block("shirt", 1, 1), ItemLocation.SourceTray), Item("s", Block("book", 1, 1), ItemLocation.InStaging(0)),
                 Item("d", Block("laptop", 1, 1), ItemLocation.InDestination("tray"), ObjectiveRole.ExtractionTarget));
             Assert.That(AccessQueries.GetAccess(state, "t"), Is.EqualTo(ItemAccess.External));
             Assert.That(AccessQueries.GetAccess(state, "s"), Is.EqualTo(ItemAccess.External));

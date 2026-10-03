@@ -14,7 +14,8 @@ namespace ZipTrip.Domain.Puzzle
     /// </summary>
     public sealed class PuzzleState : IEquatable<PuzzleState>
     {
-        private const int FormatVersion = 1;
+        // 2: staging slot index (ZT-041).
+        private const int FormatVersion = 2;
         private readonly Dictionary<string, PuzzleItem> _byId;
         private readonly byte[] _stableBytes;
 
@@ -214,6 +215,9 @@ namespace ZipTrip.Domain.Puzzle
                         case ItemLocationKind.Nested:
                         case ItemLocationKind.Destination:
                             CanonicalWriter.WriteString(stream, item.Location.TargetId);
+                            break;
+                        case ItemLocationKind.Staging:
+                            CanonicalWriter.WriteInt32(stream, item.Location.StagingSlot);
                             break;
                     }
                 }

@@ -110,10 +110,40 @@ namespace ZipTrip.Tests.EditMode
             AssertRejected(next, PuzzleMove.MoveToStaging("a"), MoveRejection.UnsupportedRoute);
         }
 
+        // ZT-041: slots have canonical identity; one item per slot (ADR-0006 D11).
+        [Test]
+        public void SuitcaseToStaging_ExplicitSlot_HonouredAndOccupiedOrInvalidSlotsRejected()
+        {
+            var state = State(Spec(stagingCapacity: 2), Placed("a", Block("a", 1, 1), At(0, 0)), Placed("b", Block("b", 1, 1), At(1, 0)),
+                Item("t", Block("t", 1, 1), ItemLocation.SourceTray));
+            var second = AssertAccepted(state, PuzzleMove.MoveToStaging("a", 1));
+            Assert.That(Get(second, "a").Location, Is.EqualTo(ItemLocation.InStaging(1)));
+            AssertRejected(second, PuzzleMove.MoveToStaging("b", 1), MoveRejection.StagingSlotOccupied);
+            AssertRejected(second, PuzzleMove.MoveToStaging("b", 2), MoveRejection.InvalidStagingSlot);
+            AssertRejected(second, PuzzleMove.MoveToStaging("b", -3), MoveRejection.InvalidStagingSlot);
+            AssertRejected(state, PuzzleMove.MoveToStaging("t", 0), MoveRejection.UnsupportedRoute);
+            Assert.That(Get(AssertAccepted(second, PuzzleMove.MoveToStaging("b")), "b").Location, Is.EqualTo(ItemLocation.InStaging(0)),
+                "default fills the lowest free slot");
+            AssertRejected(second, PuzzleMove.MoveToStaging("a", 0), MoveRejection.UnsupportedRoute);
+        }
+
+        [Test]
+        public void StagingSlots_SharedOrOutOfRange_AreInvariantViolations()
+        {
+            var shared = State(Spec(stagingCapacity: 2), Item("a", Block("a", 1, 1), ItemLocation.InStaging(0)),
+                Item("b", Block("b", 1, 1), ItemLocation.InStaging(0)));
+            Assert.That(BoardInvariants.Evaluate(shared).Violations.Select(v => v.Kind), Does.Contain(InvariantKind.StagingSlotConflict));
+            var outOfRange = State(Spec(stagingCapacity: 2), Item("a", Block("a", 1, 1), ItemLocation.InStaging(2)));
+            Assert.That(BoardInvariants.Evaluate(outOfRange).Violations.Select(v => v.Kind), Does.Contain(InvariantKind.StagingSlotConflict));
+            var distinct = State(Spec(stagingCapacity: 2), Item("a", Block("a", 1, 1), ItemLocation.InStaging(0)),
+                Item("b", Block("b", 1, 1), ItemLocation.InStaging(1)));
+            Assert.That(BoardInvariants.Evaluate(distinct).Violations, Is.Empty);
+        }
+
         [Test]
         public void StagingToSuitcase_CanSelectFoldOrCompressState()
         {
-            var state = State(Spec(board: Board(6, 4)), Item("sw", Sweater(), ItemLocation.Staging), Item("j", Jacket(), ItemLocation.Staging),
+            var state = State(Spec(board: Board(6, 4)), Item("sw", Sweater(), ItemLocation.InStaging(0)), Item("j", Jacket(), ItemLocation.InStaging(1)),
                 Placed("base", Block("book", 2, 2), At(4, 0)));
             var folded = AssertAccepted(state, PuzzleMove.PlaceInSuitcase("sw", "main", new Cell(0, 0), Rotation.Degrees0, "folded"));
             Assert.That(Get(folded, "sw").StateId, Is.EqualTo("folded"));
@@ -181,7 +211,7 @@ namespace ZipTrip.Tests.EditMode
         public void NestInto_CompatibleAccessibleParentAccepted_OthersRejected()
         {
             var state = State(Spec(), Placed("shoe-1", Shoe(), At(0, 0)), Placed("socks-1", Block("socks", 1, 1), At(3, 0)),
-                Item("cam", Block("camera", 1, 1), ItemLocation.Staging), Placed("top", Block("box", 1, 1), At(1, 0)));
+                Item("cam", Block("camera", 1, 1), ItemLocation.InStaging(0)), Placed("top", Block("box", 1, 1), At(1, 0)));
             var nested = AssertAccepted(state, PuzzleMove.NestInto("socks-1", "shoe-1"));
             Assert.That(PuzzleState.GetPhysicalCells(Get(nested, "socks-1")), Is.Empty, "nested child occupies no cells");
 
@@ -197,7 +227,7 @@ namespace ZipTrip.Tests.EditMode
         [Test]
         public void NestInto_StagedOrBlockedParent_IsRejected()
         {
-            var staged = State(Spec(), Item("shoe-1", Shoe(), ItemLocation.Staging), Placed("socks-1", Block("socks", 1, 1), At(3, 0)));
+            var staged = State(Spec(), Item("shoe-1", Shoe(), ItemLocation.InStaging(0)), Placed("socks-1", Block("socks", 1, 1), At(3, 0)));
             AssertRejected(staged, PuzzleMove.NestInto("socks-1", "shoe-1"), MoveRejection.ParentNotAccessible);
 
             var blocked = State(Spec(), Placed("shoe-1", Shoe(), At(0, 0)), Placed("top", Block("box", 1, 1), At(0, 0, layer: 1)),
