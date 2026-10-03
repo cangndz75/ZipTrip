@@ -205,6 +205,29 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(after["tech-access"].SubjectIds, Is.EqualTo(new[] { "cable", "laptop-b" }));
         }
 
+        [Test]
+        public void AdjacencyRequired_TargetThatLeftTheDomain_NoLongerHasToBeMet()
+        {
+            var laptop = Block("laptop", 1, 1, tags: new[] { "tech" });
+            var start = State(Spec(), Placed("laptop-a", laptop, At(0, 0), ObjectiveRole.ExtractionTarget),
+                Placed("cable", Block("cable", 1, 1), At(1, 0)), Placed("charger", Block("charger", 1, 1), At(3, 2)));
+            var rules = new RuleSet(start.Spec.Board, new PuzzleRule[]
+            {
+                new AdjacencyRequiredRule("cable-near-target", ItemSelector.Instance("cable"), ItemSelector.Instance("laptop-a")),
+                new AdjacencyRequiredRule("charger-near-tech", ItemSelector.Instance("charger"), ItemSelector.Tag("tech")),
+                new AdjacencyRequiredRule("charger-near-nothing", ItemSelector.Instance("charger"), ItemSelector.Tag("missing"))
+            });
+            var before = RuleEvaluator.Evaluate(start, rules).ToDictionary(r => r.RuleId);
+            Assert.That(before["cable-near-target"].IsSatisfied, Is.True);
+            Assert.That(before["charger-near-tech"].IsSatisfied, Is.False);
+
+            var extracted = PuzzleTransitions.Apply(start, PuzzleMove.MoveToDestination("laptop-a", "tray")).State;
+            var after = RuleEvaluator.Evaluate(extracted, rules).ToDictionary(r => r.RuleId);
+            Assert.That(after["cable-near-target"].IsSatisfied, Is.True, "Decision 16: extraction must not make the rule impossible");
+            Assert.That(after["charger-near-tech"].IsSatisfied, Is.True, "every tech target left the domain");
+            Assert.That(after["charger-near-nothing"].IsSatisfied, Is.False, "a selector that never matched anything is still unmet");
+        }
+
         // ---- Authoring validation / determinism ----
 
         [Test]

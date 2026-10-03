@@ -186,13 +186,26 @@ namespace ZipTrip.Domain.Puzzle
         {
             var subjects = Select(active, Subjects);
             var targets = Select(active, Targets);
+
+            // Decision 16: a requirement on targets that have all left the active domain no longer has to be met
+            // (extracting the laptop must not make "cable touches laptop" unsatisfiable).
+            var targetsLeftDomain = false;
+            foreach (var item in state.Items)
+                targetsLeftDomain |= Targets.Matches(item) && !targets.Contains(item.InstanceId);
+
             var offending = new SortedSet<string>(StringComparer.Ordinal);
             foreach (var subject in subjects)
             {
+                var hasActiveTarget = false;
                 var touches = false;
                 foreach (var target in targets)
-                    touches |= target != subject && AdjacencyQueries.AreAdjacent(state, subject, target);
-                if (!touches)
+                {
+                    if (target == subject)
+                        continue;
+                    hasActiveTarget = true;
+                    touches |= AdjacencyQueries.AreAdjacent(state, subject, target);
+                }
+                if (!touches && (hasActiveTarget || !targetsLeftDomain))
                     offending.Add(subject);
             }
             return new RuleResult(Id, subjects, offending, new SortedSet<string>(StringComparer.Ordinal));
