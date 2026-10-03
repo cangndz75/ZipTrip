@@ -9,7 +9,7 @@ namespace ZipTrip.Domain.Puzzle
     /// Construction is the content-validation authority shared by every loader:
     /// - the initial state must satisfy BoardInvariants (rules and the objective may be unmet);
     /// - no Source Tray item may be an ancestor (at any depth) of a nested child;
-    /// - objectives and rule selectors must reference known instances, definitions and destinations.
+    /// - objectives and rule selectors must reference known instances, definitions, destinations and used tags.
     /// Failures throw ArgumentException with a reason code prefix, like the v1 LevelDefinition.
     /// </summary>
     public sealed class PuzzleLevel
@@ -98,9 +98,20 @@ namespace ZipTrip.Domain.Puzzle
             }
         }
 
+        private static bool AnyItemHasTag(PuzzleState state, string tag)
+        {
+            foreach (var item in state.Items)
+                if (item.Definition.HasTag(tag))
+                    return true;
+            return false;
+        }
+
         private static void ValidateSelector(string id, string ruleId, ItemSelector selector, PuzzleState state, HashSet<string> definitions)
         {
-            // Tag selectors are syntax-checked by ItemSelector; whether a tag must match an item is an open authoring policy.
+            // A tag must match at least one authored instance (any location): item tags are immutable, so a zero-match
+            // tag is a dead subject or an impossible adjacency target. Runtime rule semantics are unaffected.
+            if (selector.Kind == ItemSelectorKind.Tag && !AnyItemHasTag(state, selector.Value))
+                throw new ArgumentException($"InvalidRuleSelector: {id} {ruleId} tag {selector.Value} matches no item");
             if (selector.Kind == ItemSelectorKind.Instance && !state.TryGetItem(selector.Value, out _))
                 throw new ArgumentException($"InvalidRuleSelector: {id} {ruleId} unknown instance {selector.Value}");
             if (selector.Kind == ItemSelectorKind.Definition && !definitions.Contains(selector.Value))

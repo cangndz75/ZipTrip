@@ -263,8 +263,23 @@ namespace ZipTrip.Tests.EditMode
             Rejected(Json(book, "[" + Rule("r", "access", Sel("instance", "book-1"), zone: "bottom") + "]"), "MalformedRule");
             Rejected(Json(book, "[" + Rule("r", "group", Sel("tag", "x")) + "]"), "UnknownRuleKind");
 
-            var ok = Load(Json(book, "[" + Rule("r", "zone", Sel("tag", "unused-tag"), zone: "bottom") + "]"));
-            Assert.That(ok.Rules.Rules.Single().Id, Is.EqualTo("r"), "zero-match tags are not rejected (open authoring policy)");
+        }
+
+        [Test]
+        public void TagSelectors_MustMatchAnAuthoredInstance()
+        {
+            var items = InTray("book-1", "book") + "," + InTray("mug-1", "mug") + "," + InTray("globe-1", "globe");
+            var ok = Load(Json(items, "[" + Rule("r", "zone", Sel("tag", "fragile"), zone: "bottom") + "]"));
+            Assert.That(ok.Rules.Rules.Single().Id, Is.EqualTo("r"), "tag with authored matches loads");
+
+            Rejected(Json(items, "[" + Rule("r", "access", Sel("tag", "tech")) + "]"), "InvalidRuleSelector");
+            Rejected(Json(items, "[" + Rule("r", "adjacencyRequired", Sel("tag", "fragile"), Sel("tag", "tech")) + "]"), "InvalidRuleSelector");
+            Rejected(Json(items, "[" + Rule("r", "adjacencyForbidden", Sel("tag", "unused"), Sel("tag", "fragile")) + "]"), "InvalidRuleSelector");
+
+            // The only tech item starts in the destination (outside the active domain) but is authored, so the tag counts.
+            var extracted = Load(Json(items + "," + InDestination("laptop-a", "laptop", "tray", "extractionTarget"),
+                "[" + Rule("r", "adjacencyRequired", Sel("tag", "fragile"), Sel("tag", "tech")) + "]"));
+            Assert.That(RuleEvaluator.GetActiveDomain(extracted.InitialState).Select(i => i.InstanceId), Does.Not.Contain("laptop-a"));
         }
 
         [Test]
