@@ -331,6 +331,10 @@ namespace ZipTrip.Tests.PlayMode
                 Assert.That(board.Container, Is.Not.Null, scene.LevelId + " uses the golden container");
                 Assert.That(board.Shell, Is.Null, "procedural suitcase is only a fallback");
                 Assert.That(board.Container.LidClosed, Is.False, "lid stands open during play");
+                Assert.That(Mathf.DeltaAngle(board.Container.Lid.localEulerAngles.x, PuzzleBoardPresenter.GameplayLidOpenDegrees),
+                    Is.EqualTo(0f).Within(0.01f), "ZT-040C.1 gameplay open pose faces the lining to the camera");
+                Assert.That(Mathf.DeltaAngle(board.Container.AuthoredLidOpenLocalRotation.eulerAngles.x, -77.08f),
+                    Is.EqualTo(0f).Within(0.1f), "authored pose untouched");
                 Assert.That(board.Container.Root.GetComponentsInChildren<Collider>(true), Is.Empty);
                 var frame = board.CompartmentFrames().Single();
                 var interior = board.ContainerInterior;

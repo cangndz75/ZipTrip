@@ -26,6 +26,11 @@ namespace ZipTrip.Unity
         public const float FillerMinGap = 0.5f;
         public const float FillerHeight = 0.42f;
         public static readonly Color ContainerLining = new Color(0.10f, 0.27f, 0.28f);
+        /// <summary>
+        /// ZT-040C.1 gameplay open pose (local X). The authored -77.08 is nearly edge-on to the 75-degree camera; at -90
+        /// the lining and straps face it. Smaller angles tilt the lid over the cavity and show its exterior instead.
+        /// </summary>
+        public const float GameplayLidOpenDegrees = -90f;
 
         public static readonly Color GhostColor = new Color(0.55f, 0.75f, 0.78f, 0.22f);
         // Functional fallback-block colours (not final art): palette family plus two muted extras to reduce collisions.
@@ -159,6 +164,8 @@ namespace ZipTrip.Unity
                 var instance = Instantiate(_containerPrefab, transform, false);
                 instance.name = "Container " + _containerPrefab.name;
                 _container = ContainerRig.Bind(instance.transform);
+                _container.SetLidOpenPose(Quaternion.Euler(GameplayLidOpenDegrees, 0f, 0f));
+                _container.SetLidClosed(false);
             }
             var root = _container.Root;
             root.localPosition = Vector3.zero;

@@ -29,7 +29,9 @@ namespace ZipTrip.Unity
         public Transform InteriorMax { get; }
         public Transform HingeAnchor { get; }
         /// <summary>The authored (open) lid pose, captured at bind time.</summary>
-        public Quaternion LidOpenLocalRotation { get; }
+        public Quaternion AuthoredLidOpenLocalRotation { get; }
+        /// <summary>Open pose used by SetLidClosed(false); the authored pose unless presentation overrides it.</summary>
+        public Quaternion LidOpenLocalRotation { get; private set; }
 
         private ContainerRig(Transform root, IReadOnlyDictionary<string, Transform> nodes)
         {
@@ -40,7 +42,7 @@ namespace ZipTrip.Unity
             InteriorMin = nodes[InteriorMinNode];
             InteriorMax = nodes[InteriorMaxNode];
             HingeAnchor = nodes[HingeAnchorNode];
-            LidOpenLocalRotation = Lid.localRotation;
+            AuthoredLidOpenLocalRotation = LidOpenLocalRotation = Lid.localRotation;
         }
 
         /// <summary>Binds the required nodes (direct children of <paramref name="root"/>); throws listing any missing.</summary>
@@ -67,6 +69,9 @@ namespace ZipTrip.Unity
 
         /// <summary>Snaps the lid to the closed (identity) or authored open pose. No animation (ZT-043 owns Zip It).</summary>
         public void SetLidClosed(bool closed) => Lid.localRotation = closed ? LidClosedLocalRotation : LidOpenLocalRotation;
+
+        /// <summary>Presentation open pose (e.g. wider for the fixed gameplay camera); closed stays identity.</summary>
+        public void SetLidOpenPose(Quaternion open) => LidOpenLocalRotation = open;
 
         /// <summary>Authored interior corners in the root's local space (unscaled model units).</summary>
         public Vector3 InteriorMinLocal => Root.InverseTransformPoint(InteriorMin.position);
