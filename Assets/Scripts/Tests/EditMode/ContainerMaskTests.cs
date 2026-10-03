@@ -143,6 +143,49 @@ namespace ZipTrip.Tests.EditMode
         }
 
         [Test]
+        public void LegacyConstructor_KeepsFixed8By10BoundsAndBytes()
+        {
+            var cells = new[] { new Cell(0, 0), new Cell(3, 2), new Cell(7, 9) };
+            var legacy = new ContainerMask(cells);
+            var sized = new ContainerMask(GridSize.Width, GridSize.Height, cells);
+
+            Assert.That(legacy.Width, Is.EqualTo(8));
+            Assert.That(legacy.Height, Is.EqualTo(10));
+            Assert.That(legacy.ToStableBytes(), Is.EqualTo(sized.ToStableBytes()));
+            Assert.That(() => new ContainerMask(new[] { new Cell(8, 0) }),
+                Throws.InstanceOf<System.ArgumentOutOfRangeException>());
+        }
+
+        [Test]
+        public void SizedMask_UsesItsOwnBoundsAndRowMajorOrder()
+        {
+            var mask = new ContainerMask(3, 2, new[] { new Cell(2, 1), new Cell(0, 0), new Cell(1, 1) });
+
+            Assert.That(mask.ValidCellCount, Is.EqualTo(3));
+            Assert.That(mask.GetValidCells().ToArray(),
+                Is.EqualTo(new[] { new Cell(0, 0), new Cell(1, 1), new Cell(2, 1) }));
+            Assert.That(mask.IsValid(new Cell(2, 1)), Is.True);
+            Assert.That(mask.IsValid(new Cell(1, 0)), Is.False);
+            Assert.That(mask.IsValid(new Cell(3, 0)), Is.False);
+            Assert.That(mask.IsValid(new Cell(0, 2)), Is.False);
+            Assert.That(mask.IsValid(new Cell(-1, 0)), Is.False);
+            Assert.That(mask.ToStableBytes(), Is.EqualTo(new byte[] { 0b0011_0001 }));
+            Assert.That(() => new ContainerMask(3, 2, new[] { new Cell(3, 0) }),
+                Throws.InstanceOf<System.ArgumentOutOfRangeException>());
+            Assert.That(() => new ContainerMask(0, 2, new Cell[0]),
+                Throws.InstanceOf<System.ArgumentOutOfRangeException>());
+        }
+
+        [Test]
+        public void SizedMask_SupportsDimensionsBeyondTheLegacyGrid()
+        {
+            var mask = new ContainerMask(12, 11, new[] { new Cell(11, 10) });
+            Assert.That(mask.IsValid(new Cell(11, 10)), Is.True);
+            Assert.That(mask.GetValidCells().Single(), Is.EqualTo(new Cell(11, 10)));
+            Assert.That(mask.ToStableBytes().Length, Is.EqualTo((12 * 11 + 7) / 8));
+        }
+
+        [Test]
         public void CabinFixture_HasExpectedShape()
         {
             var cabin = ContainerFixtures.CreateCabin(new Cell(0, 0));
