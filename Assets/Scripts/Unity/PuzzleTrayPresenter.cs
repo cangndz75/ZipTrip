@@ -16,6 +16,7 @@ namespace ZipTrip.Unity
         private readonly Dictionary<string, PuzzleItemView> _items = new Dictionary<string, PuzzleItemView>();
         private readonly Dictionary<string, Rotation> _displayRotations = new Dictionary<string, Rotation>(StringComparer.Ordinal);
         private PuzzleBoardPresenter _board;
+        public Func<PuzzleItem, PuzzleItem> DisplayItem { get; set; }
 
         public IReadOnlyDictionary<string, PuzzleItemView> ItemViews => _items;
         /// <summary>Visual scale of tray items (1 = board size).</summary>
@@ -67,13 +68,14 @@ namespace ZipTrip.Unity
             foreach (var item in state.GetItems(ItemLocationKind.SourceTray))
             {
                 live.Add(item.InstanceId);
+                var shown = DisplayItem?.Invoke(item) ?? item;
                 if (!_items.TryGetValue(item.InstanceId, out var view))
                 {
                     view = new GameObject("Tray " + item.InstanceId).AddComponent<PuzzleItemView>();
                     _items.Add(item.InstanceId, view);
                 }
-                var rotation = DisplayRotation(item);
-                item.State.TryGetFootprint(rotation, out var footprint);
+                var rotation = DisplayRotation(shown);
+                shown.State.TryGetFootprint(rotation, out var footprint);
                 int width = 0, depth = 0;
                 foreach (var cell in footprint.OccupiedCells)
                 {
@@ -88,7 +90,7 @@ namespace ZipTrip.Unity
                     rowDepth = 0f;
                 }
                 var lift = item.InstanceId == SelectedInstanceId ? SelectedLift : 0f;
-                view.BindLoose(item, transform, new Vector3(x, lift, z), rotation, _board.ResolveVisual(item), _board.Template,
+                view.BindLoose(shown, transform, new Vector3(x, lift, z), rotation, _board.ResolveVisual(shown), _board.Template,
                     _board.ColorFor(item.Definition.Id));
                 view.transform.localScale = Vector3.one * Scale;
                 view.SetShadowDrop(Mathf.Approximately(Scale, 0f) ? 0f : lift / Scale);

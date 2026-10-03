@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using ZipTrip.Application;
 using ZipTrip.Domain.Puzzle;
+using ZipTrip.Domain.Items;
 
 namespace ZipTrip.Unity
 {
@@ -50,6 +51,7 @@ namespace ZipTrip.Unity
         private string _ruleDragKey;
         private PuzzleLevel _fixture;
         private string _fixtureLabel;
+        private Func<PuzzleItem, GameObject> _fixtureVisuals;
 
         public PuzzleLevel Level { get; private set; }
         public PuzzleSession Session { get; private set; }
@@ -110,6 +112,7 @@ namespace ZipTrip.Unity
             if (json == null)
                 throw new InvalidOperationException("Missing level " + LevelFolder + LevelId);
             _fixture = null;
+            _fixtureVisuals = null;
             Present(LevelJsonLoaderV2.Load(json.text, PuzzleItemCatalog.Create()), $"Level {LevelIndex + 1}");
         }
 
@@ -117,11 +120,12 @@ namespace ZipTrip.Unity
         /// Loads an authored level that is not part of the shipped progression (test / staging fixtures, ZT-041).
         /// Restart reloads it; Next continues the shipped progression.
         /// </summary>
-        public void LoadLevel(PuzzleLevel level, string label)
+        public void LoadLevel(PuzzleLevel level, string label, Func<PuzzleItem, GameObject> fixtureVisuals = null)
         {
             EnsureRuntimeObjects();
             _fixture = level ?? throw new ArgumentNullException(nameof(level));
             _fixtureLabel = label;
+            _fixtureVisuals = fixtureVisuals;
             Present(level, label);
         }
 
@@ -133,7 +137,8 @@ namespace ZipTrip.Unity
 
             Board.UseContainer(containerPrefab);
             Board.Present(Level.Spec.Board, materialTemplate,
-                item => PuzzleItemCatalog.ResolveGolden(goldenCatalog, item.Definition.Id, item.StateId)
+                item => _fixtureVisuals?.Invoke(item)
+                        ?? PuzzleItemCatalog.ResolveGolden(goldenCatalog, item.Definition.Id, item.StateId)
                         ?? ProceduralItemVisuals.Resolve(item.Definition.Id, materialTemplate));
             var boardWidth = 0f;
             var boardDepth = 0f;
@@ -200,7 +205,7 @@ namespace ZipTrip.Unity
         public void Restart()
         {
             if (_fixture != null)
-                LoadLevel(_fixture, _fixtureLabel);
+                LoadLevel(_fixture, _fixtureLabel, _fixtureVisuals);
             else
                 LoadLevel(LevelIndex);
         }
@@ -229,6 +234,7 @@ namespace ZipTrip.Unity
         {
             if (Completion.CurrentPhase != PuzzleCompletionPresenter.Phase.Idle || Drag.IsDragging || !Session.Undo().StateChanged)
                 return false;
+            Drag.CancelCandidate();
             Drag.SyncPresenters();
             RefreshCompletion();
             return true;
@@ -267,6 +273,8 @@ namespace ZipTrip.Unity
             switch (action)
             {
                 case PuzzleHudAction.Rotate: Drag.RotateSelection(); break;
+                case PuzzleHudAction.Fold: Drag.SelectModifier(ItemModifier.Fold); break;
+                case PuzzleHudAction.Compress: Drag.SelectModifier(ItemModifier.Compress); break;
                 case PuzzleHudAction.Undo: Undo(); break;
                 case PuzzleHudAction.Restart: Restart(); break;
                 case PuzzleHudAction.Next: NextLevel(); break;
@@ -301,6 +309,8 @@ namespace ZipTrip.Unity
             if (Session == null)
                 return;
             Hud.SetRotateVisible(!Hud.CompletionMode && Drag.CanRotateSelection);
+            Hud.SetModifierVisible(!Hud.CompletionMode && Drag.CanSelectModifier(ItemModifier.Fold),
+                !Hud.CompletionMode && Drag.CanSelectModifier(ItemModifier.Compress));
             Hud.SetUndoEnabled(Session.UndoDepth > 0 && !Hud.CompletionMode);
             if (!Hud.CompletionMode)
                 UpdateRuleDragContext();

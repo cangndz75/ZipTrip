@@ -14,8 +14,9 @@ namespace ZipTrip.Unity
         public const float LiftDuration = 0.14f;
         public const float SettleDuration = 0.26f;
         public const float RejectDuration = 0.28f;
+        public const float ModifierDuration = 0.22f;
 
-        private enum Channel { None, Lift, Settle, Reject }
+        private enum Channel { None, Lift, Settle, Reject, Fold, Compress }
 
         private Channel _channel;
         private float _time;
@@ -24,7 +25,8 @@ namespace ZipTrip.Unity
         /// <summary>The pivot transform this component animates (footprint centre).</summary>
         public Transform Root { get; private set; }
         /// <summary>A settle or reject is playing (lift is held while dragging, not "playing").</summary>
-        public bool IsAnimating => _channel == Channel.Settle || _channel == Channel.Reject;
+        public bool IsAnimating => _channel == Channel.Settle || _channel == Channel.Reject
+            || _channel == Channel.Fold || _channel == Channel.Compress;
         public bool IsHeld => _channel == Channel.Lift;
 
         internal void Attach(Transform root) => Root = root;
@@ -34,6 +36,10 @@ namespace ZipTrip.Unity
 
         /// <summary>Valid drop: drops the last bit onto the lining with a short squash and rebound.</summary>
         public void PlaySettle() => Begin(Channel.Settle);
+
+        public void PlayFold() => Begin(Channel.Fold);
+
+        public void PlayCompress() => Begin(Channel.Compress);
 
         /// <summary>Rejected drop: small recoil along the drag direction and a decaying wobble at home. No state change.</summary>
         public void PlayReject(Vector3 dragDirection)
@@ -105,6 +111,25 @@ namespace ZipTrip.Unity
                     var wobble = Mathf.Sin(t * Mathf.PI * 6f) * (1f - t) * 5f;
                     Apply(offset + Vector3.up * (0.2f * Mathf.Sin(t * Mathf.PI) * (1f - t)), Vector3.one, wobble);
                     if (_time >= RejectDuration)
+                        CompleteAll();
+                    break;
+                }
+                case Channel.Fold:
+                {
+                    var t = Mathf.Clamp01(_time / ModifierDuration);
+                    var pulse = Mathf.Sin(t * Mathf.PI);
+                    Apply(Vector3.up * (0.06f * pulse), new Vector3(1f - 0.06f * pulse, 1f - 0.1f * pulse, 1f - 0.06f * pulse),
+                        5f * pulse);
+                    if (_time >= ModifierDuration)
+                        CompleteAll();
+                    break;
+                }
+                case Channel.Compress:
+                {
+                    var t = Mathf.Clamp01(_time / ModifierDuration);
+                    var press = Mathf.Sin(t * Mathf.PI);
+                    Apply(Vector3.zero, new Vector3(1f, 1f - 0.24f * press, 1f), 0f);
+                    if (_time >= ModifierDuration)
                         CompleteAll();
                     break;
                 }

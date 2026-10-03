@@ -314,6 +314,7 @@ namespace ZipTrip.Unity
                 }
                 view.Bind(item, _compartments[item.Location.Placement.Compartment].ItemsRoot,
                     ResolveVisual(item), _template, ColorFor(item.Definition.Id));
+                view.SetContainedCue(state.GetChildren(item.InstanceId).Count > 0, _template);
             }
 
             var stale = new List<string>();

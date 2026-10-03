@@ -10,7 +10,9 @@ namespace ZipTrip.Unity
         Rotate = 1,
         Undo = 2,
         Restart = 3,
-        Next = 4
+        Next = 4,
+        Fold = 5,
+        Compress = 6
     }
 
     // First-playable HUD: level label, Rotate / Undo / Restart buttons and the Zip It luggage tag.
@@ -48,6 +50,8 @@ namespace ZipTrip.Unity
         public bool CompletionVisible => _card != null && _card.gameObject.activeSelf;
         public bool CompletionMode { get; private set; }
         public bool RotateVisible => _buttons.TryGetValue(PuzzleHudAction.Rotate, out var rotate) && rotate.gameObject.activeSelf;
+        public bool FoldVisible => _buttons.TryGetValue(PuzzleHudAction.Fold, out var fold) && fold.gameObject.activeSelf;
+        public bool CompressVisible => _buttons.TryGetValue(PuzzleHudAction.Compress, out var compress) && compress.gameObject.activeSelf;
         public string LevelLabel => _label != null ? _label.text : null;
 
         /// <summary>Fraction of a pixelWidth x pixelHeight view covered by the top HUD band (width-matched scaling).</summary>
@@ -93,6 +97,12 @@ namespace ZipTrip.Unity
             AddButton(PuzzleHudAction.Restart, "Restart", new Vector2(0f, 0f), new Vector2(285f, row), new Vector2(150f, 150f), PaperFill, icon: restartIcon);
             AddButton(PuzzleHudAction.Rotate, "Rotate", new Vector2(1f, 0f), new Vector2(-135f, row), new Vector2(190f, 190f),
                 PresentationKit.Mustard, icon: rotateIcon);
+            AddButton(PuzzleHudAction.Fold, "Fold", new Vector2(1f, 0f), new Vector2(-135f, row + 190f), new Vector2(150f, 150f),
+                PresentationKit.Mustard);
+            AddButton(PuzzleHudAction.Compress, "Compress", new Vector2(1f, 0f), new Vector2(-300f, row + 190f), new Vector2(150f, 150f),
+                PresentationKit.Mustard);
+            _buttons[PuzzleHudAction.Compress].GetComponentInChildren<Text>().fontSize = 29;
+            SetModifierVisible(false, false);
 
             // Compact travel tag over the emptied mat; the closed suitcase remains unobstructed.
             var cardShadow = Shadowed(transform, new Vector2(0.5f, 0f), new Vector2(0f, 390f), new Vector2(640f, 245f));
@@ -120,6 +130,12 @@ namespace ZipTrip.Unity
         }
 
         public void SetRotateVisible(bool visible) => _buttons[PuzzleHudAction.Rotate].gameObject.SetActive(visible);
+
+        public void SetModifierVisible(bool fold, bool compress)
+        {
+            _buttons[PuzzleHudAction.Fold].gameObject.SetActive(fold);
+            _buttons[PuzzleHudAction.Compress].gameObject.SetActive(compress);
+        }
 
         /// <summary>Dims Undo when there is nothing to undo (visual state only; the tap stays a harmless no-op).</summary>
         public void SetUndoEnabled(bool enabled)
@@ -166,7 +182,10 @@ namespace ZipTrip.Unity
             _buttons[PuzzleHudAction.Undo].gameObject.SetActive(!active);
             _buttons[PuzzleHudAction.Restart].gameObject.SetActive(!active);
             if (active)
+            {
                 SetRotateVisible(false);
+                SetModifierVisible(false, false);
+            }
             _label.transform.parent.gameObject.SetActive(!active);
             _levelShadow.gameObject.SetActive(!active);
             if (!active)

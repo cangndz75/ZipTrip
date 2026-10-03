@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using ZipTrip.Application;
 using ZipTrip.Domain;
+using ZipTrip.Domain.Items;
 using ZipTrip.Domain.Puzzle;
 
 namespace ZipTrip.Unity
@@ -54,6 +55,11 @@ namespace ZipTrip.Unity
         private Vector3 _dragStart;
         private Transform _ghostRoot;
         private PuzzleStagingPresenter _staging;
+        private string _selectedOutsideId;
+        private string _candidateStateId;
+        private ItemModifier? _candidateModifier;
+        private bool _temporaryNestedView;
+        private bool _physicalDragVisual;
 
         public PuzzleSession Session => _session;
         public bool IsDragging => _view != null;
@@ -63,6 +69,8 @@ namespace ZipTrip.Unity
         public bool HasCandidate { get; private set; }
         /// <summary>ZT-041: staging slot under the pointer that a drop would target (-1 = none). Excludes the item's own slot.</summary>
         public int CandidateStagingSlot { get; private set; } = -1;
+        public string CandidateNestParent { get; private set; }
+        public string SelectedCandidateStateId => _candidateStateId;
         public string CandidateCompartment { get; private set; }
         public Cell CandidateAnchor { get; private set; }
         /// <summary>Domain outcome of the candidate move on the current state; null without a candidate.</summary>
@@ -89,6 +97,9 @@ namespace ZipTrip.Unity
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _board = board ?? throw new ArgumentNullException(nameof(board));
             _tray = tray ?? throw new ArgumentNullException(nameof(tray));
+            _tray.DisplayItem = DisplayItem;
+            if (_staging != null)
+                _staging.DisplayItem = DisplayItem;
             _camera = camera;
             if (_pointer != null)
                 _pointer.PointerEvent -= HandlePointer;
@@ -103,6 +114,12 @@ namespace ZipTrip.Unity
             EnsurePreviewMaterials();
             _view = null;
             _item = null;
+            _selectedOutsideId = null;
+            _candidateStateId = null;
+            _candidateModifier = null;
+            _temporaryNestedView = false;
+            _physicalDragVisual = false;
+            CandidateNestParent = null;
             HasCandidate = false;
             Preview = null;
             LastStep = null;
@@ -127,6 +144,7 @@ namespace ZipTrip.Unity
                     if (!_tray.ItemViews.TryGetValue(instanceId, out view))
                         return DragBeginResult.UnknownItem;
                     _tray.Select(instanceId);
+                    SelectOutside(item);
                     break;
                 case ItemLocationKind.Suitcase:
                     if (!AccessQueries.CanTake(state, instanceId))
@@ -138,6 +156,19 @@ namespace ZipTrip.Unity
                     // ZT-041: a staged item is external (always reachable) and may go back into the suitcase.
                     if (_staging == null || !_staging.ItemViews.TryGetValue(instanceId, out view))
                         return DragBeginResult.UnknownItem;
+                    SelectOutside(item);
+                    break;
+                case ItemLocationKind.Nested:
+                    if (AccessQueries.GetAccess(state, instanceId) != ItemAccess.Accessible
+                        && AccessQueries.GetAccess(state, instanceId) != ItemAccess.External)
+                        return DragBeginResult.NotAccessible;
+                    var parentView = ViewOf(item.Location.TargetId);
+                    if (parentView == null)
+                        return DragBeginResult.UnknownItem;
+                    view = new GameObject("Nested Drag " + instanceId).AddComponent<PuzzleItemView>();
+                    view.BindLoose(item, transform, transform.InverseTransformPoint(pointerWorld + new Vector3(-0.5f, 0f, 0.5f)),
+                        item.State.AllowedRotations[0], _board.ResolveVisual(item), _board.Template, _board.ColorFor(item.Definition.Id));
+                    _temporaryNestedView = true;
                     break;
                 default:
                     return DragBeginResult.NotDraggable;
@@ -145,8 +176,17 @@ namespace ZipTrip.Unity
 
             _item = item;
             _view = view;
+            _physicalDragVisual = item.Definition.Transitions.Count > 0 || item.Location.Kind == ItemLocationKind.Nested;
+            if (!_physicalDragVisual && item.Location.Kind != ItemLocationKind.SourceTray)
+                foreach (var parent in state.GetItems(ItemLocationKind.Suitcase))
+                    if (parent.Definition.Nest.Capacity > 0)
+                    {
+                        _physicalDragVisual = true;
+                        break;
+                    }
+            UpdateNestTargetCues();
             // The lifted item is ghosted so the Domain preview cells underneath stay readable; Sync restores it.
-            _view.SetGhost(true, _board.GhostMaterial);
+            _view.SetGhost(!_physicalDragVisual, _board.GhostMaterial);
             CandidateRotation = view.Rotation;
             // Tray items are drawn smaller; keep the grabbed point under the pointer when the item grows to board size.
             var origin = view.transform.position;
@@ -168,6 +208,7 @@ namespace ZipTrip.Unity
             _view.transform.position = anchorWorld + Vector3.up * LiftHeight;
 
             _marked.Clear();
+            CandidateNestParent = null;
             // ZT-041: a staging pad under the finger takes priority over the board; the Domain previews the slot move.
             CandidateStagingSlot = StagingSlotUnder(pointerWorld);
             if (CandidateStagingSlot >= 0)
@@ -182,6 +223,21 @@ namespace ZipTrip.Unity
                 return;
             }
             _staging?.SetHover(-1, false);
+            foreach (var view in _board.ItemViews.Values)
+                if (view.NestInvalidCue)
+                    view.SetNestInvalidCue(false, _board.Template);
+            CandidateNestParent = NestParentUnder(pointerWorld);
+            if (CandidateNestParent != null)
+            {
+                HasCandidate = false;
+                CandidateCompartment = null;
+                CandidateAnchor = default;
+                Preview = PuzzleTransitions.Apply(_session.CurrentState, PuzzleMove.NestInto(_item.InstanceId, CandidateNestParent));
+                _board.ItemViews[CandidateNestParent].SetNestInvalidCue(!Preview.IsAccepted, _board.Template);
+                PreviewLayer = -1;
+                RenderGhost();
+                return;
+            }
             HasCandidate = PuzzleBoardProjection.TryProject(_board.CompartmentFrames(), anchorWorld, _view.Footprint,
                 out var compartment, out var anchor);
             CandidateCompartment = HasCandidate ? compartment : null;
@@ -207,15 +263,16 @@ namespace ZipTrip.Unity
         {
             if (!IsDragging)
                 return;
-            var allowed = _item.State.AllowedRotations;
+            var shown = DisplayItem(_item);
+            var allowed = shown.State.AllowedRotations;
             var index = 0;
             for (var i = 0; i < allowed.Count; i++)
                 if (allowed[i] == CandidateRotation)
                     index = i;
             CandidateRotation = allowed[(index + 1) % allowed.Count];
-            _view.SetVisual(_item, CandidateRotation, _board.ResolveVisual(_item), _board.Template,
+            _view.SetVisual(shown, CandidateRotation, _board.ResolveVisual(shown), _board.Template,
                 _board.ColorFor(_item.Definition.Id));
-            _view.SetGhost(true, _board.GhostMaterial);
+            _view.SetGhost(!_physicalDragVisual, _board.GhostMaterial);
             UpdateDrag(_lastPointer);
         }
 
@@ -224,8 +281,8 @@ namespace ZipTrip.Unity
         {
             get
             {
-                var item = IsDragging ? _item : SelectedTrayItem();
-                return item != null && PackSolverV2.UniqueRotations(item.State).Count > 1;
+                var item = IsDragging ? _item : SelectedOutsideItem();
+                return item != null && PackSolverV2.UniqueRotations(DisplayItem(item).State).Count > 1;
             }
         }
 
@@ -240,25 +297,89 @@ namespace ZipTrip.Unity
                 RotateCandidate();
                 return true;
             }
-            var item = SelectedTrayItem();
+            var item = SelectedOutsideItem();
             if (item == null)
                 return false;
-            var unique = PackSolverV2.UniqueRotations(item.State);
+            var shown = DisplayItem(item);
+            var unique = PackSolverV2.UniqueRotations(shown.State);
             if (unique.Count < 2)
                 return false;
-            var current = _tray.DisplayRotation(item);
+            var current = item.Location.Kind == ItemLocationKind.SourceTray
+                ? _tray.DisplayRotation(shown) : _staging.DisplayRotation(shown);
             var index = 0;
             for (var i = 0; i < unique.Count; i++)
                 if (unique[i] == current)
                     index = i;
-            _tray.SetDisplayRotation(item.InstanceId, unique[(index + 1) % unique.Count]);
-            _tray.Sync(_session.CurrentState);
+            if (item.Location.Kind == ItemLocationKind.SourceTray)
+                _tray.SetDisplayRotation(item.InstanceId, unique[(index + 1) % unique.Count]);
+            else
+                _staging.SetDisplayRotation(item.InstanceId, unique[(index + 1) % unique.Count]);
+            SyncPresenters();
             return true;
         }
 
-        private PuzzleItem SelectedTrayItem() =>
-            _tray.SelectedInstanceId != null && _session.CurrentState.TryGetItem(_tray.SelectedInstanceId, out var item)
-            && item.Location.Kind == ItemLocationKind.SourceTray ? item : null;
+        private PuzzleItem SelectedOutsideItem() =>
+            _selectedOutsideId != null && _session.CurrentState.TryGetItem(_selectedOutsideId, out var item)
+            && (item.Location.Kind == ItemLocationKind.SourceTray || item.Location.Kind == ItemLocationKind.Staging) ? item : null;
+
+        private PuzzleItem DisplayItem(PuzzleItem item) =>
+            item.InstanceId == _selectedOutsideId && _candidateStateId != null && _candidateStateId != item.StateId
+                ? item.With(_candidateStateId, item.Location) : item;
+
+        private void SelectOutside(PuzzleItem item)
+        {
+            if (_selectedOutsideId == item.InstanceId)
+                return;
+            _selectedOutsideId = item.InstanceId;
+            _candidateStateId = item.StateId;
+            _candidateModifier = null;
+        }
+
+        public bool CanSelectModifier(ItemModifier modifier)
+        {
+            var item = IsDragging ? _item : SelectedOutsideItem();
+            if (item == null || item.Location.Kind != ItemLocationKind.SourceTray && item.Location.Kind != ItemLocationKind.Staging)
+                return false;
+            return item.Definition.TryGetTransition(_candidateStateId ?? item.StateId, modifier, out _)
+                || _candidateStateId != null && _candidateStateId != item.StateId && _candidateModifier == modifier;
+        }
+
+        public bool SelectModifier(ItemModifier modifier)
+        {
+            if (!InteractionEnabled || !CanSelectModifier(modifier))
+                return false;
+            var item = IsDragging ? _item : SelectedOutsideItem();
+            var current = _candidateStateId ?? item.StateId;
+            _candidateStateId = item.Definition.TryGetTransition(current, modifier, out var target)
+                ? target.Id : item.StateId;
+            _candidateModifier = _candidateStateId == item.StateId ? null : modifier;
+            var shown = DisplayItem(item);
+            var rotation = IsDragging ? CandidateRotation : item.Location.Kind == ItemLocationKind.SourceTray
+                ? _tray.DisplayRotation(item) : _staging.DisplayRotation(item);
+            if (!shown.State.AllowsRotation(rotation))
+                rotation = shown.State.AllowedRotations[0];
+            if (IsDragging)
+            {
+                CandidateRotation = rotation;
+                _view.SetVisual(shown, rotation, _board.ResolveVisual(shown), _board.Template, _board.ColorFor(item.Definition.Id));
+                _view.SetGhost(!_physicalDragVisual, _board.GhostMaterial);
+                UpdateDrag(_lastPointer);
+            }
+            else
+            {
+                if (item.Location.Kind == ItemLocationKind.SourceTray)
+                    _tray.SetDisplayRotation(item.InstanceId, rotation);
+                else
+                    _staging.SetDisplayRotation(item.InstanceId, rotation);
+                SyncPresenters();
+            }
+            var feedback = ViewOf(item.InstanceId)?.Feedback;
+            if (modifier == ItemModifier.Fold)
+                feedback?.PlayFold();
+            else
+                feedback?.PlayCompress();
+            return true;
+        }
 
         /// <summary>
         /// Commits the candidate as one PuzzleSession move and re-syncs presentation. Releasing away from every
@@ -268,21 +389,27 @@ namespace ZipTrip.Unity
         {
             if (!IsDragging)
                 return null;
-            if (!HasCandidate && CandidateStagingSlot < 0)
+            if (!HasCandidate && CandidateStagingSlot < 0 && CandidateNestParent == null)
             {
                 Cancel();
                 return null;
             }
             var step = _session.Apply(CandidateStagingSlot >= 0
-                ? PuzzleMove.MoveToStaging(_item.InstanceId, CandidateStagingSlot) : CandidateMove());
+                ? PuzzleMove.MoveToStaging(_item.InstanceId, CandidateStagingSlot)
+                : CandidateNestParent != null ? PuzzleMove.NestInto(_item.InstanceId, CandidateNestParent) : CandidateMove());
             LastStep = step;
             var id = _item.InstanceId;
+            var nestParent = CandidateNestParent;
             var direction = _lastPointer - _dragStart;
             EndDrag();
             // Feedback follows state: the view that now shows the item (placed or returned) plays it.
             var shown = ViewOf(id);
             if (step.Move.IsAccepted)
+            {
                 shown?.Feedback?.PlaySettle();
+                if (nestParent != null)
+                    ViewOf(nestParent)?.Feedback?.PlaySettle();
+            }
             else
                 shown?.Feedback?.PlayReject(direction);
             StepCommitted?.Invoke(step);
@@ -293,6 +420,51 @@ namespace ZipTrip.Unity
         {
             if (IsDragging)
                 EndDrag();
+            else
+                CancelCandidate();
+        }
+
+        public void CancelCandidate()
+        {
+            _candidateStateId = null;
+            _candidateModifier = null;
+            _selectedOutsideId = null;
+            SyncPresenters();
+        }
+
+        private string NestParentUnder(Vector3 world)
+        {
+            if (_item == null || _item.Location.Kind == ItemLocationKind.SourceTray)
+                return null;
+            PuzzleItemView best = null;
+            foreach (var view in _board.ItemViews.Values)
+                if (view.InstanceId != _item.InstanceId && view.ContainsWorldPointXZ(world)
+                    && _session.CurrentState.TryGetItem(view.InstanceId, out var parent)
+                    && parent.Definition.Nest.Capacity > 0
+                    && (best == null || view.Placement.Layer > best.Placement.Layer))
+                    best = view;
+            return best?.InstanceId;
+        }
+
+        private void UpdateNestTargetCues()
+        {
+            if (_item == null || _item.Location.Kind == ItemLocationKind.SourceTray)
+                return;
+            foreach (var view in _board.ItemViews.Values)
+                if (view.InstanceId != _item.InstanceId)
+                {
+                    var move = PuzzleMove.NestInto(_item.InstanceId, view.InstanceId);
+                    view.SetNestTargetCue(PuzzleTransitions.Apply(_session.CurrentState, move).IsAccepted, _board.Template);
+                }
+        }
+
+        private void ClearNestTargetCues()
+        {
+            foreach (var view in _board.ItemViews.Values)
+            {
+                view.SetNestTargetCue(false, _board.Template);
+                view.SetNestInvalidCue(false, _board.Template);
+            }
         }
 
         /// <summary>The view currently presenting an item: board, staging or tray.</summary>
@@ -324,6 +496,13 @@ namespace ZipTrip.Unity
         /// </summary>
         public bool TryPickItem(Vector3 boardWorld, Vector3 trayWorld, out string instanceId)
         {
+            foreach (var view in _board.ItemViews.Values)
+                if (TryPickNestedChild(view, boardWorld, out instanceId))
+                    return true;
+            if (_staging != null)
+                foreach (var view in _staging.ItemViews.Values)
+                    if (TryPickNestedChild(view, trayWorld, out instanceId))
+                        return true;
             PuzzleItemView best = null;
             foreach (var view in _board.ItemViews.Values)
                 if (view.ContainsWorldPointXZ(boardWorld) && (best == null || view.Placement.Layer > best.Placement.Layer))
@@ -340,6 +519,20 @@ namespace ZipTrip.Unity
             return best != null;
         }
 
+        private bool TryPickNestedChild(PuzzleItemView parentView, Vector3 world, out string instanceId)
+        {
+            if (parentView.ContainsContainedCueWorldXZ(world))
+                foreach (var child in _session.CurrentState.GetChildren(parentView.InstanceId))
+                    if (AccessQueries.GetAccess(_session.CurrentState, child.InstanceId) == ItemAccess.Accessible
+                        || AccessQueries.GetAccess(_session.CurrentState, child.InstanceId) == ItemAccess.External)
+                    {
+                        instanceId = child.InstanceId;
+                        return true;
+                    }
+            instanceId = null;
+            return false;
+        }
+
         public void SyncPresenters()
         {
             _board.Sync(_session.CurrentState);
@@ -348,15 +541,27 @@ namespace ZipTrip.Unity
         }
 
         private PuzzleMove CandidateMove() =>
-            PuzzleMove.PlaceInSuitcase(_item.InstanceId, CandidateCompartment, CandidateAnchor, CandidateRotation, _item.StateId);
+            PuzzleMove.PlaceInSuitcase(_item.InstanceId, CandidateCompartment, CandidateAnchor, CandidateRotation,
+                _candidateStateId ?? _item.StateId);
 
         private void EndDrag()
         {
             _view?.Feedback?.CompleteAll();
+            if (_temporaryNestedView && _view != null)
+            {
+                _view.gameObject.SetActive(false);
+                Destroy(_view.gameObject);
+            }
+            _temporaryNestedView = false;
+            _physicalDragVisual = false;
             CandidateStagingSlot = -1;
+            CandidateNestParent = null;
+            ClearNestTargetCues();
             _staging?.SetHover(-1, false);
             _view = null;
             _item = null;
+            _candidateStateId = null;
+            _candidateModifier = null;
             HasCandidate = false;
             Preview = null;
             PreviewLayer = -1;

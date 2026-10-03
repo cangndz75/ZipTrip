@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using ZipTrip.Domain;
 using ZipTrip.Domain.Puzzle;
 
 namespace ZipTrip.Unity
@@ -28,6 +29,8 @@ namespace ZipTrip.Unity
         private readonly List<Material> _padMaterials = new List<Material>();
         private readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
         private PuzzleBoardPresenter _board;
+        private readonly Dictionary<string, Rotation> _displayRotations = new Dictionary<string, Rotation>(StringComparer.Ordinal);
+        public Func<PuzzleItem, PuzzleItem> DisplayItem { get; set; }
 
         public int Capacity { get; private set; }
         /// <summary>Slot currently highlighted by a drag (-1 = none) and whether that drop would be accepted.</summary>
@@ -40,6 +43,12 @@ namespace ZipTrip.Unity
         public float RowWidth => Capacity > 0 ? Capacity * PadSize + (Capacity - 1) * PadGap : 0f;
 
         public void Configure(PuzzleBoardPresenter board) => _board = board ?? throw new ArgumentNullException(nameof(board));
+
+        public Rotation DisplayRotation(PuzzleItem item) =>
+            _displayRotations.TryGetValue(item.InstanceId, out var rotation) && item.State.AllowsRotation(rotation)
+                ? rotation : item.State.AllowedRotations[0];
+
+        public void SetDisplayRotation(string instanceId, Rotation rotation) => _displayRotations[instanceId] = rotation;
 
         /// <summary>Rebuilds the pads for a level. Capacity 0 hides the whole presenter.</summary>
         public void Build(int capacity, Material template)
@@ -83,6 +92,7 @@ namespace ZipTrip.Unity
             if (Capacity > 0)
                 foreach (var item in state.GetItems(ItemLocationKind.Staging))
                 {
+                    var shown = DisplayItem?.Invoke(item) ?? item;
                     var slot = item.Location.StagingSlot;
                     if (slot < 0 || slot >= Capacity)
                         continue; // invalid states are reported by BoardInvariants, never drawn
@@ -92,8 +102,8 @@ namespace ZipTrip.Unity
                         view = new GameObject("Staged " + item.InstanceId).AddComponent<PuzzleItemView>();
                         _items.Add(item.InstanceId, view);
                     }
-                    var rotation = item.State.AllowedRotations[0];
-                    item.State.TryGetFootprint(rotation, out var footprint);
+                    var rotation = DisplayRotation(shown);
+                    shown.State.TryGetFootprint(rotation, out var footprint);
                     int width = 0, depth = 0;
                     foreach (var cell in footprint.OccupiedCells)
                     {
@@ -103,8 +113,9 @@ namespace ZipTrip.Unity
                     var scale = Mathf.Min(1f, (PadSize - 2f * ParkMargin) / Mathf.Max(width, depth));
                     // Parked centred on its pad.
                     var local = new Vector3((PadSize - width * scale) * 0.5f, 0f, -(PadSize - depth * scale) * 0.5f);
-                    view.BindLoose(item, _pads[slot], local, rotation, _board.ResolveVisual(item), _board.Template,
+                    view.BindLoose(shown, _pads[slot], local, rotation, _board.ResolveVisual(shown), _board.Template,
                         _board.ColorFor(item.Definition.Id));
+                    view.SetContainedCue(state.GetChildren(item.InstanceId).Count > 0, _board.Template);
                     view.transform.localScale = Vector3.one * scale;
                     view.SetGhost(false, null);
                 }
@@ -116,6 +127,7 @@ namespace ZipTrip.Unity
             {
                 Destroy(_items[id].gameObject);
                 _items.Remove(id);
+                _displayRotations.Remove(id);
             }
         }
 
@@ -157,6 +169,7 @@ namespace ZipTrip.Unity
                     Destroy(view.gameObject);
                 }
             _items.Clear();
+            _displayRotations.Clear();
             foreach (var pad in _pads)
                 if (pad != null)
                 {

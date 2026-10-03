@@ -26,6 +26,15 @@ namespace ZipTrip.Unity
         private Material _shadowMaterial;
         private Texture2D _shadowTexture;
         private float _shadowDrop;
+        private Renderer _nestCue;
+        private Mesh _nestCueMesh;
+        private Material _nestCueMaterial;
+        private Renderer _containedInset;
+        private Mesh _containedInsetMesh;
+        private Material _containedInsetMaterial;
+        private bool _containsItems;
+        private bool _nestTarget;
+        private bool _nestInvalid;
 
         public string InstanceId { get; private set; }
         public string DefinitionId { get; private set; }
@@ -43,6 +52,83 @@ namespace ZipTrip.Unity
         public bool UsesPrefab { get; private set; }
         public bool IsGhosted { get; private set; }
         public bool ShadowVisible => _shadow != null && _shadow.activeSelf;
+        public bool ContainsItemsCue => _containsItems;
+        public bool NestTargetCue => _nestTarget;
+        public bool NestInvalidCue => _nestInvalid;
+        public bool ContainedInsetVisible => _containedInset != null && _containedInset.gameObject.activeInHierarchy;
+        public Vector3 ContainedCueWorld => _nestCue != null ? _nestCue.transform.position : transform.position;
+
+        public bool ContainsContainedCueWorldXZ(Vector3 world)
+        {
+            if (!_containsItems || _nestCue == null)
+                return false;
+            var local = transform.InverseTransformPoint(world);
+            var cue = _nestCue.transform.localPosition;
+            return Mathf.Abs(local.x - cue.x) <= 0.5f && Mathf.Abs(local.z - cue.z) <= 0.5f;
+        }
+
+        internal void SetContainedCue(bool contained, Material template)
+        {
+            _containsItems = contained;
+            RefreshNestCue(template);
+        }
+
+        internal void SetNestTargetCue(bool target, Material template)
+        {
+            _nestTarget = target;
+            RefreshNestCue(template);
+        }
+
+        internal void SetNestInvalidCue(bool invalid, Material template)
+        {
+            _nestInvalid = invalid;
+            RefreshNestCue(template);
+        }
+
+        private void RefreshNestCue(Material template)
+        {
+            if (!_containsItems && !_nestTarget && !_nestInvalid)
+            {
+                if (_nestCue != null)
+                    _nestCue.gameObject.SetActive(false);
+                return;
+            }
+            if (_nestCue == null)
+            {
+                _nestCueMesh = PresentationKit.Ribbon(PresentationKit.RoundedRect(new Rect(-0.36f, -0.24f, 0.72f, 0.48f),
+                    0.22f, 8), 0.10f, 0f, true);
+                var marker = PresentationKit.MeshObject("Nest Opening Cue", transform, _nestCueMesh, null);
+                _nestCue = marker.GetComponent<Renderer>();
+                _nestCueMaterial = PresentationKit.Transparent(PresentationKit.TemplateOrFallback(template),
+                    PresentationKit.WithAlpha(PresentationKit.Teal, 0.88f));
+                _nestCue.sharedMaterial = _nestCueMaterial;
+            }
+            int width = 0, depth = 0;
+            foreach (var cell in Footprint.OccupiedCells)
+            {
+                width = Mathf.Max(width, cell.X + 1);
+                depth = Mathf.Max(depth, cell.Y + 1);
+            }
+            _nestCue.transform.localPosition = new Vector3(width * 0.5f,
+                PuzzleBoardLayout.ItemHeight(Thickness) + 0.08f, -0.48f);
+            _nestCue.transform.localScale = Vector3.one;
+            var color = _nestInvalid ? PresentationKit.Terracotta
+                : _nestTarget ? PresentationKit.Mustard : PresentationKit.Teal;
+            _nestCueMaterial.SetColor(PresentationKit.BaseColorId, PresentationKit.WithAlpha(color, 0.88f));
+            _nestCueMaterial.SetColor(PresentationKit.ColorId, PresentationKit.WithAlpha(color, 0.88f));
+            _nestCue.gameObject.SetActive(true);
+            if (_containsItems && _containedInset == null)
+            {
+                _containedInsetMesh = PresentationKit.Slab(new Rect(-0.20f, -0.06f, 0.40f, 0.17f), 0.08f, 0f, 0.025f);
+                var inset = PresentationKit.MeshObject("Contained Fabric Inset", _nestCue.transform, _containedInsetMesh, null);
+                _containedInset = inset.GetComponent<Renderer>();
+                _containedInsetMaterial = PresentationKit.Matte(PresentationKit.TemplateOrFallback(template), PresentationKit.Paper);
+                _containedInset.sharedMaterial = _containedInsetMaterial;
+                _containedInset.transform.localPosition = Vector3.up * 0.015f;
+            }
+            if (_containedInset != null)
+                _containedInset.gameObject.SetActive(_containsItems);
+        }
 
         internal void Bind(PuzzleItem item, Transform compartmentItems, GameObject prefab, Material template, Color color)
         {
@@ -87,6 +173,8 @@ namespace ZipTrip.Unity
             Rotation = rotation;
             Thickness = item.State.Thickness;
             Footprint = footprint;
+            if (_nestCue != null && (_containsItems || _nestTarget || _nestInvalid))
+                RefreshNestCue(template);
 
             var key = $"{DefinitionId}|{StateId}|{(int)rotation}|{(prefab != null ? prefab.GetInstanceID() : 0)}";
             if (key == _visualKey)
@@ -94,7 +182,10 @@ namespace ZipTrip.Unity
             _visualKey = key;
             SetGhost(false, null);
             if (VisualRoot != null)
+            {
+                VisualRoot.gameObject.SetActive(false);
                 Destroy(VisualRoot.gameObject);
+            }
             // ZT-040D: item root (placement) > Feedback Root (motion only, pivot at the footprint centre) > Visual Root.
             if (Feedback == null)
             {
@@ -160,7 +251,8 @@ namespace ZipTrip.Unity
             if (_shadowMaterial != null)
                 Destroy(_shadowMaterial);
             _shadowTexture = PresentationKit.FootprintShadow(footprint, 12, ShadowPad, 0.14f);
-            _shadowMaterial = PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, ShadowAlpha), _shadowTexture);
+            _shadowMaterial = PresentationKit.Transparent(template,
+                PresentationKit.WithAlpha(PresentationKit.Shadow, Thickness > 1 ? 0.72f : ShadowAlpha), _shadowTexture);
             _shadow.GetComponent<MeshRenderer>().sharedMaterial = _shadowMaterial;
 
             int width = 0, depth = 0;
@@ -244,6 +336,14 @@ namespace ZipTrip.Unity
 
         private void OnDestroy()
         {
+            if (_nestCueMaterial != null)
+                Destroy(_nestCueMaterial);
+            if (_nestCueMesh != null)
+                Destroy(_nestCueMesh);
+            if (_containedInsetMaterial != null)
+                Destroy(_containedInsetMaterial);
+            if (_containedInsetMesh != null)
+                Destroy(_containedInsetMesh);
             if (_shadowMesh != null)
                 Destroy(_shadowMesh);
             if (_shadowMaterial != null)
