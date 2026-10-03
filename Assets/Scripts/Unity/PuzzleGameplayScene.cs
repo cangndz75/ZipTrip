@@ -47,6 +47,7 @@ namespace ZipTrip.Unity
         private float _framedAspect;
         private Vector2Int _framedScreen;
         private PackingTable _table;
+        private string _ruleDragKey;
         private PuzzleLevel _fixture;
         private string _fixtureLabel;
 
@@ -56,6 +57,8 @@ namespace ZipTrip.Unity
         public PuzzleTrayPresenter Tray { get; private set; }
         /// <summary>ZT-041 limited staging pads; inactive when the level's staging capacity is 0.</summary>
         public PuzzleStagingPresenter Staging { get; private set; }
+        /// <summary>ZT-042 live rule tags and in-suitcase rule cues; empty when the level authors no rules.</summary>
+        public PuzzleRulesPresenter Rules { get; private set; }
         public PuzzleDragController Drag { get; private set; }
         public PuzzleHud Hud { get; private set; }
         public Camera Camera { get; private set; }
@@ -162,8 +165,31 @@ namespace ZipTrip.Unity
             Drag.InteractionEnabled = !Session.CurrentCompletion.IsComplete;
 
             Hud.SetLevel(label);
+            Rules.Build(Level, Hud, Board, materialTemplate);
+            Rules.Sync(Session.CurrentCompletion.Rules, false);
+            _ruleDragKey = null;
             Hud.SetCompletionVisible(Session.CurrentCompletion.IsComplete);
             FrameCamera();
+        }
+
+        // Drag-time rule hints come from RuleEvaluator on the drag controller's accepted Domain preview; evaluated only when
+        // that preview changes, never per frame, and never animated (pulses are for committed changes only).
+        private void UpdateRuleDragContext()
+        {
+            if (!Drag.IsDragging || !Session.CurrentState.TryGetItem(Drag.DraggedInstanceId, out var dragged))
+            {
+                if (_ruleDragKey != null)
+                    Rules.SetDragContext(null, null, null);
+                _ruleDragKey = null;
+                return;
+            }
+            var previewKey = Drag.PreviewValid ? Drag.Preview.State.Hash.ToString() : "none";
+            var key = dragged.InstanceId + "|" + previewKey;
+            if (key == _ruleDragKey)
+                return;
+            _ruleDragKey = key;
+            var preview = Drag.PreviewValid ? RuleEvaluator.Evaluate(Drag.Preview.State, Level.Rules) : null;
+            Rules.SetDragContext(dragged, preview, previewKey);
         }
 
         public void Restart()
@@ -242,6 +268,7 @@ namespace ZipTrip.Unity
             if (edge)
                 CompletionCount++;
             var complete = Session.CurrentCompletion.IsComplete;
+            Rules.Sync(Session.CurrentCompletion.Rules, true);
             Hud.SetCompletionVisible(complete);
             Drag.InteractionEnabled = !complete;
         }
@@ -252,6 +279,7 @@ namespace ZipTrip.Unity
                 return;
             Hud.SetRotateVisible(!Hud.CompletionVisible && Drag.CanRotateSelection);
             Hud.SetUndoEnabled(Session.UndoDepth > 0 && !Hud.CompletionVisible);
+            UpdateRuleDragContext();
             var keyboard = Keyboard.current;
             if (keyboard != null && !Drag.IsDragging && keyboard.rKey.wasPressedThisFrame)
                 Drag.RotateSelection();
@@ -317,6 +345,8 @@ namespace ZipTrip.Unity
             Tray = new GameObject("Source Tray").AddComponent<PuzzleTrayPresenter>();
             Tray.transform.SetParent(transform, false);
             Tray.Configure(Board);
+            Rules = new GameObject("Rules").AddComponent<PuzzleRulesPresenter>();
+            Rules.transform.SetParent(transform, false);
             Staging = new GameObject("Staging").AddComponent<PuzzleStagingPresenter>();
             Staging.transform.SetParent(transform, false);
             Staging.Configure(Board);

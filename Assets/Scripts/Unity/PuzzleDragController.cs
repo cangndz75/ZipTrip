@@ -33,16 +33,13 @@ namespace ZipTrip.Unity
         public const float LiftHeight = 0.5f;
         private const float GhostLift = 0.03f;
         private const float InvalidPreviewHeight = LiftHeight - 0.08f;
-        private const int PreviewPixelsPerCell = 16;
-        private const float PreviewPad = 0.16f;
-        private const float PreviewBlur = 0.1f;
         private static readonly Color ValidColor = new Color(0.36f, 0.80f, 0.50f, 0.62f);
         private static readonly Color InvalidColor = new Color(0.92f, 0.30f, 0.24f, 0.62f);
         private static readonly Color MarkColor = new Color(0.62f, 0.07f, 0.05f, 0.95f);
 
         private readonly List<Cell> _marked = new List<Cell>();
-        private readonly PreviewShape _footprintShape = new PreviewShape("Candidate Footprint");
-        private readonly PreviewShape _offendingShape = new PreviewShape("Offending Region");
+        private readonly SoftCellShape _footprintShape = new SoftCellShape("Candidate Footprint");
+        private readonly SoftCellShape _offendingShape = new SoftCellShape("Offending Region");
         private Material _footprintMaterial;
         private Material _markMaterial;
         private PuzzleSession _session;
@@ -438,85 +435,6 @@ namespace ZipTrip.Unity
                 return;
             _footprintMaterial = PresentationKit.Transparent(template, ValidColor);
             _markMaterial = PresentationKit.Transparent(template, MarkColor);
-        }
-
-        // One flat, upward-facing soft quad shaped like a set of cells (via a cached alpha mask); no collider.
-        private sealed class PreviewShape
-        {
-            private readonly string _name;
-            private GameObject _object;
-            private Mesh _mesh;
-            private Texture2D _mask;
-            private string _key;
-
-            public PreviewShape(string name) => _name = name;
-
-            public Renderer Renderer => _object != null ? _object.GetComponent<Renderer>() : null;
-
-            /// <param name="cells">Cells relative to <paramref name="anchor"/> (null or empty hides the shape).</param>
-            public void Show(Transform parent, IReadOnlyList<Cell> cells, Vector3 origin, Cell anchor, float elevation, Material material)
-            {
-                if (cells == null || cells.Count == 0 || material == null)
-                {
-                    if (_object != null)
-                        _object.SetActive(false);
-                    return;
-                }
-                int minX = int.MaxValue, minY = int.MaxValue;
-                foreach (var cell in cells)
-                {
-                    minX = Math.Min(minX, cell.X);
-                    minY = Math.Min(minY, cell.Y);
-                }
-                var local = new List<Cell>(cells.Count);
-                var key = new System.Text.StringBuilder();
-                foreach (var cell in cells)
-                {
-                    local.Add(new Cell(cell.X - minX, cell.Y - minY));
-                    key.Append(cell.X - minX).Append(',').Append(cell.Y - minY).Append(';');
-                }
-                if (_object == null)
-                {
-                    _mesh = new Mesh { name = _name };
-                    _object = PresentationKit.MeshObject(_name, parent, _mesh, material);
-                }
-                if (key.ToString() != _key)
-                {
-                    _key = key.ToString();
-                    if (_mask != null)
-                        UnityEngine.Object.Destroy(_mask);
-                    _mask = PresentationKit.CellMask(local, PreviewPixelsPerCell, PreviewPad, PreviewBlur);
-                    int width = 0, depth = 0;
-                    foreach (var cell in local)
-                    {
-                        width = Math.Max(width, cell.X + 1);
-                        depth = Math.Max(depth, cell.Y + 1);
-                    }
-                    var quad = PresentationKit.Quad(new Rect(-PreviewPad, -(depth + PreviewPad), width + 2f * PreviewPad,
-                        depth + 2f * PreviewPad), 0f);
-                    _mesh.Clear();
-                    _mesh.SetVertices(quad.vertices);
-                    _mesh.SetUVs(0, quad.uv);
-                    _mesh.SetTriangles(quad.triangles, 0);
-                    _mesh.RecalculateNormals();
-                    _mesh.RecalculateBounds();
-                    UnityEngine.Object.Destroy(quad);
-                }
-                var renderer = _object.GetComponent<Renderer>();
-                renderer.sharedMaterial = material;
-                // The mask is per shape; the material is shared by nothing else while a drag is shown.
-                material.SetTexture(PresentationKit.BaseMapId, _mask);
-                _object.transform.position = origin + new Vector3(anchor.X + minX, elevation, -(anchor.Y + minY));
-                _object.SetActive(true);
-            }
-
-            public void Dispose()
-            {
-                if (_mesh != null)
-                    UnityEngine.Object.Destroy(_mesh);
-                if (_mask != null)
-                    UnityEngine.Object.Destroy(_mask);
-            }
         }
 
         private void OnDestroy()
