@@ -36,6 +36,12 @@ Player loop: **prepare → place → cover → re-access when needed → add new
    - Group = all items with a tag form one connected component over the adjacency graph.
    - Access = item must be accessible in the final state (derived from layers, see 12).
    - Balance = left/right weight. Used sparingly; first candidate for removal if telemetry shows confusion. Total-weight limits are out of scope until a Selection mechanic exists.
+   - **Rule semantics (clarification).**
+     - Selectors range over the active rule domain only (Decision 16). Unary rules (Zone, Access): every selected subject must satisfy the predicate.
+     - Zone(Z) holds for an item only when all occupied XY columns of its effective suitcase placement are in Z; touching Z with part of the footprint is not enough. Zones apply identically across layers (Decision 12).
+     - A nested child's effective placement is that of its outermost parent. If that parent is not in the suitcase (Source Tray, staging, destination), the child satisfies no Zone rule.
+     - AdjacencyRequired(subjects, targets): every selected subject is adjacent to at least one distinct selected target. AdjacencyForbidden(subjects, targets): no selected subject–target pair is adjacent. An item never satisfies its own adjacency requirement.
+     - Rule violations never make a move illegal; they only affect rule status (Decision 15).
 7. **Fit is not a rule; it is a board invariant.**
 
 ### Modifiers
@@ -55,6 +61,7 @@ Roll, Vacuum, Protected and Travel Bottle are not separate states.
   - If a packed item needs a different Fold/Compress state (e.g. during Repack), it must first become accessible, be relocated to staging, and then be re-placed in the desired authored state.
   - There is no separate zero-cost Fold/Compress gameplay action. The chosen authored state is committed as part of the next placement/relocation; previewing or selecting a state before commit is not a move (Decision 18).
   - Nest remains a containment relocation: accessible child → accessible compatible parent is one move, and a parent moves with all its nested children (Decision 17).
+- **Compress is Z-only (clarification).** A Compress transition keeps the same normalized XY footprint and strictly reduces thickness (with launch thickness 1..2, that is 2 → 1). Rotation stays a placement property. Nest capability is per item definition, not per state, in the validation slice.
 
 ### Ritual and scope
 
