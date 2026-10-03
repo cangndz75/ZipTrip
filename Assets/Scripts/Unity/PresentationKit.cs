@@ -425,17 +425,24 @@ namespace ZipTrip.Unity
         /// Soft contact shadow for a footprint: alpha mask of the occupied cells, blurred. The texture covers the
         /// footprint bounding box plus <paramref name="padCells"/> on every side.
         /// </summary>
-        public static Texture2D FootprintShadow(ItemShape footprint, int pixelsPerCell, float padCells, float blurCells)
+        public static Texture2D FootprintShadow(ItemShape footprint, int pixelsPerCell, float padCells, float blurCells) =>
+            CellMask(footprint.OccupiedCells, pixelsPerCell, padCells, blurCells);
+
+        /// <summary>
+        /// Soft alpha mask of a set of non-negative cells (rows grow towards -z), covering their bounding box plus
+        /// <paramref name="padCells"/>; adjacent cells merge into one shape with no per-cell seams.
+        /// </summary>
+        public static Texture2D CellMask(IReadOnlyCollection<Cell> cells, int pixelsPerCell, float padCells, float blurCells)
         {
             int width = 0, depth = 0;
-            foreach (var cell in footprint.OccupiedCells)
+            foreach (var cell in cells)
             {
                 width = Mathf.Max(width, cell.X + 1);
                 depth = Mathf.Max(depth, cell.Y + 1);
             }
             var w = Mathf.CeilToInt((width + 2f * padCells) * pixelsPerCell);
             var h = Mathf.CeilToInt((depth + 2f * padCells) * pixelsPerCell);
-            var occupied = new HashSet<Cell>(footprint.OccupiedCells);
+            var occupied = new HashSet<Cell>(cells);
             var mask = new float[w * h];
             for (var y = 0; y < h; y++)
                 for (var x = 0; x < w; x++)
@@ -450,7 +457,7 @@ namespace ZipTrip.Unity
             mask = BoxBlur(BoxBlur(mask, w, h, radius), w, h, radius);
             var texture = new Texture2D(w, h, TextureFormat.RGBA32, false)
             {
-                wrapMode = TextureWrapMode.Clamp, name = "Footprint shadow"
+                wrapMode = TextureWrapMode.Clamp, name = "Cell mask"
             };
             for (var y = 0; y < h; y++)
                 for (var x = 0; x < w; x++)

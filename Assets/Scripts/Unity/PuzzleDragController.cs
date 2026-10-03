@@ -25,26 +25,26 @@ namespace ZipTrip.Unity
     // PuzzleTransitions.Apply on the current state for the preview (pure, no session history) -> on drop exactly one
     // PuzzleSession.Apply with the same move -> explicit presenter Sync. Legality, layer and access always come from the
     // Domain; drag state (id, rotation, anchor, offset) is presentation-only and never canonical.
-    // ZT-040B visual language: the grid stays invisible until a candidate exists; then only the snapped footprint
-    // (soft green / red) and the guides of the cells around it are shown, and everything disappears on drop / cancel.
+    // ZT-040B visual language: the grid stays invisible until a candidate exists, and everything disappears on drop /
+    // cancel. ZT-040C: the candidate is shown as one soft footprint-shaped glow (green fits / red does not) with the
+    // offending region emphasised; no cell tiles or neighbour guides ("this item fits here", not "these cells").
     public sealed class PuzzleDragController : MonoBehaviour
     {
         public const float LiftHeight = 0.5f;
-        /// <summary>Chebyshev radius (in cells) of the local placement guides around the candidate footprint.</summary>
-        public const int GuideRadius = 1;
         private const float GhostLift = 0.03f;
+        private const float InvalidPreviewHeight = LiftHeight - 0.08f;
+        private const int PreviewPixelsPerCell = 16;
+        private const float PreviewPad = 0.16f;
+        private const float PreviewBlur = 0.1f;
         private static readonly Color ValidColor = new Color(0.36f, 0.80f, 0.50f, 0.62f);
         private static readonly Color InvalidColor = new Color(0.92f, 0.30f, 0.24f, 0.62f);
         private static readonly Color MarkColor = new Color(0.62f, 0.07f, 0.05f, 0.95f);
 
-        private readonly List<Transform> _ghostCells = new List<Transform>();
-        private readonly List<Transform> _markers = new List<Transform>();
         private readonly List<Cell> _marked = new List<Cell>();
-        private readonly HashSet<Cell> _guideCells = new HashSet<Cell>();
-        private Material _validMaterial;
-        private Material _invalidMaterial;
+        private readonly PreviewShape _footprintShape = new PreviewShape("Candidate Footprint");
+        private readonly PreviewShape _offendingShape = new PreviewShape("Offending Region");
+        private Material _footprintMaterial;
         private Material _markMaterial;
-        private Texture2D _softTexture;
         private PuzzleSession _session;
         private PuzzleBoardPresenter _board;
         private PuzzleTrayPresenter _tray;
@@ -70,7 +70,11 @@ namespace ZipTrip.Unity
         /// <summary>Domain-resolved layer of a valid preview; -1 otherwise.</summary>
         public int PreviewLayer { get; private set; } = -1;
         public IReadOnlyList<Cell> MarkedCells => _marked;
+        /// <summary>Footprint cells represented by the visible candidate glow (0 = no preview shown).</summary>
         public int GhostCellCount { get; private set; }
+        /// <summary>The single candidate footprint glow and the offending-region glow (presentation only).</summary>
+        public Renderer FootprintPreview => _footprintShape.Renderer;
+        public Renderer OffendingPreview => _offendingShape.Renderer;
         public PuzzleSessionStep LastStep { get; private set; }
         /// <summary>Raised after every drop that reached PuzzleSession.Apply (accepted or rejected), after presenters re-sync.</summary>
         public event Action<PuzzleSessionStep> StepCommitted;
@@ -260,15 +264,21 @@ namespace ZipTrip.Unity
         }
 
         /// <summary>Topmost board item (higher layer first), then tray items, whose shown footprint covers the point.</summary>
-        public bool TryPickItem(Vector3 world, out string instanceId)
+        public bool TryPickItem(Vector3 world, out string instanceId) => TryPickItem(world, world, out instanceId);
+
+        /// <summary>
+        /// As above, with tray items hit-tested at their own resting plane (<paramref name="trayWorld"/>): loose items may
+        /// lie on a surface below the board plane (ZT-040C), and must be picked where they are drawn.
+        /// </summary>
+        public bool TryPickItem(Vector3 boardWorld, Vector3 trayWorld, out string instanceId)
         {
             PuzzleItemView best = null;
             foreach (var view in _board.ItemViews.Values)
-                if (view.ContainsWorldPointXZ(world) && (best == null || view.Placement.Layer > best.Placement.Layer))
+                if (view.ContainsWorldPointXZ(boardWorld) && (best == null || view.Placement.Layer > best.Placement.Layer))
                     best = view;
             if (best == null)
                 foreach (var view in _tray.ItemViews.Values)
-                    if (view.ContainsWorldPointXZ(world))
+                    if (view.ContainsWorldPointXZ(trayWorld))
                         best = view;
             instanceId = best?.InstanceId;
             return best != null;
@@ -303,8 +313,14 @@ namespace ZipTrip.Unity
             switch (signal.Phase)
             {
                 case PointerPhase.Down:
-                    if (!IsDragging && TryPickItem(world, out var id))
-                        BeginDrag(id, world);
+                    var trayWorld = GridProjector.ScreenToWorld(_camera, signal.ScreenPosition, _tray.transform.position.y);
+                    if (!IsDragging && TryPickItem(world, trayWorld, out var id))
+                    {
+                        // Grab offset from where the item is drawn; from then on the drag follows the board plane.
+                        var onTray = _tray.ItemViews.ContainsKey(id);
+                        if (BeginDrag(id, onTray ? trayWorld : world) == DragBeginResult.Started && onTray)
+                            UpdateDrag(world);
+                    }
                     break;
                 case PointerPhase.Move:
                     UpdateDrag(world);
@@ -332,115 +348,124 @@ namespace ZipTrip.Unity
 
         private void RenderGhost()
         {
-            GhostCellCount = 0;
+            _board.HideGuides();
             var cells = IsDragging && HasCandidate ? _view.Footprint.OccupiedCells : null;
-            var count = cells?.Count ?? 0;
+            GhostCellCount = cells?.Count ?? 0;
             Vector3 origin = default;
-            if (count > 0)
+            if (GhostCellCount > 0)
                 foreach (var frame in _board.CompartmentFrames())
                     if (frame.Id == CandidateCompartment)
                         origin = frame.Origin;
-            var elevation = (PreviewValid ? PreviewLayer : 0) * PuzzleBoardLayout.LayerHeight + GhostLift;
-
-            for (var i = 0; i < Math.Max(count, _ghostCells.Count); i++)
-            {
-                if (i >= _ghostCells.Count)
-                    _ghostCells.Add(CreateQuad("Ghost Cell", 1.02f));
-                var visible = i < count;
-                _ghostCells[i].gameObject.SetActive(visible);
-                if (!visible)
-                    continue;
-                var cell = new Cell(CandidateAnchor.X + cells[i].X, CandidateAnchor.Y + cells[i].Y);
-                _ghostCells[i].position = origin + PuzzleBoardLayout.ColumnCenter(cell) + Vector3.up * elevation;
-                PaintPreview(_ghostCells[i], PreviewValid ? _validMaterial : _invalidMaterial, PreviewValid ? ValidColor : InvalidColor);
-                GhostCellCount++;
-            }
-            RenderGuides(cells);
-
-            for (var i = 0; i < Math.Max(_marked.Count, _markers.Count); i++)
-            {
-                if (i >= _markers.Count)
-                    _markers.Add(CreateQuad("Offending Cell", 0.5f));
-                var visible = IsDragging && i < _marked.Count;
-                _markers[i].gameObject.SetActive(visible);
-                if (!visible)
-                    continue;
-                _markers[i].position = origin + PuzzleBoardLayout.ColumnCenter(_marked[i]) + Vector3.up * (elevation + 0.02f);
-                PaintPreview(_markers[i], _markMaterial, MarkColor);
-            }
-        }
-
-        // Local placement guides: valid cells of the candidate compartment within GuideRadius of the footprint (the
-        // footprint itself is drawn by the preview). No candidate -> no guides anywhere, so the idle board shows none.
-        private void RenderGuides(IReadOnlyList<Cell> footprint)
-        {
-            if (footprint == null || footprint.Count == 0)
-            {
-                _board.HideGuides();
-                return;
-            }
-            _guideCells.Clear();
-            var covered = new HashSet<Cell>();
-            foreach (var cell in footprint)
-                covered.Add(new Cell(CandidateAnchor.X + cell.X, CandidateAnchor.Y + cell.Y));
-            foreach (var cell in covered)
-                for (var dy = -GuideRadius; dy <= GuideRadius; dy++)
-                    for (var dx = -GuideRadius; dx <= GuideRadius; dx++)
-                    {
-                        var near = new Cell(cell.X + dx, cell.Y + dy);
-                        if (!covered.Contains(near))
-                            _guideCells.Add(near);
-                    }
-            _board.ShowGuides(CandidateCompartment, _guideCells);
+            // Valid: on the resolved layer. Invalid: just under the lifted item, so the red reads over whatever blocks it.
+            var elevation = PreviewValid ? PreviewLayer * PuzzleBoardLayout.LayerHeight + GhostLift : InvalidPreviewHeight;
+            EnsurePreviewMaterials();
+            if (_footprintMaterial != null)
+                _footprintMaterial.SetColor(PresentationKit.BaseColorId, PreviewValid ? ValidColor : InvalidColor);
+            _footprintShape.Show(_ghostRoot, cells, origin, CandidateAnchor, elevation, _footprintMaterial);
+            _offendingShape.Show(_ghostRoot, IsDragging && _marked.Count > 0 ? _marked : null, origin, default,
+                elevation + 0.01f, _markMaterial);
         }
 
         private void EnsurePreviewMaterials()
         {
-            if (_validMaterial != null)
+            if (_footprintMaterial != null || _board == null)
                 return;
             var template = PresentationKit.TemplateOrFallback(_board.Template);
             if (template == null)
                 return;
-            _softTexture = PresentationKit.SoftRect(64, 0.14f);
-            _validMaterial = PresentationKit.Transparent(template, ValidColor, _softTexture);
-            _invalidMaterial = PresentationKit.Transparent(template, InvalidColor, _softTexture);
-            _markMaterial = PresentationKit.Transparent(template, MarkColor, _softTexture);
+            _footprintMaterial = PresentationKit.Transparent(template, ValidColor);
+            _markMaterial = PresentationKit.Transparent(template, MarkColor);
         }
 
-        private static void PaintPreview(Transform quad, Material material, Color color)
+        // One flat, upward-facing soft quad shaped like a set of cells (via a cached alpha mask); no collider.
+        private sealed class PreviewShape
         {
-            var renderer = quad.GetComponent<Renderer>();
-            if (material != null)
+            private readonly string _name;
+            private GameObject _object;
+            private Mesh _mesh;
+            private Texture2D _mask;
+            private string _key;
+
+            public PreviewShape(string name) => _name = name;
+
+            public Renderer Renderer => _object != null ? _object.GetComponent<Renderer>() : null;
+
+            /// <param name="cells">Cells relative to <paramref name="anchor"/> (null or empty hides the shape).</param>
+            public void Show(Transform parent, IReadOnlyList<Cell> cells, Vector3 origin, Cell anchor, float elevation, Material material)
+            {
+                if (cells == null || cells.Count == 0 || material == null)
+                {
+                    if (_object != null)
+                        _object.SetActive(false);
+                    return;
+                }
+                int minX = int.MaxValue, minY = int.MaxValue;
+                foreach (var cell in cells)
+                {
+                    minX = Math.Min(minX, cell.X);
+                    minY = Math.Min(minY, cell.Y);
+                }
+                var local = new List<Cell>(cells.Count);
+                var key = new System.Text.StringBuilder();
+                foreach (var cell in cells)
+                {
+                    local.Add(new Cell(cell.X - minX, cell.Y - minY));
+                    key.Append(cell.X - minX).Append(',').Append(cell.Y - minY).Append(';');
+                }
+                if (_object == null)
+                {
+                    _mesh = new Mesh { name = _name };
+                    _object = PresentationKit.MeshObject(_name, parent, _mesh, material);
+                }
+                if (key.ToString() != _key)
+                {
+                    _key = key.ToString();
+                    if (_mask != null)
+                        UnityEngine.Object.Destroy(_mask);
+                    _mask = PresentationKit.CellMask(local, PreviewPixelsPerCell, PreviewPad, PreviewBlur);
+                    int width = 0, depth = 0;
+                    foreach (var cell in local)
+                    {
+                        width = Math.Max(width, cell.X + 1);
+                        depth = Math.Max(depth, cell.Y + 1);
+                    }
+                    var quad = PresentationKit.Quad(new Rect(-PreviewPad, -(depth + PreviewPad), width + 2f * PreviewPad,
+                        depth + 2f * PreviewPad), 0f);
+                    _mesh.Clear();
+                    _mesh.SetVertices(quad.vertices);
+                    _mesh.SetUVs(0, quad.uv);
+                    _mesh.SetTriangles(quad.triangles, 0);
+                    _mesh.RecalculateNormals();
+                    _mesh.RecalculateBounds();
+                    UnityEngine.Object.Destroy(quad);
+                }
+                var renderer = _object.GetComponent<Renderer>();
                 renderer.sharedMaterial = material;
-            else
-                PuzzleItemView.Paint(renderer, null, color);
-        }
+                // The mask is per shape; the material is shared by nothing else while a drag is shown.
+                material.SetTexture(PresentationKit.BaseMapId, _mask);
+                _object.transform.position = origin + new Vector3(anchor.X + minX, elevation, -(anchor.Y + minY));
+                _object.SetActive(true);
+            }
 
-        // Flat, upward-facing soft quad (no collider) for the snapped footprint and offending-cell marks.
-        private Transform CreateQuad(string name, float size)
-        {
-            var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            quad.name = name;
-            Destroy(quad.GetComponent<Collider>());
-            quad.transform.SetParent(_ghostRoot, false);
-            quad.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            quad.transform.localScale = new Vector3(size, size, 1f);
-            quad.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            return quad.transform;
+            public void Dispose()
+            {
+                if (_mesh != null)
+                    UnityEngine.Object.Destroy(_mesh);
+                if (_mask != null)
+                    UnityEngine.Object.Destroy(_mask);
+            }
         }
 
         private void OnDestroy()
         {
             if (_pointer != null)
                 _pointer.PointerEvent -= HandlePointer;
-            if (_validMaterial != null)
-                Destroy(_validMaterial);
-            if (_invalidMaterial != null)
-                Destroy(_invalidMaterial);
+            if (_footprintMaterial != null)
+                Destroy(_footprintMaterial);
             if (_markMaterial != null)
                 Destroy(_markMaterial);
-            if (_softTexture != null)
-                Destroy(_softTexture);
+            _footprintShape.Dispose();
+            _offendingShape.Dispose();
         }
     }
 }

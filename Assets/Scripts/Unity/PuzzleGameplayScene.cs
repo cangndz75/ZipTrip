@@ -12,6 +12,9 @@ namespace ZipTrip.Unity
     // ZT-040B: the board is presented as an open suitcase on a linen packing surface; Source Tray items lie loose on
     // that surface in front of the suitcase. All of it is presentation; the board plane, coordinates and rules are
     // unchanged.
+    // ZT-040C: with a container prefab the board sits inside authored container art (golden Cabin Suitcase); the
+    // packing surface and loose items then rest at the container's base height in front of it. Without one, the
+    // procedural ZT-040B suitcase is the fallback.
     public sealed class PuzzleGameplayScene : MonoBehaviour
     {
         public const string LevelFolder = "LevelsV2/";
@@ -23,6 +26,8 @@ namespace ZipTrip.Unity
         public const float TrayItemGap = 0.3f;
         /// <summary>Distance from the suitcase interior's front edge to the loose items (clears wall + handle).</summary>
         public const float TrayGap = 1.5f;
+        /// <summary>Gap between an authored container's front (handle included) and the loose items.</summary>
+        public const float ContainerTrayGap = 0.55f;
         /// <summary>
         /// Height (world y above the hinge) of the open lid that camera framing reserves; the rest of the lid may rise
         /// into the top HUD band or past the screen edge, so the lid reads without shrinking the board.
@@ -34,6 +39,7 @@ namespace ZipTrip.Unity
         [SerializeField] private int startLevel;
         [SerializeField] private Material materialTemplate;
         [SerializeField] private GoldenItemPrefabCatalog goldenCatalog;
+        [SerializeField] private GameObject containerPrefab;
 
         private PointerInteractor _pointer;
         private bool _gestureOnHud;
@@ -53,6 +59,8 @@ namespace ZipTrip.Unity
         /// <summary>Linen packing surface under the suitcase (excluded from camera framing).</summary>
         public GameObject Surface => _surface;
         public Material MaterialTemplate => materialTemplate;
+        /// <summary>Authored container art (null = procedural ZT-040B suitcase fallback).</summary>
+        public GameObject ContainerPrefab => containerPrefab;
         public int LevelIndex { get; private set; }
         public string LevelId => levelIds[LevelIndex];
         /// <summary>incomplete -> complete edges seen in this scene (Δ-11 semantics come from PuzzleSession).</summary>
@@ -65,6 +73,8 @@ namespace ZipTrip.Unity
             if (levels != null && levels.Length > 0)
                 levelIds = levels;
         }
+
+        public void ConfigureContainer(GameObject prefab) => containerPrefab = prefab;
 
         private void Start()
         {
@@ -84,6 +94,7 @@ namespace ZipTrip.Unity
             Level = LevelJsonLoaderV2.Load(json.text, PuzzleItemCatalog.Create());
             Session = new PuzzleSession(Level);
 
+            Board.UseContainer(containerPrefab);
             Board.Present(Level.Spec.Board, materialTemplate,
                 item => PuzzleItemCatalog.ResolveGolden(goldenCatalog, item.Definition.Id, item.StateId)
                         ?? ProceduralItemVisuals.Resolve(item.Definition.Id, materialTemplate));
@@ -97,11 +108,24 @@ namespace ZipTrip.Unity
             Tray.Clear();
             Tray.Gap = TrayItemGap;
             Tray.CenterRows = true;
-            // One centred row a little wider than the suitcase (keeps framing symmetric); wraps only if it cannot fit.
-            Tray.RowWidth = Mathf.Max(boardWidth + SuitcaseShell.Wall * 2f + TrayOverhang, 4f);
-            Tray.Scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
-            Tray.transform.localPosition = new Vector3((boardWidth - Tray.RowWidth) * 0.5f, 0f, -(boardDepth + TrayGap));
-            PlaceSurface(boardWidth * 0.5f, -boardDepth);
+            if (Board.Container != null)
+            {
+                // Loose items rest on the same surface as the suitcase, in one centred row in front of it.
+                var body = Board.ContainerFootprint;
+                Tray.RowWidth = Mathf.Max(body.width + TrayOverhang, 4f);
+                Tray.Scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
+                Tray.transform.localPosition = new Vector3(body.center.x - Tray.RowWidth * 0.5f, Board.ContainerBottomY,
+                    body.yMin - ContainerTrayGap);
+                PlaceSurface(body.center.x, body.yMin, Board.ContainerBottomY);
+            }
+            else
+            {
+                // One centred row a little wider than the suitcase (keeps framing symmetric); wraps only if it cannot fit.
+                Tray.RowWidth = Mathf.Max(boardWidth + SuitcaseShell.Wall * 2f + TrayOverhang, 4f);
+                Tray.Scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
+                Tray.transform.localPosition = new Vector3((boardWidth - Tray.RowWidth) * 0.5f, 0f, -(boardDepth + TrayGap));
+                PlaceSurface(boardWidth * 0.5f, -boardDepth, SuitcaseShell.SurfaceY);
+            }
             Drag.Initialize(Session, Board, Tray, Camera);
             Drag.InteractionEnabled = !Session.CurrentCompletion.IsComplete;
 
@@ -206,7 +230,7 @@ namespace ZipTrip.Unity
         public void FrameCamera()
         {
             var bounds = new Bounds(Board.transform.position, Vector3.zero);
-            var lid = Board.Shell != null ? Board.Shell.Lid : null;
+            var lid = Board.Lid;
             foreach (var renderer in Board.GetComponentsInChildren<Renderer>())
                 if (lid == null || !renderer.transform.IsChildOf(lid))
                     bounds.Encapsulate(renderer.bounds);
@@ -244,8 +268,8 @@ namespace ZipTrip.Unity
             _pointer.PointerEvent += HandlePointer;
         }
 
-        // Large linen quad just below the board plane; deliberately not under Board / Tray so framing ignores it.
-        private void PlaceSurface(float centerX, float centerZ)
+        // Large linen quad under the suitcase; deliberately not under Board / Tray so framing ignores it.
+        private void PlaceSurface(float centerX, float centerZ, float surfaceY)
         {
             if (_surface == null)
             {
@@ -259,7 +283,7 @@ namespace ZipTrip.Unity
                 _surface = PresentationKit.MeshObject("Packing Surface", transform,
                     PresentationKit.Quad(new Rect(-half, -half, SurfaceSize, SurfaceSize), SuitcaseShell.SurfaceY), _surfaceMaterial);
             }
-            _surface.transform.localPosition = new Vector3(centerX, 0f, centerZ);
+            _surface.transform.localPosition = new Vector3(centerX, surfaceY - SuitcaseShell.SurfaceY, centerZ);
         }
 
         private void OnDestroy()

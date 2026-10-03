@@ -156,6 +156,7 @@ MonoBehaviour:
   startLevel: 0
   materialTemplate: {fileID: 2100000, guid: dda25590701b2b745b90ded91681f46a, type: 2}
   goldenCatalog: {fileID: 89142486}
+  containerPrefab: {fileID: 2855724218277396828, guid: 60ba15e1a69d9be4fb7c8787fd892558, type: 3}
 --- !u!114 &89142486
 MonoBehaviour:
   m_ObjectHideFlags: 0

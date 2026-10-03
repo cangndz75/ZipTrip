@@ -34,6 +34,7 @@ namespace ZipTrip.Editor
                 ?? throw new InvalidOperationException("Runtime presentation material is missing.");
             var gameplay = root.AddComponent<PuzzleGameplayScene>();
             gameplay.Configure(material, catalog, "lv1-fit", "lv2-rotate");
+            gameplay.ConfigureContainer(LoadContainer());
             EditorUtility.SetDirty(catalog);
             EditorUtility.SetDirty(gameplay);
 
@@ -42,6 +43,24 @@ namespace ZipTrip.Editor
             AssetDatabase.SaveAssets();
             Debug.Log("[ZT-040] Saved " + ScenePath);
         }
+
+        // ZT-040C: points the existing scene at the golden container without rebuilding it (no unrelated scene churn).
+        [MenuItem("ZipTrip/ZT-040C/Wire Golden Container Into Puzzle Gameplay Scene")]
+        public static void WireGoldenContainer()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var gameplay = UnityEngine.Object.FindFirstObjectByType<PuzzleGameplayScene>()
+                ?? throw new InvalidOperationException("PuzzleGameplayScene missing in " + ScenePath);
+            gameplay.ConfigureContainer(LoadContainer());
+            EditorUtility.SetDirty(gameplay);
+            if (!EditorSceneManager.SaveScene(scene))
+                throw new InvalidOperationException("Could not save " + ScenePath);
+            Debug.Log("[ZT-040C] Wired golden container into " + ScenePath);
+        }
+
+        private static GameObject LoadContainer() =>
+            AssetDatabase.LoadAssetAtPath<GameObject>(CabinSuitcaseAssetBuilder.PrefabPath)
+            ?? throw new InvalidOperationException("Missing golden container prefab; run the ZT-040C prefab build first.");
 
         private static GameObject Load(string name) =>
             AssetDatabase.LoadAssetAtPath<GameObject>(PrefabFolder + name + ".prefab")

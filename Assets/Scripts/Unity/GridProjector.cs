@@ -24,6 +24,17 @@ namespace ZipTrip.Unity
             return ray.GetPoint(distance);
         }
 
+        /// <summary>Presentation picking on a horizontal plane at <paramref name="planeY"/> (e.g. loose items' surface).</summary>
+        public static Vector3 ScreenToWorld(Camera camera, Vector2 screenPosition, float planeY)
+        {
+            if (camera == null)
+                throw new ArgumentNullException(nameof(camera));
+            var ray = camera.ScreenPointToRay(screenPosition);
+            if (!new Plane(Vector3.up, new Vector3(0f, planeY, 0f)).Raycast(ray, out var distance))
+                throw new InvalidOperationException("Screen ray does not intersect the plane.");
+            return ray.GetPoint(distance);
+        }
+
         public static Cell WorldToAnchor(Vector3 worldPosition) =>
             new Cell(NearestIntegerLowerOnTie(worldPosition.x),
                 NearestIntegerLowerOnTie(-worldPosition.z));

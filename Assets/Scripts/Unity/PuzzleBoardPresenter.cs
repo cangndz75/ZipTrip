@@ -13,8 +13,20 @@ namespace ZipTrip.Unity
     // after a state-changing step. Items outside the suitcase (tray, staging, nested, destination) have no board view.
     // ZT-040B: the compartments sit inside a presentation-only SuitcaseShell; cell guides stay hidden unless the drag
     // controller reveals them around a candidate.
+    // ZT-040C: with a container prefab (UseContainer) the board is seated inside authored container art instead: the
+    // art is scaled/placed around the unchanged board (ContainerFit), never the other way round. The procedural
+    // SuitcaseShell remains the fallback when no prefab is given (tests, debug).
     public sealed class PuzzleBoardPresenter : MonoBehaviour
     {
+        /// <summary>Container models face +Z (handle side); the board's near side is -Z, towards the camera.</summary>
+        public const float ContainerYaw = 180f;
+        /// <summary>Lining margin (cells) kept between the board and the authored interior walls.</summary>
+        public const float ContainerPadding = 0.15f;
+        /// <summary>Spare interior width (cells, per side) at or above which a padded filler closes the gap.</summary>
+        public const float FillerMinGap = 0.5f;
+        public const float FillerHeight = 0.42f;
+        public static readonly Color ContainerLining = new Color(0.10f, 0.27f, 0.28f);
+
         public static readonly Color GhostColor = new Color(0.55f, 0.75f, 0.78f, 0.22f);
         // Functional fallback-block colours (not final art): palette family plus two muted extras to reduce collisions.
         private static readonly Color[] Palette =
@@ -32,6 +44,10 @@ namespace ZipTrip.Unity
         private Material _guideMaterial;
         private Texture2D _guideTexture;
         private SuitcaseShell _shell;
+        private GameObject _containerPrefab;
+        private ContainerRig _container;
+        private Transform _containerDecor;
+        private readonly List<UnityEngine.Object> _decorAssets = new List<UnityEngine.Object>();
 
         public BoardSpec Board { get; private set; }
         public PuzzleState PresentedState { get; private set; }
@@ -39,7 +55,21 @@ namespace ZipTrip.Unity
         public IReadOnlyDictionary<string, PuzzleCompartmentView> Compartments => _compartments;
         /// <summary>Board views keyed by item instance id (suitcase-resident items only).</summary>
         public IReadOnlyDictionary<string, PuzzleItemView> ItemViews => _items;
+        /// <summary>Procedural ZT-040B suitcase; null while an authored container is used.</summary>
         public SuitcaseShell Shell => _shell;
+        /// <summary>Authored container rig (ZT-040C); null on the procedural fallback.</summary>
+        public ContainerRig Container => _container;
+        /// <summary>Lid of whichever container is shown (camera framing reserves only its lower part).</summary>
+        public Transform Lid => _container != null ? _container.Lid : _shell != null ? _shell.Lid : null;
+        /// <summary>Seated interior rectangle (board-local contour space x, z) of the shown container.</summary>
+        public Rect ContainerInterior { get; private set; }
+        /// <summary>Board-local XZ footprint of the container body (lid excluded), and the height it rests on.</summary>
+        public Rect ContainerFootprint { get; private set; }
+        public float ContainerBottomY { get; private set; }
+        public float ContainerScale { get; private set; } = 1f;
+
+        /// <summary>Authored container art for the next Present (null = procedural ZT-040B suitcase).</summary>
+        public void UseContainer(GameObject containerPrefab) => _containerPrefab = containerPrefab;
 
         /// <param name="materialTemplate">Shared runtime material (e.g. PuzzleGameplayScene.MaterialTemplate); may be null.</param>
         /// <param name="visualResolver">Optional prefab lookup per item; null or a null result uses footprint blocks.</param>
@@ -88,7 +118,7 @@ namespace ZipTrip.Unity
         // gaps between side-by-side compartments) get padded fillers so only real cells show lining.
         private void BuildShell(BoardSpec board)
         {
-            if (_shell == null)
+            if (_shell == null && _containerPrefab == null)
             {
                 _shell = new GameObject("Suitcase").AddComponent<SuitcaseShell>();
                 _shell.transform.SetParent(transform, false);
@@ -107,8 +137,104 @@ namespace ZipTrip.Unity
                 for (var x = Mathf.FloorToInt(minX); x < Mathf.CeilToInt(maxX); x++)
                     if (!IsPlayable(board, x + 0.5f, z + 0.5f))
                         fillers.Add(new Rect(x, z, 1f, 1f));
-            _shell.Build(new Rect(minX, minZ, maxX - minX, maxZ - minZ), fillers, _template);
+            var interior = new Rect(minX, minZ, maxX - minX, maxZ - minZ);
+            if (_containerPrefab != null)
+            {
+                BuildContainer(interior, fillers);
+                return;
+            }
+            _shell.Build(interior, fillers, _template);
+            ContainerInterior = _shell.Interior;
+            ContainerFootprint = _shell.Body;
+            ContainerBottomY = SuitcaseShell.SurfaceY;
+            ContainerScale = 1f;
         }
+
+        // Seats the authored container around the board (uniform scale, board centred, interior floor on the lining
+        // height) and adds presentation-only padding where the interior is wider than the board or cells are masked.
+        private void BuildContainer(Rect board, List<Rect> fillers)
+        {
+            if (_container == null || _container.Root == null)
+            {
+                var instance = Instantiate(_containerPrefab, transform, false);
+                instance.name = "Container " + _containerPrefab.name;
+                _container = ContainerRig.Bind(instance.transform);
+            }
+            var root = _container.Root;
+            root.localPosition = Vector3.zero;
+            root.localRotation = Quaternion.identity;
+            root.localScale = Vector3.one;
+            var min = _container.InteriorMinLocal;
+            var max = _container.InteriorMaxLocal;
+            var fit = ContainerFit.Seat(board, min, max, ContainerPadding, SuitcaseShell.LiningY, ContainerYaw);
+            root.localPosition = fit.Position;
+            root.localRotation = fit.Rotation;
+            root.localScale = Vector3.one * fit.Scale;
+            ContainerScale = fit.Scale;
+            ContainerInterior = fit.Interior(min, max);
+
+            var body = new Bounds();
+            var any = false;
+            foreach (var renderer in _container.Base.GetComponentsInChildren<Renderer>())
+            {
+                var local = new Bounds(transform.InverseTransformPoint(renderer.bounds.center), renderer.bounds.size);
+                if (any) body.Encapsulate(local); else body = local;
+                any = true;
+            }
+            ContainerFootprint = Rect.MinMaxRect(body.min.x, body.min.z, body.max.x, body.max.z);
+            ContainerBottomY = body.min.y;
+
+            ClearContainerDecor();
+            var template = PresentationKit.TemplateOrFallback(_template);
+            if (template == null)
+                return;
+            _containerDecor = new GameObject("Container Presentation").transform;
+            _containerDecor.SetParent(transform, false);
+            var left = board.xMin - ContainerInterior.xMin;
+            var right = ContainerInterior.xMax - board.xMax;
+            if (left >= FillerMinGap)
+                fillers.Add(new Rect(ContainerInterior.xMin, ContainerInterior.yMin, left, ContainerInterior.height));
+            if (right >= FillerMinGap)
+                fillers.Add(new Rect(board.xMax, ContainerInterior.yMin, right, ContainerInterior.height));
+            if (fillers.Count > 0)
+            {
+                var quilt = OwnDecor(PresentationKit.QuiltTexture(128, 2, 4021));
+                var padding = OwnDecor(PresentationKit.Matte(template, PresentationKit.Shade(ContainerLining, 1.25f), quilt, 0.06f));
+                foreach (var filler in fillers)
+                    AddDecor("Padded Filler", PresentationKit.Slab(Inset(filler, 0.05f), 0.16f, SuitcaseShell.LiningY, FillerHeight), padding);
+            }
+            var shadowTexture = OwnDecor(PresentationKit.SoftRect(64, 0.3f));
+            var shadow = OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.32f), shadowTexture));
+            var footprint = ContainerFootprint;
+            AddDecor("Contact Shadow", PresentationKit.Quad(new Rect(footprint.xMin - 0.3f, footprint.yMin - 0.45f,
+                footprint.width + 0.6f, footprint.height + 0.6f), ContainerBottomY + 0.004f), shadow);
+        }
+
+        private void AddDecor(string name, Mesh mesh, Material material) =>
+            PresentationKit.MeshObject(name, _containerDecor, OwnDecor(mesh), material);
+
+        private T OwnDecor<T>(T asset) where T : UnityEngine.Object
+        {
+            _decorAssets.Add(asset);
+            return asset;
+        }
+
+        private void ClearContainerDecor()
+        {
+            if (_containerDecor != null)
+            {
+                _containerDecor.gameObject.SetActive(false);
+                Destroy(_containerDecor.gameObject);
+                _containerDecor = null;
+            }
+            foreach (var asset in _decorAssets)
+                if (asset != null)
+                    Destroy(asset);
+            _decorAssets.Clear();
+        }
+
+        private static Rect Inset(Rect rect, float amount) =>
+            new Rect(rect.xMin + amount, rect.yMin + amount, rect.width - 2f * amount, rect.height - 2f * amount);
 
         private bool IsPlayable(BoardSpec board, float x, float z)
         {
@@ -215,6 +341,7 @@ namespace ZipTrip.Unity
                 Destroy(_guideMaterial);
             if (_guideTexture != null)
                 Destroy(_guideTexture);
+            ClearContainerDecor();
         }
     }
 }

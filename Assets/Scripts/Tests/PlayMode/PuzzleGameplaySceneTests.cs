@@ -200,35 +200,51 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Session.MoveCount, Is.Zero, "HUD tap reached Undo, not the board");
         }
 
-        // ZT-040B: the grid is a hidden snapping aid. Idle shows no cell guides; a drag reveals only the cells around the
-        // snapped footprint; drop / cancel hide them again. The suitcase interior is exactly the playable board.
+        // ZT-040B/C: the grid is a hidden snapping aid. Idle shows nothing; a drag shows one soft footprint-shaped glow
+        // (no cell tiles, no neighbour guides) exactly over the snapped cells; drop / cancel remove it.
         [UnityTest]
-        public IEnumerator CellGuides_AreHiddenWhenIdle_LocalDuringDrag_AndGoneAfterDropOrCancel()
+        public IEnumerator DragPreview_IsOneFootprintGlow_WithNoCellGuides_AndGoneAfterDropOrCancel()
         {
             var scene = Scene(0);
             yield return null;
             var main = scene.Board.Compartments["main"];
-            Assert.That(scene.Board.Shell.Interior, Is.EqualTo(new Rect(0f, -7f, 5f, 7f)), "suitcase lining matches the 5x7 board");
+            Assert.That(scene.Board.Shell.Interior, Is.EqualTo(new Rect(0f, -7f, 5f, 7f)), "fallback lining matches the 5x7 board");
             Assert.That(main.VisibleGuideCount, Is.Zero, "no grid while idle");
+            Assert.That(scene.Drag.FootprintPreview == null || !scene.Drag.FootprintPreview.gameObject.activeSelf, Is.True);
 
             var origin = main.transform.position;
             scene.Drag.BeginDrag("book-1", TrayGrab(scene.Tray.ItemViews["book-1"]));
             scene.Drag.UpdateDrag(origin + new Vector3(0.5f, 0f, -0.5f));
             Assert.That(scene.Drag.CandidateAnchor, Is.EqualTo(new Cell(0, 0)));
-            // Book 2x3 at (0,0): guides on the 3x4 neighbourhood inside the board minus the 6 covered cells.
-            Assert.That(main.VisibleGuideCount, Is.EqualTo(6));
-            Assert.That(main.IsGuideVisible(new Cell(2, 0)) && main.IsGuideVisible(new Cell(0, 3)), Is.True);
-            Assert.That(main.IsGuideVisible(new Cell(4, 6)), Is.False, "far cells stay hidden");
+            Assert.That(main.VisibleGuideCount, Is.Zero, "no cell guides during drag");
+            Assert.That(scene.Drag.GhostCellCount, Is.EqualTo(6), "book 2x3 footprint");
+            var glow = scene.Drag.FootprintPreview;
+            Assert.That(glow.gameObject.activeSelf, Is.True);
+            Assert.That(glow.transform.parent.GetComponentsInChildren<Renderer>().Count(r => r.gameObject.activeSelf), Is.EqualTo(1),
+                "one merged shape, not a quad per cell");
+            AssertCovers(glow.bounds, origin, new Rect(0f, -3f, 2f, 3f));
             scene.Drag.Drop();
-            Assert.That(main.VisibleGuideCount, Is.Zero, "guides disappear after drop");
+            Assert.That(glow.gameObject.activeSelf, Is.False, "preview disappears after drop");
+            Assert.That(main.VisibleGuideCount, Is.Zero);
             Assert.That(scene.Board.ItemViews["book-1"].IsGhosted, Is.False);
             Assert.That(scene.Board.ItemViews["book-1"].ShadowVisible, Is.True, "packed item rests with its contact shadow");
 
             scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
-            scene.Drag.UpdateDrag(origin + new Vector3(2.5f, 0f, -0.5f));
-            Assert.That(main.VisibleGuideCount, Is.GreaterThan(0));
+            scene.Drag.UpdateDrag(origin + new Vector3(0.5f, 0f, -0.5f));
+            Assert.That(scene.Drag.PreviewValid, Is.False, "overlaps the book");
+            Assert.That(scene.Drag.OffendingPreview.gameObject.activeSelf, Is.True, "offending region emphasised");
             scene.Drag.Cancel();
-            Assert.That(main.VisibleGuideCount, Is.Zero, "guides disappear after cancel");
+            Assert.That(glow.gameObject.activeSelf || scene.Drag.OffendingPreview.gameObject.activeSelf, Is.False,
+                "preview disappears after cancel");
+        }
+
+        // The glow covers exactly the snapped cells (plus its soft pad): centre and extent match the footprint rectangle.
+        private static void AssertCovers(Bounds glow, Vector3 origin, Rect cells)
+        {
+            Assert.That(glow.center.x - origin.x, Is.EqualTo(cells.center.x).Within(0.01f));
+            Assert.That(glow.center.z - origin.z, Is.EqualTo(cells.center.y).Within(0.01f));
+            Assert.That(glow.size.x, Is.EqualTo(cells.width).Within(0.4f));
+            Assert.That(glow.size.z, Is.EqualTo(cells.height).Within(0.4f));
         }
 
         // ZT-040B composition guard at the Huawei portrait resolution: the suitcase fills most of the width, loose items
@@ -291,6 +307,114 @@ namespace ZipTrip.Tests.PlayMode
                 foreach (var view in scene.Tray.ItemViews.Values)
                     Assert.That(view.UsesPrefab, Is.True, scene.LevelId + " " + view.InstanceId + " uses item art");
                 scene.NextLevel();
+            }
+        }
+
+        private static IEnumerator LoadGameplayScene()
+        {
+            yield return UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(
+                "Assets/Scenes/PuzzleGameplay.unity", new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+        }
+
+        // ZT-040C: normal PuzzleGameplay uses the golden container (not the procedural fallback), seated around both
+        // unchanged boards, lid open as authored, loose items resting on the suitcase's surface.
+        [UnityTest]
+        public IEnumerator SceneAsset_UsesTheGoldenContainer_AroundBothBoards()
+        {
+            yield return LoadGameplayScene();
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            Assert.That(scene.ContainerPrefab, Is.Not.Null);
+            for (var level = 0; level < 2; level++)
+            {
+                var board = scene.Board;
+                Assert.That(board.Container, Is.Not.Null, scene.LevelId + " uses the golden container");
+                Assert.That(board.Shell, Is.Null, "procedural suitcase is only a fallback");
+                Assert.That(board.Container.LidClosed, Is.False, "lid stands open during play");
+                Assert.That(board.Container.Root.GetComponentsInChildren<Collider>(true), Is.Empty);
+                var frame = board.CompartmentFrames().Single();
+                var interior = board.ContainerInterior;
+                Assert.That(interior.xMin <= frame.Origin.x && interior.xMax >= frame.Origin.x + frame.Width
+                    && interior.yMin <= frame.Origin.z - frame.Height && interior.yMax >= frame.Origin.z, Is.True,
+                    scene.LevelId + " board inside the authored interior");
+                Assert.That(scene.Tray.transform.position.y, Is.EqualTo(board.ContainerBottomY).Within(1e-4f),
+                    "loose items rest on the suitcase's surface");
+                Assert.That(scene.Tray.transform.position.z, Is.LessThan(board.ContainerFootprint.yMin), "in front of the suitcase");
+                scene.NextLevel();
+                yield return null;
+            }
+        }
+
+        // Preview and commit stay in the same place through the real camera; loose items are picked where drawn.
+        [UnityTest]
+        public IEnumerator GoldenScene_PreviewAndCommitStayAligned_ThroughScreenSpace()
+        {
+            yield return LoadGameplayScene();
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            var camera = scene.Camera;
+            var origin = scene.Board.Compartments["main"].transform.position;
+            var view = scene.Tray.ItemViews["book-1"];
+            scene.HandlePointer(new PointerSignal(PointerPhase.Down, camera.WorldToScreenPoint(TrayGrab(view))));
+            Assert.That(scene.Drag.DraggedInstanceId, Is.EqualTo("book-1"), "picked on the lowered surface");
+            var target = camera.WorldToScreenPoint(origin + new Vector3(3.5f, 0f, -2.5f));
+            scene.HandlePointer(new PointerSignal(PointerPhase.Move, target));
+            Assert.That(scene.Drag.CandidateAnchor, Is.EqualTo(new Cell(3, 2)));
+            Assert.That(scene.Drag.PreviewValid, Is.True);
+            var glow = scene.Drag.FootprintPreview.bounds;
+            AssertCovers(glow, origin, new Rect(3f, -5f, 2f, 3f));
+            scene.HandlePointer(new PointerSignal(PointerPhase.Up, target));
+            var placed = scene.Board.ItemViews["book-1"];
+            Assert.That(placed.Placement.Anchor, Is.EqualTo(new Cell(3, 2)));
+            Assert.That(placed.transform.position.x - origin.x, Is.EqualTo(glow.center.x - origin.x - 1f).Within(0.01f),
+                "committed item where the glow was");
+            Assert.That(placed.transform.position.z - origin.z, Is.EqualTo(glow.center.z - origin.z + 1.5f).Within(0.01f));
+        }
+
+        // ZT-040C composition guard at the Huawei portrait resolution with the golden suitcase.
+        [UnityTest]
+        public IEnumerator GoldenPortrait1080x2340_SuitcaseDominates_ItemsReadable_NothingUnderTheHud()
+        {
+            yield return LoadGameplayScene();
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            var camera = scene.Camera;
+            var target = new RenderTexture(1080, 2340, 24);
+            camera.targetTexture = target;
+            try
+            {
+                for (var level = 0; level < 2; level++)
+                {
+                    scene.FrameCamera();
+                    var board = scene.Board;
+                    var body = board.ContainerFootprint;
+                    var y = board.ContainerBottomY;
+                    var left = camera.WorldToViewportPoint(new Vector3(body.xMin, y, body.center.y)).x;
+                    var right = camera.WorldToViewportPoint(new Vector3(body.xMax, y, body.center.y)).x;
+                    Assert.That(right - left, Is.GreaterThanOrEqualTo(0.7f), scene.LevelId + " suitcase width on screen");
+                    Assert.That(left >= 0f && right <= 1f, Is.True, "no horizontal clipping");
+                    var top = PuzzleHud.TopFraction(camera.pixelWidth, camera.pixelHeight);
+                    var bottom = PuzzleHud.BottomFraction(camera.pixelWidth, camera.pixelHeight);
+                    var frame = board.CompartmentFrames().Single();
+                    Assert.That(camera.WorldToViewportPoint(frame.Origin + new Vector3(0f, 0f, 0f)).y,
+                        Is.LessThanOrEqualTo(1f - top), "back row below the top HUD");
+                    Assert.That(camera.WorldToViewportPoint(board.Lid.position).y, Is.LessThan(1f - top),
+                        "hinge and the lower lid visible");
+                    var pixelsPerCell = scene.Tray.Scale * camera.pixelHeight / (2f * camera.orthographicSize);
+                    Assert.That(pixelsPerCell, Is.GreaterThanOrEqualTo(70f), "loose items are not tiny icons");
+                    foreach (var view in scene.Tray.ItemViews.Values)
+                    {
+                        var depth = view.Footprint.OccupiedCells.Max(c => c.Y) + 1;
+                        var lowest = view.transform.position + new Vector3(0f, 0f, -depth * scene.Tray.Scale);
+                        Assert.That(camera.WorldToViewportPoint(lowest).y, Is.GreaterThanOrEqualTo(bottom - 0.001f),
+                            view.InstanceId + " stays above the controls");
+                    }
+                    scene.NextLevel();
+                    yield return null;
+                }
+            }
+            finally
+            {
+                camera.targetTexture = null;
+                Object.Destroy(target);
             }
         }
 
@@ -406,12 +530,79 @@ namespace ZipTrip.Tests.PlayMode
             Debug.Log("[zt040b-screens] " + folder);
         }
 
-        private static IEnumerator Capture(PuzzleGameplayScene scene, string folder, string name, int width, int height)
+        // ZT-040C visual proof at 1080x2340 with the golden suitcase, plus the procedural ZT-040B fallback for comparison.
+        [UnityTest, Explicit("Writes ZT-040C screenshots")]
+        public IEnumerator CaptureGoldenSuitcaseScreenshots()
+        {
+            var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../Builds/zt040c-screens"));
+            Directory.CreateDirectory(folder);
+            var fallback = Scene(0);
+            yield return null;
+            fallback.Hud.RenderThrough(fallback.Camera);
+            yield return Capture(fallback, folder, "00-zt040b-procedural-lv1-idle", 1080, 2340);
+            Object.Destroy(_root);
+            _root = null;
+            yield return null;
+
+            yield return LoadGameplayScene();
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            scene.Hud.RenderThrough(scene.Camera);
+            var main = scene.Board.Compartments["main"].transform.position;
+
+            yield return Capture(scene, folder, "01-lv1-idle", 1080, 2340);
+            scene.Drag.BeginDrag("sneaker-1", TrayGrab(scene.Tray.ItemViews["sneaker-1"]));
+            scene.Drag.UpdateDrag(main + new Vector3(3.5f, 0f, -0.5f));
+            yield return Capture(scene, folder, "02-lv1-drag-sneaker-valid", 1080, 2340);
+            scene.Drag.Cancel();
+            Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
+            scene.Drag.BeginDrag("sneaker-1", TrayGrab(scene.Tray.ItemViews["sneaker-1"]));
+            scene.Drag.UpdateDrag(main + new Vector3(1.5f, 0f, -0.5f));
+            yield return Capture(scene, folder, "02b-lv1-drag-sneaker-invalid", 1080, 2340);
+            scene.Drag.Cancel();
+            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
+            yield return Capture(scene, folder, "03-lv1-partial", 1080, 2340);
+            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
+            Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0));
+            yield return Capture(scene, folder, "04-lv1-complete", 1080, 2340);
+
+            scene.Perform(PuzzleHudAction.Next);
+            main = scene.Board.Compartments["main"].transform.position;
+            yield return Capture(scene, folder, "05-lv2-idle", 1080, 2340);
+            scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
+            scene.Drag.Cancel();
+            scene.Perform(PuzzleHudAction.Rotate);
+            scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
+            scene.Drag.UpdateDrag(main + new Vector3(0.5f, 0f, -0.5f));
+            yield return Capture(scene, folder, "06-lv2-drag-rotated-laptop", 1080, 2340);
+            scene.Drag.Drop();
+            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 3));
+            yield return Capture(scene, folder, "06b-lv2-partial", 1080, 2340);
+
+            // Close view of the rim with a packed item: same fixed pitch, narrower orthographic window on the front-left.
+            var camera = scene.Camera;
+            yield return Capture(scene, folder, "07-rim-closeup", 1080, 2340, () =>
+            {
+                camera.orthographicSize *= 0.38f;
+                camera.transform.position += new Vector3(-1.2f, 0f, 0f) + camera.transform.up * -2.2f;
+            });
+            Place(scene, "sneaker-1", Rotation.Degrees270, new Cell(1, 5));
+            yield return Capture(scene, folder, "07b-lv2-complete", 1080, 2340);
+
+            // Lid contract sanity: identity closes the suitcase, base unmoved; then reopen.
+            scene.Board.Container.SetLidClosed(true);
+            yield return Capture(scene, folder, "08-lid-identity-closed", 1080, 2340);
+            scene.Board.Container.SetLidClosed(false);
+            Debug.Log("[zt040c-screens] " + folder);
+        }
+
+        private static IEnumerator Capture(PuzzleGameplayScene scene, string folder, string name, int width, int height,
+            System.Action adjustCamera = null)
         {
             var camera = scene.Camera;
             var target = new RenderTexture(width, height, 24);
             camera.targetTexture = target;
             scene.FrameCamera();
+            adjustCamera?.Invoke();
             yield return null;
             camera.Render();
             RenderTexture.active = target;
