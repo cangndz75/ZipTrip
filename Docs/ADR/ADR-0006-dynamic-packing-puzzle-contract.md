@@ -40,7 +40,7 @@ Player loop: **prepare → place → cover → re-access when needed → add new
      - Selectors range over the active rule domain only (Decision 16). Unary rules (Zone, Access): every selected subject must satisfy the predicate.
      - Zone(Z) holds for an item only when all occupied XY columns of its effective suitcase placement are in Z; touching Z with part of the footprint is not enough. Zones apply identically across layers (Decision 12).
      - A nested child's effective placement is that of its outermost parent. If that parent is not in the suitcase (Source Tray, staging, destination), the child satisfies no Zone rule.
-     - AdjacencyRequired(subjects, targets): every selected subject is adjacent to at least one distinct selected target. AdjacencyForbidden(subjects, targets): no selected subject–target pair is adjacent. An item never satisfies its own adjacency requirement.
+     - AdjacencyRequired(subjects, targets): every selected subject is adjacent to at least one distinct selected target. AdjacencyForbidden(subjects, targets): no selected subject–target pair is adjacent. An item never satisfies its own adjacency requirement. A nested child has no adjacency while nested (unlike Zone, it does not inherit its parent's contacts).
      - Rule violations never make a move illegal; they only affect rule status (Decision 15).
 7. **Fit is not a rule; it is a board invariant.**
 
