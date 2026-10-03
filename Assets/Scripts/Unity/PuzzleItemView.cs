@@ -56,7 +56,8 @@ namespace ZipTrip.Unity
         {
             if (Footprint == null)
                 return false;
-            var local = world - transform.position;
+            var scale = Mathf.Approximately(transform.lossyScale.x, 0f) ? 1f : transform.lossyScale.x;
+            var local = (world - transform.position) / scale;
             foreach (var cell in Footprint.OccupiedCells)
                 if (local.x >= cell.X && local.x < cell.X + 1f && -local.z >= cell.Y && -local.z < cell.Y + 1f)
                     return true;

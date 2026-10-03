@@ -16,7 +16,9 @@ namespace ZipTrip.Unity
         /// <summary>Only Source Tray and suitcase items are draggable in ZT-039 (no staging, nest or destination UI).</summary>
         NotDraggable = 3,
         /// <summary>The suitcase item cannot be taken (AccessQueries); e.g. it is blocked.</summary>
-        NotAccessible = 4
+        NotAccessible = 4,
+        /// <summary>Interaction is locked (e.g. the level is complete).</summary>
+        InteractionLocked = 5
     }
 
     // ZT-039 drag / place for the ADR-0006 runtime. Pointer -> candidate (compartment, anchor, rotation) ->
@@ -61,6 +63,10 @@ namespace ZipTrip.Unity
         public IReadOnlyList<Cell> MarkedCells => _marked;
         public int GhostCellCount { get; private set; }
         public PuzzleSessionStep LastStep { get; private set; }
+        /// <summary>Raised after every drop that reached PuzzleSession.Apply (accepted or rejected), after presenters re-sync.</summary>
+        public event Action<PuzzleSessionStep> StepCommitted;
+        /// <summary>False locks new drags (e.g. after completion). Presentation-only.</summary>
+        public bool InteractionEnabled { get; set; } = true;
 
         public void Initialize(PuzzleSession session, PuzzleBoardPresenter board, PuzzleTrayPresenter tray, Camera camera,
             PointerInteractor pointer = null)
@@ -74,8 +80,17 @@ namespace ZipTrip.Unity
             _pointer = pointer;
             if (_pointer != null)
                 _pointer.PointerEvent += HandlePointer;
-            _ghostRoot = new GameObject("Placement Preview").transform;
-            _ghostRoot.SetParent(transform, false);
+            if (_ghostRoot == null)
+            {
+                _ghostRoot = new GameObject("Placement Preview").transform;
+                _ghostRoot.SetParent(transform, false);
+            }
+            _view = null;
+            _item = null;
+            HasCandidate = false;
+            Preview = null;
+            LastStep = null;
+            RenderGhost();
             SyncPresenters();
         }
 
@@ -83,6 +98,8 @@ namespace ZipTrip.Unity
         {
             if (IsDragging)
                 return DragBeginResult.AlreadyDragging;
+            if (!InteractionEnabled)
+                return DragBeginResult.InteractionLocked;
             var state = _session.CurrentState;
             if (!state.TryGetItem(instanceId, out var item))
                 return DragBeginResult.UnknownItem;
@@ -93,6 +110,7 @@ namespace ZipTrip.Unity
                 case ItemLocationKind.SourceTray:
                     if (!_tray.ItemViews.TryGetValue(instanceId, out view))
                         return DragBeginResult.UnknownItem;
+                    _tray.Select(instanceId);
                     break;
                 case ItemLocationKind.Suitcase:
                     if (!AccessQueries.CanTake(state, instanceId))
@@ -109,8 +127,11 @@ namespace ZipTrip.Unity
             // The lifted item is ghosted so the Domain preview cells underneath stay readable; Sync restores it.
             _view.SetGhost(true, _board.GhostMaterial);
             CandidateRotation = view.Rotation;
+            // Tray items are drawn smaller; keep the grabbed point under the pointer when the item grows to board size.
             var origin = view.transform.position;
-            _grabOffset = new Vector3(origin.x - pointerWorld.x, 0f, origin.z - pointerWorld.z);
+            var scale = Mathf.Approximately(view.transform.lossyScale.x, 0f) ? 1f : view.transform.lossyScale.x;
+            _grabOffset = new Vector3(origin.x - pointerWorld.x, 0f, origin.z - pointerWorld.z) / scale;
+            view.transform.localScale = Vector3.one;
             UpdateDrag(pointerWorld);
             return DragBeginResult.Started;
         }
@@ -161,6 +182,47 @@ namespace ZipTrip.Unity
             UpdateDrag(_lastPointer);
         }
 
+        /// <summary>True when the dragged item, or else the selected tray item, has more than one distinct orientation.</summary>
+        public bool CanRotateSelection
+        {
+            get
+            {
+                var item = IsDragging ? _item : SelectedTrayItem();
+                return item != null && PackSolverV2.UniqueRotations(item.State).Count > 1;
+            }
+        }
+
+        /// <summary>
+        /// Touch rotate affordance: rotates the drag candidate, or the selected Source Tray item's display orientation
+        /// (which the next drag starts with). Presentation-only: no state change, no move.
+        /// </summary>
+        public bool RotateSelection()
+        {
+            if (IsDragging)
+            {
+                RotateCandidate();
+                return true;
+            }
+            var item = SelectedTrayItem();
+            if (item == null)
+                return false;
+            var unique = PackSolverV2.UniqueRotations(item.State);
+            if (unique.Count < 2)
+                return false;
+            var current = _tray.DisplayRotation(item);
+            var index = 0;
+            for (var i = 0; i < unique.Count; i++)
+                if (unique[i] == current)
+                    index = i;
+            _tray.SetDisplayRotation(item.InstanceId, unique[(index + 1) % unique.Count]);
+            _tray.Sync(_session.CurrentState);
+            return true;
+        }
+
+        private PuzzleItem SelectedTrayItem() =>
+            _tray.SelectedInstanceId != null && _session.CurrentState.TryGetItem(_tray.SelectedInstanceId, out var item)
+            && item.Location.Kind == ItemLocationKind.SourceTray ? item : null;
+
         /// <summary>
         /// Commits the candidate as one PuzzleSession move and re-syncs presentation. Releasing away from every
         /// compartment is a cancel (null result, no move attempted).
@@ -177,6 +239,7 @@ namespace ZipTrip.Unity
             var step = _session.Apply(CandidateMove());
             LastStep = step;
             EndDrag();
+            StepCommitted?.Invoke(step);
             return step;
         }
 
@@ -222,7 +285,7 @@ namespace ZipTrip.Unity
             SyncPresenters();
         }
 
-        private void HandlePointer(PointerSignal signal)
+        public void HandlePointer(PointerSignal signal)
         {
             if (_camera == null)
                 return;

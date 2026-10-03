@@ -126,7 +126,8 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(session.CurrentState.Hash, Is.EqualTo(hash));
             Assert.That(session.MoveCount, Is.Zero);
             Assert.That(session.UndoDepth, Is.Zero);
-            Assert.That(harness.Tray.ItemViews["book"].transform.localPosition.y, Is.Zero, "visual returned to the tray");
+            Assert.That(harness.Tray.ItemViews["book"].transform.localPosition.y, Is.EqualTo(PuzzleTrayPresenter.SelectedLift),
+                "visual returned to the tray (and stays selected)");
         }
 
         [UnityTest]
@@ -142,7 +143,9 @@ namespace ZipTrip.Tests.PlayMode
             harness.Drag.UpdateDrag(PointerFor(harness, "main", 0, 3));
             harness.Drag.Cancel();
             Assert.That(session.CurrentState, Is.SameAs(state));
-            Assert.That(harness.Tray.ItemViews["rod"].transform.position, Is.EqualTo(rest));
+            var back = harness.Tray.ItemViews["rod"].transform.position;
+            Assert.That((back.x, back.z), Is.EqualTo((rest.x, rest.z)), "returned to its tray slot");
+            Assert.That(back.y - rest.y, Is.EqualTo(PuzzleTrayPresenter.SelectedLift).Within(1e-5f), "selected after the gesture");
 
             harness.Drag.BeginDrag("rod", GrabPoint(harness, "rod"));
             harness.Drag.UpdateDrag(new Vector3(40f, 0f, 40f));

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "id": "lv1-fit",
+  "board": { "compartments": [
+    { "id": "main", "width": 5, "height": 7, "layers": 1,
+      "rows": ["#####", "#####", "#####", "#####", "#####", "#####", "#####"] }
+  ] },
+  "stagingCapacity": 0,
+  "items": [
+    { "id": "laptop-1", "definitionId": "laptop", "role": "required", "location": { "kind": "sourceTray" } },
+    { "id": "sweater-1", "definitionId": "sweater", "role": "required", "location": { "kind": "sourceTray" } },
+    { "id": "sneaker-1", "definitionId": "sneaker", "role": "required", "location": { "kind": "sourceTray" } },
+    { "id": "book-1", "definitionId": "book", "role": "required", "location": { "kind": "sourceTray" } }
+  ],
+  "rules": [],
+  "objective": { "profile": "pack", "requiredInstanceIds": ["laptop-1", "sweater-1", "sneaker-1", "book-1"] }
+}
