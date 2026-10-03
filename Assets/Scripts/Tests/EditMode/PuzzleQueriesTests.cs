@@ -61,7 +61,8 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(AccessQueries.CanTake(covered, "socks-1"), Is.False);
 
             var staged = State(Spec(), Item("shoe-1", shoe, ItemLocation.Staging), Item("socks-1", Block("socks", 1, 1), ItemLocation.NestedIn("shoe-1")));
-            Assert.That(AccessQueries.GetAccess(staged, "socks-1"), Is.EqualTo(ItemAccess.Accessible));
+            Assert.That(AccessQueries.GetAccess(staged, "socks-1"), Is.EqualTo(ItemAccess.External), "follows its staged parent");
+            Assert.That(AccessQueries.CanTake(staged, "socks-1"), Is.True);
         }
 
         [Test]

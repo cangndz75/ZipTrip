@@ -12,13 +12,13 @@ namespace ZipTrip.Domain.Puzzle
     public enum ItemAccess
     {
         Unknown = 0,
-        /// <summary>In the suitcase with no blockers, or nested in a parent that can be taken.</summary>
+        /// <summary>In the suitcase with no blockers, or nested in an accessible suitcase parent.</summary>
         Accessible = 1,
         /// <summary>In the suitcase with at least one blocker.</summary>
         Blocked = 2,
         /// <summary>Nested in a parent that cannot be taken.</summary>
         ParentBlocked = 3,
-        /// <summary>In the Source Tray or staging: not in the suitcase, freely reachable.</summary>
+        /// <summary>In the Source Tray or staging (directly or via its parent): not in the suitcase, freely reachable.</summary>
         External = 4,
         /// <summary>In an extraction destination (directly or via its parent): not reachable by normal moves.</summary>
         Terminal = 5
@@ -76,11 +76,13 @@ namespace ZipTrip.Domain.Puzzle
                     return GetBlockers(state, instanceId).Count == 0 ? ItemAccess.Accessible : ItemAccess.Blocked;
                 case ItemLocationKind.Nested:
                     // PuzzleState guarantees an acyclic parent chain.
+                    // A nested child follows its parent: accessible in the suitcase, external (tray / staging) or terminal.
                     switch (GetAccess(state, item.Location.TargetId))
                     {
                         case ItemAccess.Accessible:
-                        case ItemAccess.External:
                             return ItemAccess.Accessible;
+                        case ItemAccess.External:
+                            return ItemAccess.External;
                         case ItemAccess.Terminal:
                             return ItemAccess.Terminal;
                         default:
