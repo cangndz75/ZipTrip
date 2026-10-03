@@ -137,3 +137,14 @@ The human owner accepted this Sneaker Pair candidate on 2026-10-02. That accepta
 | Unity import | PASS via `ModelImporter` |
 | Human visual review | PASS: L-footprint readability and remaining very small seam/edge traces accepted at gameplay scale |
 | Generation and cleanup time | ~1.5 h retrospective human-approved active-work estimate; not an instrumented timing. Stage durations were not measured. |
+
+## ZT-040D.1 HUD typography — Bricolage Grotesque
+
+| Field | Recorded value |
+|---|---|
+| Font | Bricolage Grotesque, SemiBold (600) and ExtraBold (800) static instances |
+| Source | Google Fonts static WOFF (fonts.gstatic.com, v9), converted losslessly to TTF (stdlib WOFF 1.0 unpack, no glyph changes) |
+| Files | `Assets/Art/Fonts/BricolageGrotesque/BricolageGrotesque-SemiBold.ttf`, `BricolageGrotesque-ExtraBold.ttf` |
+| Licence | SIL Open Font License 1.1 — `Assets/Art/Fonts/BricolageGrotesque/OFL.txt` (from google/fonts `ofl/bricolagegrotesque`) |
+| Coverage | Latin incl. Turkish (ı İ ş Ş ğ Ğ ç Ç ö Ö ü Ü) verified in the cmap |
+| Approval | Human-approved typography and download, 2026-10-03 |

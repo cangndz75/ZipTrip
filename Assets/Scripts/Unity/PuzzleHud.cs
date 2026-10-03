@@ -28,6 +28,8 @@ namespace ZipTrip.Unity
 
         private readonly Dictionary<PuzzleHudAction, RectTransform> _buttons = new Dictionary<PuzzleHudAction, RectTransform>();
         private Font _font;
+        private Font _display;
+        private bool _customFont;
         private Text _label;
         private RectTransform _card;
         private Sprite _rounded;
@@ -39,6 +41,8 @@ namespace ZipTrip.Unity
         public static readonly Color PaperFill = PresentationKit.Hex(0xF7F1E6);
         public static readonly Color DropShadow = new Color(0.12f, 0.16f, 0.17f, 0.22f);
         public bool UndoEnabled { get; private set; } = true;
+        /// <summary>Face used by the HUD's labels (Bricolage Grotesque in the shipped scene).</summary>
+        public Font Font => _font;
 
         public bool CompletionVisible => _card != null && _card.gameObject.activeSelf;
         public bool RotateVisible => _buttons.TryGetValue(PuzzleHudAction.Rotate, out var rotate) && rotate.gameObject.activeSelf;
@@ -50,11 +54,15 @@ namespace ZipTrip.Unity
         public static float BottomFraction(float pixelWidth, float pixelHeight) =>
             BottomBand * pixelWidth / ReferenceWidth / Mathf.Max(1f, pixelHeight);
 
-        public void Build()
+        /// <param name="uiFont">ZT-040D.1 UI face (Bricolage Grotesque SemiBold); null = built-in fallback.</param>
+        /// <param name="displayFont">Display face for one-off words (Bricolage Grotesque ExtraBold); null = uiFont.</param>
+        public void Build(Font uiFont = null, Font displayFont = null)
         {
             if (_font != null)
                 return;
-            _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _customFont = uiFont != null;
+            _font = uiFont != null ? uiFont : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _display = displayFont != null ? displayFont : _font;
             var canvas = gameObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = gameObject.AddComponent<CanvasScaler>();
@@ -89,7 +97,7 @@ namespace ZipTrip.Unity
             _card = Panel(transform, "Packed Card", new Vector2(0.5f, 0f), new Vector2(0f, 560f), new Vector2(760f, 340f), PaperFill);
             cardShadow.SetParent(_card, true);
             cardShadow.SetAsFirstSibling();
-            Label(_card, "PACKED", 84, Ink, new Vector2(0.5f, 1f), new Vector2(0f, -95f), new Vector2(700f, 110f));
+            Label(_card, "PACKED", 88, Ink, new Vector2(0.5f, 1f), new Vector2(0f, -95f), new Vector2(700f, 110f)).font = _display;
             AddButton(PuzzleHudAction.Next, "Next", new Vector2(0.5f, 0f), new Vector2(170f, 95f), new Vector2(280f, 120f), PresentationKit.Teal, _card,
                 textColor: PaperFill);
             AddButton(PuzzleHudAction.Restart, "Replay", new Vector2(0.5f, 0f), new Vector2(-170f, 95f), new Vector2(280f, 120f), PresentationKit.TrayCard, _card, register: false);
@@ -256,7 +264,8 @@ namespace ZipTrip.Unity
             rect.sizeDelta = box;
             label.font = _font;
             label.fontSize = size;
-            label.fontStyle = FontStyle.Bold;
+            // The authored weights replace the synthetic bold the built-in fallback needs.
+            label.fontStyle = _customFont ? FontStyle.Normal : FontStyle.Bold;
             label.alignment = TextAnchor.MiddleCenter;
             label.color = color;
             label.text = text;

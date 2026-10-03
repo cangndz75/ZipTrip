@@ -35,6 +35,7 @@ namespace ZipTrip.Editor
             var gameplay = root.AddComponent<PuzzleGameplayScene>();
             gameplay.Configure(material, catalog, "lv1-fit", "lv2-rotate");
             gameplay.ConfigureContainer(LoadContainer());
+            gameplay.ConfigureFonts(LoadFont(UiFontPath), LoadFont(DisplayFontPath));
             EditorUtility.SetDirty(catalog);
             EditorUtility.SetDirty(gameplay);
 
@@ -57,6 +58,26 @@ namespace ZipTrip.Editor
                 throw new InvalidOperationException("Could not save " + ScenePath);
             Debug.Log("[ZT-040C] Wired golden container into " + ScenePath);
         }
+
+        // ZT-040D.1: points the existing scene at the approved HUD typography without rebuilding it.
+        [MenuItem("ZipTrip/ZT-040D/Wire HUD Fonts Into Puzzle Gameplay Scene")]
+        public static void WireFonts()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var gameplay = UnityEngine.Object.FindFirstObjectByType<PuzzleGameplayScene>()
+                ?? throw new InvalidOperationException("PuzzleGameplayScene missing in " + ScenePath);
+            gameplay.ConfigureFonts(LoadFont(UiFontPath), LoadFont(DisplayFontPath));
+            EditorUtility.SetDirty(gameplay);
+            if (!EditorSceneManager.SaveScene(scene))
+                throw new InvalidOperationException("Could not save " + ScenePath);
+            Debug.Log("[ZT-040D.1] Wired HUD fonts into " + ScenePath);
+        }
+
+        public const string UiFontPath = "Assets/Art/Fonts/BricolageGrotesque/BricolageGrotesque-SemiBold.ttf";
+        public const string DisplayFontPath = "Assets/Art/Fonts/BricolageGrotesque/BricolageGrotesque-ExtraBold.ttf";
+
+        private static Font LoadFont(string path) =>
+            AssetDatabase.LoadAssetAtPath<Font>(path) ?? throw new InvalidOperationException("Missing font " + path);
 
         private static GameObject LoadContainer() =>
             AssetDatabase.LoadAssetAtPath<GameObject>(CabinSuitcaseAssetBuilder.PrefabPath)

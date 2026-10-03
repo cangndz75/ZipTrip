@@ -157,6 +157,8 @@ MonoBehaviour:
   materialTemplate: {fileID: 2100000, guid: dda25590701b2b745b90ded91681f46a, type: 2}
   goldenCatalog: {fileID: 89142486}
   containerPrefab: {fileID: 2855724218277396828, guid: 60ba15e1a69d9be4fb7c8787fd892558, type: 3}
+  uiFont: {fileID: 12800000, guid: 5bc8d08f69232c145a8a080932b001e0, type: 3}
+  displayFont: {fileID: 12800000, guid: 54081bdaa4178984ea9b2b3d1a1b8001, type: 3}
 --- !u!114 &89142486
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -6,18 +6,21 @@ using UnityEngine.Rendering.Universal;
 namespace ZipTrip.Unity
 {
     // ZT-040D "packing table" presentation (Presentation Direction: The Packing Table). A warm linen table with a baked
-    // top-left key and an edge vignette that darkens only the table, a deep blue-green felt packing mat under the loose
-    // items (bleeding off the bottom of the screen), one warm directional key with a trilight ambient fill
+    // top-left key and an edge vignette that darkens only the table, a warm taupe felt packing mat hugging the loose
+    // items' row (ZT-040D.1: separated from the dark suitcase, no dead felt), one warm directional key with a trilight ambient fill
     // (key:fill ~2.5:1), and a restrained post stack. Presentation only: no colliders, no gameplay reads.
     public sealed class PackingTable : MonoBehaviour
     {
         public const float SurfaceSize = 90f;
         public const float MatThickness = 0.05f;
-        /// <summary>Felt margin around the loose items' row.</summary>
-        public const float MatMargin = 0.55f;
+        /// <summary>Felt margin around the loose items' row (the mat hugs the row; no off-screen bleed).</summary>
+        public const float MatMargin = 0.42f;
         public static readonly Color TableLinen = PresentationKit.Hex(0xEADCC7);
         public static readonly Color TableShade = PresentationKit.Hex(0x4A3526);
-        public static readonly Color Felt = PresentationKit.Hex(0x2C4A55);
+        // ZT-040D.1: warm taupe felt, a mid value between the light table and the dark teal lining, so the mat
+        // separates from the suitcase and the colourful loose items pop on it.
+        public static readonly Color Felt = PresentationKit.Hex(0xB5A48D);
+        public static readonly Color Stitch = PresentationKit.Hex(0xF7F1E6);
         public static readonly Color KeyColor = new Color(1f, 0.95f, 0.86f);
         public const float KeyIntensity = 1.25f;
         public static readonly Vector3 KeyEuler = new Vector3(52f, 135f, 0f); // from the top-left of the screen
@@ -72,21 +75,21 @@ namespace ZipTrip.Unity
             }
             _matRoot = new GameObject("Packing Mat").transform;
             _matRoot.SetParent(transform, false);
-            var rect = new Rect(matArea.xMin - MatMargin, matArea.yMin - 30f, matArea.width + 2f * MatMargin, matArea.height + MatMargin + 30f);
+            var rect = new Rect(matArea.xMin - MatMargin, matArea.yMin - MatMargin, matArea.width + 2f * MatMargin, matArea.height + 2f * MatMargin);
             var top = surfaceY + MatThickness;
             var feltTexture = Own(PresentationKit.FeltTexture(128, 3301));
             var felt = Own(PresentationKit.Matte(_template, Felt, feltTexture, 0.02f));
             felt.SetTextureScale(PresentationKit.BaseMapId, new Vector2(rect.width / 3f, rect.height / 3f));
             Mat = PresentationKit.MeshObject("Felt", _matRoot, Own(PresentationKit.Slab(rect, 0.6f, surfaceY, top)), felt);
             Mat.GetComponent<MeshRenderer>().receiveShadows = true;
-            var stitch = Own(PresentationKit.Matte(_template, PresentationKit.Mustard, null, 0.2f));
+            var stitch = Own(PresentationKit.Matte(_template, Stitch, null, 0.15f));
             var inset = new Rect(rect.xMin + 0.24f, rect.yMin + 0.24f, rect.width - 0.48f, rect.height - 0.48f);
             PresentationKit.MeshObject("Stitch", _matRoot,
                 Own(PresentationKit.DashedPath(PresentationKit.RoundedRect(inset, 0.38f, 8), 0.17f, 0.11f, 0.045f, top + 0.003f, true)), stitch);
             var shadowTexture = Own(PresentationKit.SoftRect(64, 0.35f));
             PresentationKit.MeshObject("Mat Shadow", _matRoot, Own(PresentationKit.Quad(
-                new Rect(rect.xMin - 0.25f, rect.yMin, rect.width + 0.5f, rect.height + 0.2f), surfaceY + 0.002f)),
-                Own(PresentationKit.Transparent(_template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.28f), shadowTexture)));
+                new Rect(rect.xMin - 0.2f, rect.yMin - 0.35f, rect.width + 0.5f, rect.height + 0.5f), surfaceY + 0.002f)),
+                Own(PresentationKit.Transparent(_template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.3f), shadowTexture)));
         }
 
         // One warm key from the top-left (shadows fall to the bottom-right, matching the contact shadows) and a

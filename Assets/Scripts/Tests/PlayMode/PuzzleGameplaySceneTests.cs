@@ -363,6 +363,7 @@ namespace ZipTrip.Tests.PlayMode
             yield return LoadGameplayScene();
             var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
             Assert.That(scene.ContainerPrefab, Is.Not.Null);
+            Assert.That(scene.Hud.Font.name, Does.StartWith("BricolageGrotesque"), "ZT-040D.1 HUD typography");
             for (var level = 0; level < 2; level++)
             {
                 var board = scene.Board;

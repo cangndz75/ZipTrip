@@ -39,6 +39,8 @@ namespace ZipTrip.Unity
         [SerializeField] private Material materialTemplate;
         [SerializeField] private GoldenItemPrefabCatalog goldenCatalog;
         [SerializeField] private GameObject containerPrefab;
+        [SerializeField] private Font uiFont;
+        [SerializeField] private Font displayFont;
 
         private PointerInteractor _pointer;
         private bool _gestureOnHud;
@@ -74,6 +76,15 @@ namespace ZipTrip.Unity
         }
 
         public void ConfigureContainer(GameObject prefab) => containerPrefab = prefab;
+
+        /// <summary>ZT-040D.1 HUD typography (Bricolage Grotesque); null keeps the built-in fallback.</summary>
+        public void ConfigureFonts(Font ui, Font display)
+        {
+            uiFont = ui;
+            displayFont = display;
+        }
+
+        public Font UiFont => uiFont;
 
         private void Start()
         {
@@ -261,7 +272,7 @@ namespace ZipTrip.Unity
             Drag.StepCommitted += step => RefreshCompletion(step.CompletionReached);
             Hud = new GameObject("Puzzle HUD").AddComponent<PuzzleHud>();
             Hud.transform.SetParent(transform, false);
-            Hud.Build();
+            Hud.Build(uiFont, displayFont);
             _pointer = GetComponent<PointerInteractor>();
             if (_pointer == null)
                 _pointer = gameObject.AddComponent<PointerInteractor>();
