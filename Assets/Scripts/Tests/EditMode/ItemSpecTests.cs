@@ -205,7 +205,14 @@ namespace ZipTrip.Tests.EditMode
             AssertRejected(() => new ItemSpec("x", "normal", states, transitions: new[] { Compress("normal", "gone") }),
                 "MissingTransitionState");
             AssertRejected(() => new ItemSpec("x", "normal", states, transitions: new[] { Compress("normal", "flat") }),
-                "CompressThicknessUnchanged");
+                "CompressThicknessNotReduced");
+            AssertRejected(() => new ItemSpec("x", "compressed", states, transitions: new[] { Compress("compressed", "normal") }),
+                "CompressThicknessNotReduced");
+            var reshaped = new[] { State("normal", Rect(2, 3), 2), State("wide", Rect(3, 2), 1), State("small", Rect(2, 2), 1) };
+            AssertRejected(() => new ItemSpec("x", "normal", reshaped, transitions: new[] { Compress("normal", "wide") }),
+                "CompressFootprintChanged");
+            AssertRejected(() => new ItemSpec("x", "normal", reshaped, transitions: new[] { Compress("normal", "small") }),
+                "CompressFootprintChanged");
             AssertRejected(() => new ItemSpec("x", "normal", states, transitions: new[] { Compress("normal", "normal") }),
                 "SelfTransition");
             AssertRejected(() => new ItemSpec("x", "normal", states,
@@ -258,7 +265,7 @@ namespace ZipTrip.Tests.EditMode
         {
             var a = new NestSpec(2, new[] { "socks", "belt" }, new[] { "small", "cable" });
             var b = new NestSpec(2, new[] { "belt", "socks", "belt" }, new[] { "cable", "small" });
-            Assert.That(a.AcceptedItemIds, Is.EqualTo(new[] { "belt", "socks" }));
+            Assert.That(a.AcceptedDefinitionIds, Is.EqualTo(new[] { "belt", "socks" }));
             Assert.That(b.AcceptedTags, Is.EqualTo(a.AcceptedTags));
             foreach (var child in new[] { Single("socks"), Single("belt"), Single("x", "cable"), Single("laptop", "tech") })
                 Assert.That(b.Accepts(child), Is.EqualTo(a.Accepts(child)), child.Id);

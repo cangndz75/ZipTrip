@@ -16,24 +16,25 @@ namespace ZipTrip.Domain.Items
 
         /// <summary>Maximum number of nested children; 0 = cannot contain children.</summary>
         public int Capacity { get; }
-        public IReadOnlyList<string> AcceptedItemIds { get; }
+        /// <summary>Accepted child item definition ids (ItemSpec.Id), ordinal order. Not instance ids.</summary>
+        public IReadOnlyList<string> AcceptedDefinitionIds { get; }
         public IReadOnlyList<string> AcceptedTags { get; }
 
-        public NestSpec(int capacity, IEnumerable<string> acceptedItemIds, IEnumerable<string> acceptedTags)
+        public NestSpec(int capacity, IEnumerable<string> acceptedDefinitionIds, IEnumerable<string> acceptedTags)
         {
             if (capacity < 0)
                 throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "InvalidNestCapacity: capacity must be >= 0.");
 
-            var ids = ToSortedSet(acceptedItemIds, nameof(acceptedItemIds));
+            var ids = ToSortedSet(acceptedDefinitionIds, nameof(acceptedDefinitionIds));
             var tags = ToSortedSet(acceptedTags, nameof(acceptedTags));
             var hasCompatibility = ids.Count + tags.Count > 0;
             if (capacity == 0 && hasCompatibility)
                 throw new ArgumentException("MalformedNestCompatibility: capacity 0 cannot accept children.");
             if (capacity > 0 && !hasCompatibility)
-                throw new ArgumentException("MalformedNestCompatibility: a nest needs accepted item ids or tags.");
+                throw new ArgumentException("MalformedNestCompatibility: a nest needs accepted definition ids or tags.");
 
             Capacity = capacity;
-            AcceptedItemIds = new List<string>(ids).AsReadOnly();
+            AcceptedDefinitionIds = new List<string>(ids).AsReadOnly();
             AcceptedTags = new List<string>(tags).AsReadOnly();
         }
 
@@ -42,7 +43,7 @@ namespace ZipTrip.Domain.Items
         {
             if (Capacity == 0 || child == null)
                 return false;
-            if (Contains(AcceptedItemIds, child.Id))
+            if (Contains(AcceptedDefinitionIds, child.Id))
                 return true;
             foreach (var tag in AcceptedTags)
                 if (child.HasTag(tag))
@@ -53,8 +54,8 @@ namespace ZipTrip.Domain.Items
         internal void WriteStableBytes(Stream stream)
         {
             CanonicalWriter.WriteInt32(stream, Capacity);
-            CanonicalWriter.WriteInt32(stream, AcceptedItemIds.Count);
-            foreach (var id in AcceptedItemIds)
+            CanonicalWriter.WriteInt32(stream, AcceptedDefinitionIds.Count);
+            foreach (var id in AcceptedDefinitionIds)
                 CanonicalWriter.WriteString(stream, id);
             CanonicalWriter.WriteInt32(stream, AcceptedTags.Count);
             foreach (var tag in AcceptedTags)

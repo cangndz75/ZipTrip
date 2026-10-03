@@ -10,7 +10,7 @@ namespace ZipTrip.Domain.Items
     {
         /// <summary>Changes the X/Y footprint; area stays equal or loses at most one cell.</summary>
         Fold = 0,
-        /// <summary>Changes Z thickness. Not the legacy Vacuum booster.</summary>
+        /// <summary>Strictly reduces Z thickness with the same XY footprint. Not the legacy Vacuum booster.</summary>
         Compress = 1
     }
 
@@ -170,8 +170,11 @@ namespace ZipTrip.Domain.Items
 
                 if (transition.Modifier == ItemModifier.Fold && IsSameFootprintUpToRotation(from.Footprint, to.Footprint))
                     throw new ArgumentException($"FoldGeometryUnchanged: {id} {transition}", nameof(transitions));
-                if (transition.Modifier == ItemModifier.Compress && from.Thickness == to.Thickness)
-                    throw new ArgumentException($"CompressThicknessUnchanged: {id} {transition}", nameof(transitions));
+                // Compress is Z-only: same normalized footprint (not even a rotation of it), strictly thinner.
+                if (transition.Modifier == ItemModifier.Compress && !IsSameFootprint(from.Footprint, to.Footprint))
+                    throw new ArgumentException($"CompressFootprintChanged: {id} {transition}", nameof(transitions));
+                if (transition.Modifier == ItemModifier.Compress && to.Thickness >= from.Thickness)
+                    throw new ArgumentException($"CompressThicknessNotReduced: {id} {transition}", nameof(transitions));
 
                 result.Add(transition);
             }
@@ -228,20 +231,23 @@ namespace ZipTrip.Domain.Items
             list.Add(to);
         }
 
+        // Fold must be a real geometry change: a target that is only a rotation of the source duplicates rotation.
         private static bool IsSameFootprintUpToRotation(ItemShape a, ItemShape b)
+        {
+            foreach (Rotation rotation in Enum.GetValues(typeof(Rotation)))
+                if (IsSameFootprint(a.Rotate(rotation), b))
+                    return true;
+            return false;
+        }
+
+        private static bool IsSameFootprint(ItemShape a, ItemShape b)
         {
             if (a.CellCount != b.CellCount)
                 return false;
-            foreach (Rotation rotation in Enum.GetValues(typeof(Rotation)))
-            {
-                var rotated = a.Rotate(rotation).OccupiedCells;
-                var same = true;
-                for (var i = 0; i < rotated.Count && same; i++)
-                    same = rotated[i] == b.OccupiedCells[i];
-                if (same)
-                    return true;
-            }
-            return false;
+            for (var i = 0; i < a.CellCount; i++)
+                if (a.OccupiedCells[i] != b.OccupiedCells[i])
+                    return false;
+            return true;
         }
 
         private byte[] BuildStableBytes()

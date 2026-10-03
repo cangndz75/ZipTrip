@@ -189,5 +189,30 @@ namespace ZipTrip.Tests.EditMode
             AssertRejected(() => new ExtractionDestinationSpec("x", 1), "MalformedDestinationAcceptance");
             AssertRejected(() => new PuzzleSpec(Board(), -1), "InvalidStagingCapacity");
         }
+
+        [Test]
+        public void Destination_DistinguishesInstanceFromDefinitionIdentity()
+        {
+            var laptop = Block("laptop", 2, 2);
+            var target = Placed("laptop-a", laptop, At(0, 0), ObjectiveRole.ExtractionTarget);
+            var twin = Placed("laptop-b", laptop, At(2, 0), ObjectiveRole.Required);
+
+            var byInstance = new ExtractionDestinationSpec("tray", 1, acceptedInstanceIds: new[] { "laptop-a" });
+            Assert.That(byInstance.Accepts(target), Is.True);
+            Assert.That(byInstance.Accepts(twin), Is.False, "same definition, different instance");
+            Assert.That(byInstance.Accepts(Placed("laptop", laptop, At(0, 0))), Is.False, "definition id is not an instance id");
+
+            var byDefinition = new ExtractionDestinationSpec("tray", 1, acceptedDefinitionIds: new[] { "laptop" });
+            Assert.That(byDefinition.Accepts(twin), Is.True, "definition acceptance covers every instance");
+
+            foreach (var destination in new[] { byInstance, Tray() })
+            {
+                var state = State(new PuzzleSpec(Board(), 2, new[] { destination }), target, twin);
+                var wrong = PuzzleTransitions.Apply(state, PuzzleMove.MoveToDestination("laptop-b", "tray"));
+                Assert.That(wrong.Rejection, Is.EqualTo(MoveRejection.InvariantViolation));
+                Assert.That(wrong.Report.Violations.Single().Kind, Is.EqualTo(InvariantKind.DestinationNotAccepted));
+                Assert.That(PuzzleTransitions.Apply(state, PuzzleMove.MoveToDestination("laptop-a", "tray")).IsAccepted, Is.True);
+            }
+        }
     }
 }

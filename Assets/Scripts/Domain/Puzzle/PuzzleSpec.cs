@@ -6,27 +6,32 @@ using ZipTrip.Domain.Items;
 namespace ZipTrip.Domain.Puzzle
 {
     /// <summary>
-    /// Level-defined external objective sink (ADR-0006 Decision 16): id, capacity and authored acceptance by item
-    /// definition id, tag and/or objective role. No geometry; outside the suitcase rule domain.
+    /// Level-defined external objective sink (ADR-0006 Decision 16): id, capacity and authored acceptance by exact
+    /// item instance id, item definition id, tag and/or objective role. Instance and definition identity are kept
+    /// separate: accepting a definition accepts every instance of it. No geometry; outside the suitcase rule domain.
     /// </summary>
     public sealed class ExtractionDestinationSpec
     {
         public string Id { get; }
         public int Capacity { get; }
+        /// <summary>Accepted exact item instance ids (PuzzleItem.InstanceId), ordinal order.</summary>
+        public IReadOnlyList<string> AcceptedInstanceIds { get; }
         /// <summary>Accepted item definition ids (ItemSpec.Id), ordinal order.</summary>
-        public IReadOnlyList<string> AcceptedItemIds { get; }
+        public IReadOnlyList<string> AcceptedDefinitionIds { get; }
         public IReadOnlyList<string> AcceptedTags { get; }
         public IReadOnlyList<ObjectiveRole> AcceptedRoles { get; }
 
-        public ExtractionDestinationSpec(string id, int capacity, IEnumerable<string> acceptedItemIds = null,
-            IEnumerable<string> acceptedTags = null, IEnumerable<ObjectiveRole> acceptedRoles = null)
+        public ExtractionDestinationSpec(string id, int capacity, IEnumerable<string> acceptedInstanceIds = null,
+            IEnumerable<string> acceptedDefinitionIds = null, IEnumerable<string> acceptedTags = null,
+            IEnumerable<ObjectiveRole> acceptedRoles = null)
         {
             if (string.IsNullOrWhiteSpace(id))
                 throw new ArgumentException("MissingDestinationId", nameof(id));
             if (capacity < 1)
                 throw new ArgumentException($"InvalidDestinationCapacity: {id} has {capacity}", nameof(capacity));
 
-            var ids = SortedStrings(acceptedItemIds, id);
+            var instances = SortedStrings(acceptedInstanceIds, id);
+            var definitions = SortedStrings(acceptedDefinitionIds, id);
             var tags = SortedStrings(acceptedTags, id);
             var roles = new SortedSet<ObjectiveRole>();
             if (acceptedRoles != null)
@@ -36,12 +41,13 @@ namespace ZipTrip.Domain.Puzzle
                         throw new ArgumentException("MalformedDestinationAcceptance: invalid role in " + id, nameof(acceptedRoles));
                     roles.Add(role);
                 }
-            if (ids.Count + tags.Count + roles.Count == 0)
+            if (instances.Count + definitions.Count + tags.Count + roles.Count == 0)
                 throw new ArgumentException("MalformedDestinationAcceptance: " + id + " accepts nothing");
 
             Id = id;
             Capacity = capacity;
-            AcceptedItemIds = new List<string>(ids).AsReadOnly();
+            AcceptedInstanceIds = new List<string>(instances).AsReadOnly();
+            AcceptedDefinitionIds = new List<string>(definitions).AsReadOnly();
             AcceptedTags = new List<string>(tags).AsReadOnly();
             AcceptedRoles = new List<ObjectiveRole>(roles).AsReadOnly();
         }
@@ -54,7 +60,7 @@ namespace ZipTrip.Domain.Puzzle
             foreach (var role in AcceptedRoles)
                 if (role == item.Role)
                     return true;
-            if (NestSpec.Contains(AcceptedItemIds, item.Definition.Id))
+            if (NestSpec.Contains(AcceptedInstanceIds, item.InstanceId) || NestSpec.Contains(AcceptedDefinitionIds, item.Definition.Id))
                 return true;
             foreach (var tag in AcceptedTags)
                 if (item.Definition.HasTag(tag))
