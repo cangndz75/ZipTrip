@@ -59,7 +59,6 @@ namespace ZipTrip.Unity
         private string _candidateStateId;
         private ItemModifier? _candidateModifier;
         private bool _temporaryNestedView;
-        private bool _physicalDragVisual;
 
         public PuzzleSession Session => _session;
         public bool IsDragging => _view != null;
@@ -118,7 +117,6 @@ namespace ZipTrip.Unity
             _candidateStateId = null;
             _candidateModifier = null;
             _temporaryNestedView = false;
-            _physicalDragVisual = false;
             CandidateNestParent = null;
             HasCandidate = false;
             Preview = null;
@@ -176,17 +174,10 @@ namespace ZipTrip.Unity
 
             _item = item;
             _view = view;
-            _physicalDragVisual = item.Definition.Transitions.Count > 0 || item.Location.Kind == ItemLocationKind.Nested;
-            if (!_physicalDragVisual && item.Location.Kind != ItemLocationKind.SourceTray)
-                foreach (var parent in state.GetItems(ItemLocationKind.Suitcase))
-                    if (parent.Definition.Nest.Capacity > 0)
-                    {
-                        _physicalDragVisual = true;
-                        break;
-                    }
             UpdateNestTargetCues();
-            // The lifted item is ghosted so the Domain preview cells underneath stay readable; Sync restores it.
-            _view.SetGhost(!_physicalDragVisual, _board.GhostMaterial);
+            // FIX-SLICE-00: the lifted item keeps its real art (an X-ray ghost is lifted too; Sync restores it). Fit is
+            // read from the footprint glow on the board, the contact shadow under it and a red tint when it does not fit.
+            _view.SetGhost(false, null);
             CandidateRotation = view.Rotation;
             // Tray items are drawn smaller; keep the grabbed point under the pointer when the item grows to board size.
             var origin = view.transform.position;
@@ -206,6 +197,8 @@ namespace ZipTrip.Unity
             _lastPointer = pointerWorld;
             var anchorWorld = new Vector3(pointerWorld.x, 0f, pointerWorld.z) + _grabOffset;
             _view.transform.position = anchorWorld + Vector3.up * LiftHeight;
+            var lossy = _view.transform.lossyScale.y;
+            _view.SetShadowDrop(Mathf.Approximately(lossy, 0f) ? 0f : LiftHeight / lossy);
 
             _marked.Clear();
             CandidateNestParent = null;
@@ -272,7 +265,6 @@ namespace ZipTrip.Unity
             CandidateRotation = allowed[(index + 1) % allowed.Count];
             _view.SetVisual(shown, CandidateRotation, _board.ResolveVisual(shown), _board.Template,
                 _board.ColorFor(_item.Definition.Id));
-            _view.SetGhost(!_physicalDragVisual, _board.GhostMaterial);
             UpdateDrag(_lastPointer);
         }
 
@@ -362,7 +354,6 @@ namespace ZipTrip.Unity
             {
                 CandidateRotation = rotation;
                 _view.SetVisual(shown, rotation, _board.ResolveVisual(shown), _board.Template, _board.ColorFor(item.Definition.Id));
-                _view.SetGhost(!_physicalDragVisual, _board.GhostMaterial);
                 UpdateDrag(_lastPointer);
             }
             else
@@ -547,13 +538,14 @@ namespace ZipTrip.Unity
         private void EndDrag()
         {
             _view?.Feedback?.CompleteAll();
+            _view?.SetRejectTint(false);
+            _view?.SetShadowDrop(0f);
             if (_temporaryNestedView && _view != null)
             {
                 _view.gameObject.SetActive(false);
                 Destroy(_view.gameObject);
             }
             _temporaryNestedView = false;
-            _physicalDragVisual = false;
             CandidateStagingSlot = -1;
             CandidateNestParent = null;
             ClearNestTargetCues();
@@ -627,6 +619,7 @@ namespace ZipTrip.Unity
             if (_footprintMaterial != null)
                 _footprintMaterial.SetColor(PresentationKit.BaseColorId, PreviewValid ? ValidColor : InvalidColor);
             _footprintShape.Show(_ghostRoot, cells, origin, CandidateAnchor, elevation, _footprintMaterial);
+            _view?.SetRejectTint(IsDragging && Preview != null && !Preview.IsAccepted);
             _offendingShape.Show(_ghostRoot, IsDragging && _marked.Count > 0 ? _marked : null, origin, default,
                 elevation + 0.01f, _markMaterial);
         }

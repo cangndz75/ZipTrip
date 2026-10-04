@@ -51,6 +51,9 @@ namespace ZipTrip.Unity
         public ItemFeedback Feedback { get; private set; }
         public bool UsesPrefab { get; private set; }
         public bool IsGhosted { get; private set; }
+        /// <summary>FIX-SLICE-00: the dragged item does not fit here (restrained red multiply over its own art).</summary>
+        public bool RejectTinted { get; private set; }
+        public static readonly Color RejectTint = new Color(1f, 0.55f, 0.5f);
         public bool ShadowVisible => _shadow != null && _shadow.activeSelf;
         public bool ContainsItemsCue => _containsItems;
         public bool NestTargetCue => _nestTarget;
@@ -181,6 +184,7 @@ namespace ZipTrip.Unity
                 return;
             _visualKey = key;
             SetGhost(false, null);
+            RejectTinted = false;
             if (VisualRoot != null)
             {
                 VisualRoot.gameObject.SetActive(false);
@@ -332,6 +336,36 @@ namespace ZipTrip.Unity
                 renderer.enabled = true;
             }
             _original.Clear();
+        }
+
+        // Presentation-only: multiplies each material's own base colour (texture, art and material untouched) through a
+        // per-material property block; clearing removes the blocks again.
+        internal void SetRejectTint(bool tinted)
+        {
+            if (tinted == RejectTinted)
+                return;
+            RejectTinted = tinted;
+            if (VisualRoot == null)
+                return;
+            foreach (var renderer in VisualRoot.GetComponentsInChildren<Renderer>())
+            {
+                var materials = renderer.sharedMaterials;
+                for (var i = 0; i < materials.Length; i++)
+                {
+                    if (!tinted || materials[i] == null)
+                    {
+                        renderer.SetPropertyBlock(null, i);
+                        continue;
+                    }
+                    var color = materials[i].HasProperty(PresentationKit.BaseColorId)
+                        ? materials[i].GetColor(PresentationKit.BaseColorId) : Color.white;
+                    color = new Color(color.r * RejectTint.r, color.g * RejectTint.g, color.b * RejectTint.b, color.a);
+                    var block = new MaterialPropertyBlock();
+                    block.SetColor(PresentationKit.BaseColorId, color);
+                    block.SetColor(PresentationKit.ColorId, color);
+                    renderer.SetPropertyBlock(block, i);
+                }
+            }
         }
 
         private void OnDestroy()

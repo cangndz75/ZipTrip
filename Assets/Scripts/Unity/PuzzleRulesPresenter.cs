@@ -88,7 +88,7 @@ namespace ZipTrip.Unity
                 return;
 
             _strip = new GameObject("Rule Strip", typeof(RectTransform)).GetComponent<RectTransform>();
-            _strip.SetParent(hud.transform, false);
+            _strip.SetParent(hud.SafeArea, false);
             _strip.anchorMin = _strip.anchorMax = new Vector2(0.5f, 1f);
             _strip.pivot = new Vector2(0.5f, 1f);
             _strip.anchoredPosition = new Vector2(0f, -StripTop);

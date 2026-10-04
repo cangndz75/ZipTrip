@@ -54,6 +54,66 @@ namespace ZipTrip.Unity
         public bool CompressVisible => _buttons.TryGetValue(PuzzleHudAction.Compress, out var compress) && compress.gameObject.activeSelf;
         public string LevelLabel => _label != null ? _label.text : null;
 
+        /// <summary>
+        /// Parent of every HUD element: the canvas inset to the device safe area (notch / cutout / home indicator).
+        /// Re-evaluated every frame, so resolution, orientation and safe-area changes are followed. Camera framing
+        /// still reserves the fixed TopBand / BottomBand; only the HUD moves.
+        /// </summary>
+        public RectTransform SafeArea { get; private set; }
+        /// <summary>Normalized (0..1) safe rect currently applied to <see cref="SafeArea"/>.</summary>
+        public Rect AppliedSafeArea { get; private set; }
+        /// <summary>Test-only seam: normalized safe rect used instead of Screen.safeArea (null = the device's).</summary>
+        public static Rect? SafeAreaOverride { get; set; }
+        private GameObject _safeAreaDebug;
+        /// <summary>Development-only tint over the safe area for review captures; never built in release players.</summary>
+        public bool SafeAreaDebugVisible => _safeAreaDebug != null && _safeAreaDebug.activeSelf;
+
+        /// <summary>Screen.safeArea (pixels) as a normalized rect, clamped to the screen.</summary>
+        public static Rect NormalizeSafeArea(Rect safeArea, float screenWidth, float screenHeight)
+        {
+            if (screenWidth <= 0f || screenHeight <= 0f)
+                return new Rect(0f, 0f, 1f, 1f);
+            var xMin = Mathf.Clamp01(safeArea.xMin / screenWidth);
+            var yMin = Mathf.Clamp01(safeArea.yMin / screenHeight);
+            var xMax = Mathf.Clamp01(safeArea.xMax / screenWidth);
+            var yMax = Mathf.Clamp01(safeArea.yMax / screenHeight);
+            return xMax > xMin && yMax > yMin ? Rect.MinMaxRect(xMin, yMin, xMax, yMax) : new Rect(0f, 0f, 1f, 1f);
+        }
+
+        private void ApplySafeArea()
+        {
+            if (SafeArea == null)
+                return;
+            var safe = SafeAreaOverride ?? NormalizeSafeArea(Screen.safeArea, Screen.width, Screen.height);
+            if (safe == AppliedSafeArea)
+                return;
+            AppliedSafeArea = safe;
+            SafeArea.anchorMin = safe.min;
+            SafeArea.anchorMax = safe.max;
+        }
+
+        /// <summary>Shows a translucent tint over the safe area (editor / development builds only; no-op in release).</summary>
+        public void SetSafeAreaDebugVisible(bool visible)
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (_safeAreaDebug == null && visible)
+            {
+                _safeAreaDebug = new GameObject("Safe Area Debug", typeof(RectTransform), typeof(Image));
+                var rect = (RectTransform)_safeAreaDebug.transform;
+                rect.SetParent(SafeArea, false);
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = rect.offsetMax = Vector2.zero;
+                rect.SetAsFirstSibling();
+                var image = _safeAreaDebug.GetComponent<Image>();
+                image.color = new Color(0.2f, 0.9f, 0.4f, 0.18f);
+                image.raycastTarget = false;
+            }
+            if (_safeAreaDebug != null)
+                _safeAreaDebug.SetActive(visible);
+#endif
+        }
+
         /// <summary>Fraction of a pixelWidth x pixelHeight view covered by the top HUD band (width-matched scaling).</summary>
         public static float TopFraction(float pixelWidth, float pixelHeight) => TopBand * pixelWidth / ReferenceWidth / Mathf.Max(1f, pixelHeight);
 
@@ -75,6 +135,10 @@ namespace ZipTrip.Unity
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(ReferenceWidth, ReferenceHeight);
             scaler.matchWidthOrHeight = 0f;
+            SafeArea = new GameObject("Safe Area", typeof(RectTransform)).GetComponent<RectTransform>();
+            SafeArea.SetParent(transform, false);
+            SafeArea.offsetMin = SafeArea.offsetMax = Vector2.zero;
+            ApplySafeArea();
 
             _rounded = Own(PresentationKit.RoundedSprite(96, 40));
             Own(_rounded.texture);
@@ -85,8 +149,8 @@ namespace ZipTrip.Unity
                 Own(icon.texture);
 
             // Level pass: paper pill with a teal tab, top centre.
-            _levelShadow = Shadowed(transform, new Vector2(0.5f, 1f), new Vector2(0f, -TopBand * 0.5f), new Vector2(300f, 84f));
-            var pill = Panel(transform, "Level Pill", new Vector2(0.5f, 1f), new Vector2(0f, -TopBand * 0.5f), new Vector2(300f, 84f), PaperFill);
+            _levelShadow = Shadowed(SafeArea, new Vector2(0.5f, 1f), new Vector2(0f, -TopBand * 0.5f), new Vector2(300f, 84f));
+            var pill = Panel(SafeArea, "Level Pill", new Vector2(0.5f, 1f), new Vector2(0f, -TopBand * 0.5f), new Vector2(300f, 84f), PaperFill);
             var tab = Panel(pill, "Tab", new Vector2(0f, 0.5f), new Vector2(34f, 0f), new Vector2(44f, 44f), PresentationKit.Teal);
             tab.sizeDelta = new Vector2(18f, 18f);
             tab.GetComponent<Image>().type = Image.Type.Simple;
@@ -105,8 +169,8 @@ namespace ZipTrip.Unity
             SetModifierVisible(false, false);
 
             // Compact travel tag over the emptied mat; the closed suitcase remains unobstructed.
-            var cardShadow = Shadowed(transform, new Vector2(0.5f, 0f), new Vector2(0f, 390f), new Vector2(640f, 245f));
-            _card = Panel(transform, "Packed Tag", new Vector2(0.5f, 0f), new Vector2(0f, 390f), new Vector2(640f, 245f), PaperFill);
+            var cardShadow = Shadowed(SafeArea, new Vector2(0.5f, 0f), new Vector2(0f, 390f), new Vector2(640f, 245f));
+            _card = Panel(SafeArea, "Packed Tag", new Vector2(0.5f, 0f), new Vector2(0f, 390f), new Vector2(640f, 245f), PaperFill);
             cardShadow.SetParent(_card, true);
             cardShadow.SetAsFirstSibling();
             var tagHole = Panel(_card, "Tag Hole", new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(28f, 28f), PresentationKit.TrayCard);
@@ -159,6 +223,7 @@ namespace ZipTrip.Unity
 
         private void Update()
         {
+            ApplySafeArea();
             if (_pressed == null)
                 return;
             _pressTime += Time.unscaledDeltaTime;
@@ -204,7 +269,7 @@ namespace ZipTrip.Unity
                 return PuzzleHudAction.None;
             }
             foreach (var pair in _buttons)
-                if (pair.Value.gameObject.activeInHierarchy && pair.Value.parent == transform
+                if (pair.Value.gameObject.activeInHierarchy && pair.Value.parent == SafeArea
                     && RectTransformUtility.RectangleContainsScreenPoint(pair.Value, screenPosition, null))
                     return pair.Key;
             return PuzzleHudAction.None;
@@ -225,8 +290,8 @@ namespace ZipTrip.Unity
             Transform parent = null, bool register = true, Sprite icon = null, Color? textColor = null)
         {
             var ink = textColor ?? Ink;
-            var shadow = Shadowed(parent ?? transform, anchor, position, size);
-            var button = Panel(parent ?? transform, "Button " + text, anchor, position, size, color);
+            var shadow = Shadowed(parent ?? SafeArea, anchor, position, size);
+            var button = Panel(parent ?? SafeArea, "Button " + text, anchor, position, size, color);
             button.gameObject.AddComponent<CanvasGroup>();
             shadow.SetParent(button, true);
             shadow.SetAsFirstSibling();
