@@ -177,6 +177,11 @@ MonoBehaviour:
   sneakerPair: {fileID: 4685423852331411272, guid: 1bcef4bb41851b641aa17733351b904e, type: 3}
   sweaterOpen: {fileID: 4530022656319029468, guid: 51b83f92e956bfd439ddfca75ae5bdb8, type: 3}
   sweaterFolded: {fileID: 2698886092395759672, guid: 35f45972b8e5d74449d288ffff2a4d96, type: 3}
+  passport: {fileID: 329692792678166858, guid: 08a7f9fb671e8dc4293cb7f60aadd6a7, type: 3}
+  towel: {fileID: 8859237844793658366, guid: e6b9b71e838aa98449804cd4439bb895, type: 3}
+  shampoo: {fileID: 746324635876215969, guid: e1ef97369fa075548b11fb535ce2f3d8, type: 3}
+  sunglasses: {fileID: 8640807522983260881, guid: b8d78248b75514c4ea01df7cc31dc68f, type: 3}
+  travelPouch: {fileID: 5007495242390438273, guid: 8e76ba53f4c52264886142b09698fdf5, type: 3}
 --- !u!114 &89142487
 MonoBehaviour:
   m_ObjectHideFlags: 0

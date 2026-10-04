@@ -30,6 +30,8 @@ namespace ZipTrip.Editor
             root.AddComponent<PointerInteractor>();
             var catalog = root.AddComponent<GoldenItemPrefabCatalog>();
             catalog.Configure(Load("PF_Item_Laptop"), Load("PF_Item_SneakerPair"), Load("PF_Item_SweaterOpen"), Load("PF_Item_SweaterFolded"));
+            catalog.ConfigureGoldenLv1Final(Load("PF_Item_Passport"), Load("PF_Item_Towel"),
+                Load("PF_Item_Shampoo"), Load("PF_Item_Sunglasses"), Load("PF_Item_TravelPouch"));
             var material = AssetDatabase.LoadAssetAtPath<Material>(RuntimeMaterial)
                 ?? throw new InvalidOperationException("Runtime presentation material is missing.");
             var gameplay = root.AddComponent<PuzzleGameplayScene>();
@@ -85,6 +87,20 @@ namespace ZipTrip.Editor
             if (!EditorSceneManager.SaveScene(scene))
                 throw new InvalidOperationException("Could not save " + ScenePath);
             Debug.Log("[BACKDROP-SLICE-01] Wired backdrop into " + ScenePath);
+        }
+
+        [MenuItem("ZipTrip/ART-GATE-02B/Wire Final Golden Lv1 Items")]
+        public static void WireGoldenLv1FinalItems()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var catalog = UnityEngine.Object.FindFirstObjectByType<GoldenItemPrefabCatalog>()
+                ?? throw new InvalidOperationException("GoldenItemPrefabCatalog missing in " + ScenePath);
+            catalog.ConfigureGoldenLv1Final(Load("PF_Item_Passport"), Load("PF_Item_Towel"),
+                Load("PF_Item_Shampoo"), Load("PF_Item_Sunglasses"), Load("PF_Item_TravelPouch"));
+            EditorUtility.SetDirty(catalog);
+            if (!EditorSceneManager.SaveScene(scene))
+                throw new InvalidOperationException("Could not save " + ScenePath);
+            Debug.Log("[ART-GATE-02B] Wired final Golden Lv1 items into " + ScenePath);
         }
 
         public const string BackdropSurfacePath = "Assets/Art/Backdrop/Textures/T_Backdrop_WhitewashWood.png";

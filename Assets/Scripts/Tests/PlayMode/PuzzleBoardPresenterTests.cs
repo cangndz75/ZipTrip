@@ -315,5 +315,53 @@ namespace ZipTrip.Tests.PlayMode
                 yield return null;
             }
         }
+
+        [UnityTest]
+        public IEnumerator ArtGate02BFinalItems_AlignAtBothAllowedRotations()
+        {
+            yield return SceneManager.LoadSceneAsync("PuzzleGameplay");
+            yield return null;
+            var catalog = Object.FindFirstObjectByType<GoldenItemPrefabCatalog>();
+            var upright = new[] { Rotation.Degrees0, Rotation.Degrees90 };
+            var board = new BoardSpec(new[]
+            {
+                new Compartment("main", 7, 7, 2, Rect(7, 7))
+            });
+            foreach (var item in new[]
+            {
+                ("passport", 1, 2), ("towel", 1, 4), ("shampoo", 1, 3),
+                ("sunglasses", 2, 1), ("travel-pouch", 2, 3)
+            })
+            {
+                var spec = new ItemSpec(item.Item1, "open", new[]
+                {
+                    new ItemStateSpec("open", new ItemShape(Rect(item.Item2, item.Item3)), 1, upright)
+                });
+                var presenter = Presenter(board, null,
+                    puzzleItem => PuzzleItemCatalog.ResolveGolden(catalog, puzzleItem.Definition.Id, puzzleItem.StateId));
+                foreach (var rotation in upright)
+                {
+                    var state = new PuzzleState(Spec(board), new[]
+                        { At(item.Item1, spec, 1, 1, 1, rotation) });
+                    presenter.Sync(state);
+                    var view = presenter.ItemViews[item.Item1];
+                    Assert.That(view.UsesPrefab, Is.True, item.Item1);
+                    spec.DefaultState.TryGetFootprint(rotation, out var footprint);
+                    var width = footprint.OccupiedCells.Max(c => c.X) + 1;
+                    var depth = footprint.OccupiedCells.Max(c => c.Y) + 1;
+                    var origin = presenter.Compartments["main"].transform.position;
+                    var bounds = RendererBounds(view.VisualRoot);
+                    var label = item.Item1 + "/" + rotation;
+                    Assert.That(bounds.min.x, Is.GreaterThanOrEqualTo(origin.x + 1f - .11f), label);
+                    Assert.That(bounds.max.x, Is.LessThanOrEqualTo(origin.x + 1f + width + .11f), label);
+                    Assert.That(bounds.max.z, Is.LessThanOrEqualTo(origin.z - 1f + .11f), label);
+                    Assert.That(bounds.min.z, Is.GreaterThanOrEqualTo(origin.z - 1f - depth - .11f), label);
+                    Assert.That(bounds.min.y, Is.GreaterThanOrEqualTo(-.01f), label);
+                }
+                Object.Destroy(_root);
+                _root = null;
+                yield return null;
+            }
+        }
     }
 }

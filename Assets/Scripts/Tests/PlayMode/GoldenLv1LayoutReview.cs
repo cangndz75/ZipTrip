@@ -601,82 +601,16 @@ namespace ZipTrip.Tests.PlayMode
             }
         }
 
-        // ------------------------------------------------------------------ proxy item art
-
-        // Labelled flat proxies for the Golden Lv1 items without production art (ART-GATE-02B owns the real assets).
-        // Sweater resolves to the approved golden prefab.
+        // Golden Lv1 review resolves the same production prefabs as the gameplay catalog.
         internal sealed class GoldenProxyArt : System.IDisposable
         {
-            private readonly Material _template = PresentationKit.TemplateOrFallback(null);
-            private readonly Dictionary<string, GameObject> _visuals = new Dictionary<string, GameObject>();
-            private readonly List<Object> _owned = new List<Object>();
-
             public GameObject Resolve(PuzzleItem item)
             {
-                if (item.Definition.Id == "sweater")
-                    return UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Prefabs/Items/PF_Item_SweaterOpen.prefab");
-                if (_visuals.TryGetValue(item.Definition.Id, out var cached))
-                    return cached;
-                var root = new GameObject("Proxy " + item.Definition.Id);
-                switch (item.Definition.Id)
-                {
-                    case "passport":
-                        Part(root, new Rect(0.1f, -1.9f, 0.8f, 1.8f), 0.1f, 0f, 0.14f, 0x2E4A6B);
-                        Part(root, new Rect(0.32f, -0.95f, 0.36f, 0.36f), 0.17f, 0.14f, 0.15f, 0xD7AA58);
-                        break;
-                    case "towel":
-                        Part(root, new Rect(0.06f, -3.94f, 0.88f, 3.88f), 0.42f, 0f, 0.46f, 0xF4EFE6);
-                        foreach (var z in new[] { -0.6f, -3.6f })
-                            Part(root, new Rect(0.06f, z, 0.88f, 0.22f), 0.08f, 0.46f, 0.47f, 0x4E9FA2);
-                        break;
-                    case "shampoo":
-                        Part(root, new Rect(0.14f, -2.86f, 0.72f, 2.1f), 0.3f, 0f, 0.5f, 0xE07A5F);
-                        Part(root, new Rect(0.3f, -0.76f, 0.4f, 0.62f), 0.16f, 0f, 0.38f, 0x31515D);
-                        Part(root, new Rect(0.2f, -2.3f, 0.6f, 0.9f), 0.1f, 0.5f, 0.51f, 0xF7F1E6);
-                        break;
-                    case "sunglasses":
-                        Part(root, new Rect(0.1f, -0.88f, 1.8f, 0.76f), 0.3f, 0f, 0.06f, 0x8A5A3C);
-                        Part(root, new Rect(0.16f, -0.82f, 0.78f, 0.64f), 0.3f, 0.06f, 0.14f, 0x22262B);
-                        Part(root, new Rect(1.06f, -0.82f, 0.78f, 0.64f), 0.3f, 0.06f, 0.14f, 0x22262B);
-                        break;
-                    case "travel-pouch":
-                        Part(root, new Rect(0.08f, -2.92f, 1.84f, 2.84f), 0.4f, 0f, 0.44f, 0xD7AA58);
-                        Part(root, new Rect(0.24f, -0.5f, 1.52f, 0.1f), 0.04f, 0.44f, 0.46f, 0x31515D);
-                        Part(root, new Rect(1.52f, -0.62f, 0.16f, 0.3f), 0.06f, 0.44f, 0.48f, 0xC36F58);
-                        break;
-                    default:
-                        Object.Destroy(root);
-                        return null;
-                }
-                root.hideFlags = HideFlags.HideAndDontSave;
-                root.SetActive(false);
-                _visuals.Add(item.Definition.Id, root);
-                return root;
+                var catalog = Object.FindFirstObjectByType<GoldenItemPrefabCatalog>();
+                return PuzzleItemCatalog.ResolveGolden(catalog, item.Definition.Id, item.StateId);
             }
 
-            private void Part(GameObject root, Rect rect, float radius, float bottom, float top, int rgb)
-            {
-                var material = Own(PresentationKit.Matte(_template, PresentationKit.Hex(rgb), null, 0.15f));
-                var mesh = Own(PresentationKit.Slab(rect, radius, bottom, top));
-                var part = PresentationKit.MeshObject("Part", root.transform, mesh, material);
-                part.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-            }
-
-            private T Own<T>(T asset) where T : Object
-            {
-                _owned.Add(asset);
-                return asset;
-            }
-
-            public void Dispose()
-            {
-                foreach (var visual in _visuals.Values)
-                    if (visual != null)
-                        Object.Destroy(visual);
-                foreach (var asset in _owned)
-                    if (asset != null)
-                        Object.Destroy(asset);
-            }
+            public void Dispose() { }
         }
     }
 }

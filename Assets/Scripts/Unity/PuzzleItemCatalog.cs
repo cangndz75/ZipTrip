@@ -30,6 +30,11 @@ namespace ZipTrip.Unity
             switch (definitionId)
             {
                 case "laptop": return catalog.Resolve("PF_Item_Laptop", stateId);
+                case "passport": return catalog.Resolve("PF_Item_Passport", stateId);
+                case "towel": return catalog.Resolve("PF_Item_Towel", stateId);
+                case "shampoo": return catalog.Resolve("PF_Item_Shampoo", stateId);
+                case "sunglasses": return catalog.Resolve("PF_Item_Sunglasses", stateId);
+                case "travel-pouch": return catalog.Resolve("PF_Item_TravelPouch", stateId);
                 case "sneaker": return catalog.Resolve("PF_Item_SneakerPair", stateId);
                 case "sweater": return catalog.Resolve("PF_Item_Sweater", stateId);
                 default: return null;
