@@ -25,29 +25,70 @@ namespace ZipTrip.Unity
         public const float KeyIntensity = 1.35f;
         public static readonly Vector3 KeyEuler = new Vector3(52f, 135f, 0f); // from the top-left of the screen
 
+        // BACKDROP-SLICE-01 (STYLE-FRAME-01 travel world). The authored surface covers SurfaceRect around the suitcase
+        // centre without tiling and fades to SurfaceTone, which the plain table beyond it uses. Edge props are one atlas
+        // (contact shadows and rotation baked in), anchored to the screen edges / suitcase front after camera framing
+        // so the crop adapts per aspect while the suitcase never moves. No colliders, no UI: never in the input path.
+        public static readonly Rect SurfaceRect = new Rect(-6f, -14f, 12f, 24f);
+        public static readonly Color SurfaceTone = PresentationKit.Hex(0xE9DFCD);
+        public const float PropLift = 0.006f;
+        private const float AtlasSize = 1024f;
+        private static readonly float FrontToScreen = Mathf.Sin(PuzzleCameraFraming.Pitch * Mathf.Deg2Rad);
+
+        // Texels (top-left origin) and world sizes from Tools/Art/build_backdrop_slice_01.py; anchors measured on the
+        // locked frame (1080x2340: 136.4 px per world unit): inward offset from the screen edge and the screen-space
+        // offset from the suitcase front (+ = up). Every prop hangs off the suitcase front, so the cluster keeps its
+        // spacing on any aspect and shorter screens simply crop the lower props more.
+        private static readonly (string Name, RectInt Texels, Vector2 Size, bool Right, float Inward, float Offset)[] Props =
+        {
+            ("Boarding Pass", new RectInt(366, 438, 396, 244), new Vector2(2.468f, 1.521f), false, 0.675f, -0.857f),
+            ("Postcard", new RectInt(0, 438, 362, 284), new Vector2(2.256f, 1.770f), true, 0.587f, -0.857f),
+            ("Folded Map", new RectInt(438, 0, 392, 335), new Vector2(2.443f, 2.088f), false, 0.44f, -3.058f),
+            ("Straw Hat", new RectInt(0, 0, 434, 434), new Vector2(3.756f, 3.756f), true, -0.147f, -4.651f),
+            ("Olive Sprig", new RectInt(0, 726, 406, 216), new Vector2(2.530f, 1.346f), false, 0.18f, 1.27f),
+        };
+
         private readonly List<Object> _owned = new List<Object>();
+        private readonly List<Renderer> _props = new List<Renderer>();
         private Material _template;
         private Transform _matRoot;
+        private float _surfaceY;
 
         public GameObject Surface { get; private set; }
+        /// <summary>Authored travel-world surface (null when no backdrop texture is configured).</summary>
+        public GameObject Backdrop { get; private set; }
+        /// <summary>Edge props (one shared transparent material); empty when no prop atlas is configured.</summary>
+        public IReadOnlyList<Renderer> PropRenderers => _props;
         public GameObject Vignette { get; private set; }
         public GameObject Mat { get; private set; }
         public Light KeyLight { get; private set; }
         public Volume PostVolume { get; private set; }
 
-        public void Build(Material template, Camera camera)
+        public void Build(Material template, Camera camera, Texture2D backdrop = null, Texture2D props = null)
         {
             if (Surface != null)
                 return;
             _template = PresentationKit.TemplateOrFallback(template);
             if (_template == null)
                 return;
-            var linen = Own(PresentationKit.LinenTexture(128, 1709));
-            var table = Own(PresentationKit.Matte(_template, TableLinen, linen, 0.04f));
-            table.SetTextureScale(PresentationKit.BaseMapId, new Vector2(SurfaceSize / 2.4f, SurfaceSize / 2.4f));
+            Material table;
+            if (backdrop != null)
+            {
+                table = Own(PresentationKit.Matte(_template, SurfaceTone, null, 0.04f));
+                Backdrop = PresentationKit.MeshObject("Backdrop Surface", transform, Own(PresentationKit.Quad(SurfaceRect, 0.001f)),
+                    Own(PresentationKit.Matte(_template, Color.white, backdrop, 0.04f)));
+            }
+            else
+            {
+                var linen = Own(PresentationKit.LinenTexture(128, 1709));
+                table = Own(PresentationKit.Matte(_template, TableLinen, linen, 0.04f));
+                table.SetTextureScale(PresentationKit.BaseMapId, new Vector2(SurfaceSize / 2.4f, SurfaceSize / 2.4f));
+            }
             var half = SurfaceSize * 0.5f;
             Surface = PresentationKit.MeshObject("Packing Table", transform, Own(PresentationKit.Quad(new Rect(-half, -half, SurfaceSize, SurfaceSize), 0f)), table);
             Surface.GetComponent<MeshRenderer>().receiveShadows = true;
+            if (props != null)
+                BuildProps(props);
 
             var falloff = Own(PresentationKit.TableVignette(128, new Vector2(0.32f, 0.7f), 0.55f));
             Vignette = PresentationKit.MeshObject("Table Light Falloff", transform,
@@ -65,7 +106,10 @@ namespace ZipTrip.Unity
         {
             if (Surface == null)
                 return;
+            _surfaceY = surfaceY;
             Surface.transform.localPosition = new Vector3(center.x, surfaceY, center.y);
+            if (Backdrop != null)
+                Backdrop.transform.localPosition = new Vector3(center.x, surfaceY, center.y);
             Vignette.transform.localPosition = new Vector3(center.x, surfaceY, center.y - 3f);
 
             if (_matRoot != null)
@@ -96,6 +140,50 @@ namespace ZipTrip.Unity
         {
             if (_matRoot != null)
                 _matRoot.gameObject.SetActive(visible);
+        }
+
+        /// <summary>
+        /// Places the edge props after camera framing: x from the screen edge, depth from the suitcase front. World size
+        /// never changes (no stretching); only the crop adapts to the aspect.
+        /// </summary>
+        public void LayoutProps(Camera camera, Rect body)
+        {
+            if (camera == null || _props.Count == 0)
+                return;
+            var y = _surfaceY + PropLift;
+            var left = GridProjector.ScreenToWorld(camera, new Vector2(0f, camera.pixelHeight * 0.5f), y).x;
+            var right = GridProjector.ScreenToWorld(camera, new Vector2(camera.pixelWidth, camera.pixelHeight * 0.5f), y).x;
+            for (var i = 0; i < Props.Length; i++)
+            {
+                var prop = Props[i];
+                var x = prop.Right ? right - prop.Inward : left + prop.Inward;
+                var z = body.yMin + prop.Offset / FrontToScreen;
+                _props[i].transform.localPosition = new Vector3(x, y, z);
+            }
+        }
+
+        private void BuildProps(Texture2D atlas)
+        {
+            var material = Own(PresentationKit.Transparent(_template, Color.white, atlas));
+            var root = new GameObject("Backdrop Props").transform;
+            root.SetParent(transform, false);
+            foreach (var prop in Props)
+            {
+                var t = prop.Texels;
+                var uv0 = new Vector2(t.xMin / AtlasSize, 1f - t.yMax / AtlasSize);
+                var uv1 = new Vector2(t.xMax / AtlasSize, 1f - t.yMin / AtlasSize);
+                var hx = prop.Size.x * 0.5f;
+                var hz = prop.Size.y * 0.5f;
+                var mesh = Own(new Mesh { name = prop.Name });
+                mesh.vertices = new[] { new Vector3(-hx, 0f, -hz), new Vector3(hx, 0f, -hz), new Vector3(hx, 0f, hz), new Vector3(-hx, 0f, hz) };
+                mesh.uv = new[] { uv0, new Vector2(uv1.x, uv0.y), uv1, new Vector2(uv0.x, uv1.y) };
+                mesh.normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+                mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+                mesh.RecalculateBounds();
+                var renderer = PresentationKit.MeshObject(prop.Name, root, mesh, material).GetComponent<MeshRenderer>();
+                renderer.receiveShadows = false;
+                _props.Add(renderer);
+            }
         }
 
         // One warm key from the top-left (shadows fall to the bottom-right, matching the contact shadows) and a

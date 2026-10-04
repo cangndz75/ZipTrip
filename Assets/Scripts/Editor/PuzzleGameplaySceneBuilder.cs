@@ -73,7 +73,27 @@ namespace ZipTrip.Editor
             Debug.Log("[ZT-040D.1] Wired HUD fonts into " + ScenePath);
         }
 
-        public const string UiFontPath = "Assets/Art/Fonts/BricolageGrotesque/BricolageGrotesque-SemiBold.ttf";
+        // BACKDROP-SLICE-01: points the existing scene at the travel-world textures without rebuilding it.
+        [MenuItem("ZipTrip/BACKDROP-SLICE-01/Wire Backdrop Into Puzzle Gameplay Scene")]
+        public static void WireBackdrop()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var gameplay = UnityEngine.Object.FindFirstObjectByType<PuzzleGameplayScene>()
+                ?? throw new InvalidOperationException("PuzzleGameplayScene missing in " + ScenePath);
+            gameplay.ConfigureBackdrop(LoadTexture(BackdropSurfacePath), LoadTexture(BackdropPropsPath));
+            EditorUtility.SetDirty(gameplay);
+            if (!EditorSceneManager.SaveScene(scene))
+                throw new InvalidOperationException("Could not save " + ScenePath);
+            Debug.Log("[BACKDROP-SLICE-01] Wired backdrop into " + ScenePath);
+        }
+
+        public const string BackdropSurfacePath = "Assets/Art/Backdrop/Textures/T_Backdrop_WhitewashWood.png";
+        public const string BackdropPropsPath = "Assets/Art/Backdrop/Textures/T_Backdrop_Props.png";
+
+        private static Texture2D LoadTexture(string path) =>
+            AssetDatabase.LoadAssetAtPath<Texture2D>(path) ?? throw new InvalidOperationException("Missing texture " + path);
+
+        public const string UiFontPath ="Assets/Art/Fonts/BricolageGrotesque/BricolageGrotesque-SemiBold.ttf";
         public const string DisplayFontPath = "Assets/Art/Fonts/BricolageGrotesque/BricolageGrotesque-ExtraBold.ttf";
 
         private static Font LoadFont(string path) =>

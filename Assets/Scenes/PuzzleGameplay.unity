@@ -159,6 +159,8 @@ MonoBehaviour:
   containerPrefab: {fileID: 2855724218277396828, guid: 60ba15e1a69d9be4fb7c8787fd892558, type: 3}
   uiFont: {fileID: 12800000, guid: 5bc8d08f69232c145a8a080932b001e0, type: 3}
   displayFont: {fileID: 12800000, guid: 54081bdaa4178984ea9b2b3d1a1b8001, type: 3}
+  backdropSurface: {fileID: 2800000, guid: 24410d192595436eaf70477fa5de5af5, type: 3}
+  backdropProps: {fileID: 2800000, guid: cf2b61709e8c46218989648816f0ccaa, type: 3}
 --- !u!114 &89142486
 MonoBehaviour:
   m_ObjectHideFlags: 0

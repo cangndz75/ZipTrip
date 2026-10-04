@@ -42,6 +42,8 @@ namespace ZipTrip.Unity
         [SerializeField] private GameObject containerPrefab;
         [SerializeField] private Font uiFont;
         [SerializeField] private Font displayFont;
+        [SerializeField] private Texture2D backdropSurface;
+        [SerializeField] private Texture2D backdropProps;
 
         private PointerInteractor _pointer;
         private bool _gestureOnHud;
@@ -95,6 +97,16 @@ namespace ZipTrip.Unity
         }
 
         public Font UiFont => uiFont;
+
+        /// <summary>BACKDROP-SLICE-01 travel-world textures (surface, prop atlas); null keeps the plain linen table.</summary>
+        public void ConfigureBackdrop(Texture2D surface, Texture2D props)
+        {
+            backdropSurface = surface;
+            backdropProps = props;
+        }
+
+        public Texture2D BackdropSurface => backdropSurface;
+        public Texture2D BackdropProps => backdropProps;
 
         private void Start()
         {
@@ -371,6 +383,7 @@ namespace ZipTrip.Unity
                 PuzzleHud.BottomFraction(Camera.pixelWidth, Camera.pixelHeight));
             _framedAspect = Camera.aspect;
             _framedScreen = new Vector2Int(Screen.width, Screen.height);
+            _table?.LayoutProps(Camera, Board.ContainerFootprint);
         }
 
         private void EnsureRuntimeObjects()
@@ -404,7 +417,7 @@ namespace ZipTrip.Unity
             _pointer.PointerEvent += HandlePointer;
             _table = new GameObject("Packing Table").AddComponent<PackingTable>();
             _table.transform.SetParent(transform, false);
-            _table.Build(materialTemplate, Camera);
+            _table.Build(materialTemplate, Camera, backdropSurface, backdropProps);
         }
 
         // Table under the suitcase, felt mat under the loose items' row (deliberately not under Board / Tray, so camera
