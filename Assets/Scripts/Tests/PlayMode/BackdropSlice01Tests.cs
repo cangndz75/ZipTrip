@@ -84,7 +84,7 @@ namespace ZipTrip.Tests.PlayMode
             var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
             var camera = scene.Camera;
             var art = new GoldenLv1LayoutReview.GoldenProxyArt();
-            scene.LoadLevel(GoldenLv1LayoutReview.LoadCandidate(), "Seviye 1", art.Resolve);
+            scene.LoadLevel(GoldenLv1LayoutReview.LoadShipped(), "Seviye 1", art.Resolve);
             yield return null;
             var shell = new GoldenLv1LayoutReview.LayoutGreybox(scene, 'H');
             foreach (var (w, h) in new[] { (1080, 2340), (1080, 1920) })
@@ -147,7 +147,7 @@ namespace ZipTrip.Tests.PlayMode
                 scene.Hud.RenderThrough(scene.Camera);
                 scene.Completion.AutoAdvance = false;
                 yield return Capture(scene, folder, "00-shipped-lv1-runtime-hud", 1080, 2340, log);
-                scene.LoadLevel(GoldenLv1LayoutReview.LoadCandidate(), "Seviye 1", art.Resolve);
+                scene.LoadLevel(GoldenLv1LayoutReview.LoadShipped(), "Seviye 1", art.Resolve);
                 yield return null;
                 using (var shell = new GoldenLv1LayoutReview.LayoutGreybox(scene, 'H'))
                 {

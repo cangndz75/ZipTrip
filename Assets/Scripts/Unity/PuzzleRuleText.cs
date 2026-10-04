@@ -44,7 +44,7 @@ namespace ZipTrip.Unity
         /// <summary>Authored level names shown under "Seviye N", by level id (none = title only).</summary>
         public static readonly Dictionary<string, string> LevelSubtitles = new Dictionary<string, string>
         {
-            ["golden-lv1-candidate"] = "İlk Yolculuk"
+            ["lv1-fit"] = "İlk Yolculuk"
         };
 
         public static string LevelTitle(int number) => "Seviye " + number;

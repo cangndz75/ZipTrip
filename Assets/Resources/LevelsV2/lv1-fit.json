@@ -3,15 +3,32 @@
   "id": "lv1-fit",
   "board": { "compartments": [
     { "id": "main", "width": 5, "height": 7, "layers": 1,
-      "rows": ["#####", "#####", "#####", "#####", "#####", "#####", "#####"] }
+      "rows": ["#####", "#####", "#####", "#####", "#####", "#####", "#####"],
+      "zones": [
+        { "id": "upper", "cells": [
+          { "x": 0, "y": 0 }, { "x": 1, "y": 0 }, { "x": 2, "y": 0 }, { "x": 3, "y": 0 }, { "x": 4, "y": 0 },
+          { "x": 0, "y": 1 }, { "x": 1, "y": 1 }, { "x": 2, "y": 1 }, { "x": 3, "y": 1 }, { "x": 4, "y": 1 } ] },
+        { "id": "right", "cells": [
+          { "x": 3, "y": 2 }, { "x": 4, "y": 2 }, { "x": 3, "y": 3 }, { "x": 4, "y": 3 }, { "x": 3, "y": 4 },
+          { "x": 4, "y": 4 }, { "x": 3, "y": 5 }, { "x": 4, "y": 5 }, { "x": 3, "y": 6 }, { "x": 4, "y": 6 } ] }
+      ] }
   ] },
   "stagingCapacity": 0,
   "items": [
-    { "id": "laptop-1", "definitionId": "laptop", "role": "required", "location": { "kind": "sourceTray" } },
-    { "id": "sweater-1", "definitionId": "sweater", "role": "required", "location": { "kind": "sourceTray" } },
-    { "id": "sneaker-1", "definitionId": "sneaker", "role": "required", "location": { "kind": "sourceTray" } },
-    { "id": "book-1", "definitionId": "book", "role": "required", "location": { "kind": "sourceTray" } }
+    { "id": "sweater-1", "definitionId": "sweater", "role": "required",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 0, "y": 0, "layer": 0, "rotation": 0 } },
+    { "id": "passport-1", "definitionId": "passport", "role": "required",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 3, "y": 0, "layer": 0, "rotation": 0 } },
+    { "id": "towel-1", "definitionId": "towel", "role": "required",
+      "location": { "kind": "suitcase", "compartmentId": "main", "x": 0, "y": 3, "layer": 0, "rotation": 0 } },
+    { "id": "shampoo-1", "definitionId": "shampoo", "role": "required", "location": { "kind": "sourceTray" } },
+    { "id": "sunglasses-1", "definitionId": "sunglasses", "role": "required", "location": { "kind": "sourceTray" } },
+    { "id": "travel-pouch-1", "definitionId": "travel-pouch", "role": "required", "location": { "kind": "sourceTray" } }
   ],
-  "rules": [],
-  "objective": { "profile": "pack", "requiredInstanceIds": ["laptop-1", "sweater-1", "sneaker-1", "book-1"] }
+  "rules": [
+    { "id": "passport-upper", "kind": "zone", "subject": { "kind": "instance", "value": "passport-1" }, "zoneId": "upper" },
+    { "id": "shampoo-right", "kind": "zone", "subject": { "kind": "instance", "value": "shampoo-1" }, "zoneId": "right" }
+  ],
+  "objective": { "profile": "pack",
+    "requiredInstanceIds": ["sweater-1", "passport-1", "towel-1", "shampoo-1", "sunglasses-1", "travel-pouch-1"] }
 }

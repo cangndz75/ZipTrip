@@ -1,8 +1,8 @@
 # GOLDEN-LV1-CONTENT-LOCK
 
-Status: proposal for human review. It records the Golden Level 1 content target. It does not replace Blueprint v1.1 / v1.2 Delta, and the shipped `lv1-fit` is unchanged.
+Status: shipped (GOLDEN-LV1-SHIP). It records the Golden Level 1 content under the canonical `lv1-fit` shipping id. It does not replace Blueprint v1.1 / v1.2 Delta.
 
-Proof fixture (non-shipping): `Assets/Scripts/Tests/EditMode/Fixtures/LevelsV2/golden-lv1-candidate.json`, tested by `GoldenLv1CandidateTests`.
+Shipped level: `Assets/Resources/LevelsV2/lv1-fit.json` (Level 1 in `PuzzleGameplay`), loaded through the runtime `PuzzleItemCatalog` and tested by `GoldenLv1ShippedTests` (EditMode) and `GoldenLv1ShipTests` (PlayMode).
 
 ## Roster
 
@@ -57,4 +57,4 @@ Objective: `pack`, all six instances required. Staging capacity is 0. No Fold, C
 
 Passport, towel (rolled, 1×4), shampoo bottle (1×3), sunglasses (folded, 2×1), travel pouch (2×3). Sweater open is the approved asset and is reused.
 
-Integration (catalog entries, golden visual mapping, replacing `lv1-fit`) is a later production ticket.
+Integration (catalog entries, golden visual mapping, updating the content of `lv1-fit`) is done by GOLDEN-LV1-SHIP.

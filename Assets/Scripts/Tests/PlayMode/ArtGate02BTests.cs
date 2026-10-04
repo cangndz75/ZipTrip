@@ -63,7 +63,7 @@ namespace ZipTrip.Tests.PlayMode
                 ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
             yield return null;
             var scene = UnityEngine.Object.FindFirstObjectByType<PuzzleGameplayScene>();
-            scene.LoadLevel(GoldenLv1LayoutReview.LoadCandidate(), PuzzleRuleText.LevelTitle(1));
+            scene.LoadLevel(GoldenLv1LayoutReview.LoadShipped(), PuzzleRuleText.LevelTitle(1));
             var hash = scene.Session.CurrentState.Hash;
             foreach (var id in new[] { "shampoo-1", "sunglasses-1", "travel-pouch-1" })
             {
@@ -95,7 +95,7 @@ namespace ZipTrip.Tests.PlayMode
                     ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
                 yield return null;
                 var scene = UnityEngine.Object.FindFirstObjectByType<PuzzleGameplayScene>();
-                scene.LoadLevel(GoldenLv1LayoutReview.LoadCandidate(), PuzzleRuleText.LevelTitle(1));
+                scene.LoadLevel(GoldenLv1LayoutReview.LoadShipped(), PuzzleRuleText.LevelTitle(1));
                 scene.Completion.AutoAdvance = false;
                 target = new RenderTexture(1080, 2340, 24);
                 scene.Camera.targetTexture = target;

@@ -21,27 +21,13 @@ namespace ZipTrip.Tests.PlayMode
     // tray variants, bottom dock with a contextual action slot) drawn over the real camera framing.
     public sealed class GoldenLv1LayoutReview
     {
-        private static readonly Rotation[] Upright = { Rotation.Degrees0, Rotation.Degrees90 };
         private static readonly Color Ink = PresentationKit.Hex(0x2F3A3C);
         private static readonly Color Muted = PresentationKit.Hex(0x7A7468);
         private static readonly Color Cream = PresentationKit.Hex(0xF7F1E6);
 
-        public static PuzzleLevel LoadCandidate()
-        {
-            var catalog = PuzzleItemCatalog.Create().Where(s => s.Id == "sweater").Concat(new[]
-            {
-                Single("passport", 1, 2), Single("towel", 1, 4), Single("shampoo", 1, 3),
-                Single("sunglasses", 2, 1), Single("travel-pouch", 2, 3)
-            });
-            return LevelJsonLoaderV2.Load(File.ReadAllText(Path.Combine(UnityEngine.Application.dataPath,
-                "Scripts/Tests/EditMode/Fixtures/LevelsV2/golden-lv1-candidate.json")), catalog);
-        }
-
-        private static ItemSpec Single(string id, int width, int height) => new ItemSpec(id, "open", new[]
-        {
-            new ItemStateSpec("open", new ItemShape(from y in Enumerable.Range(0, height) from x in Enumerable.Range(0, width)
-                select new Cell(x, y)), 1, Upright)
-        });
+        // GOLDEN-LV1-SHIP: the shipped Level 1 through the runtime catalog (no longer a test-only candidate).
+        public static PuzzleLevel LoadShipped() => LevelJsonLoaderV2.Load(File.ReadAllText(Path.Combine(
+            UnityEngine.Application.dataPath, "Resources/LevelsV2/lv1-fit.json")), PuzzleItemCatalog.Create());
 
         internal static Vector3 TrayGrab(PuzzleItemView view)
         {
@@ -77,7 +63,7 @@ namespace ZipTrip.Tests.PlayMode
                 scene.Hud.RenderThrough(scene.Camera);
                 scene.Completion.AutoAdvance = false;
                 yield return CaptureRaw(scene, folder, "00-current-shipped-lv1", 1080, 2340);
-                var level = LoadCandidate();
+                var level = LoadShipped();
                 scene.LoadLevel(level, "Seviye 1", art.Resolve);
                 yield return null;
 

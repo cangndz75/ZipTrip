@@ -57,20 +57,26 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Drag.Drop().Move.IsAccepted, Is.True, id + " placed");
         }
 
+        // GOLDEN-LV1-SHIP: the shipped Lv1 shows its two live Zone rules (passport satisfied, shampoo open in the tray);
+        // Lv2 authors none and shows no rule UI.
         [UnityTest]
-        public IEnumerator Lv1AndLv2_AuthorNoRules_ShowNoRuleUi()
+        public IEnumerator ShippedLv1_ShowsItsTwoZoneRules_Lv2_ShowsNoRuleUi()
         {
             yield return Fixture("lv1");
             var scene = Scene();
-            for (var level = 0; level < 2; level++)
-            {
-                Assert.That(scene.Level.Rules.Rules, Is.Empty);
-                Assert.That(scene.Rules.ObjectiveVisible, Is.False, scene.LevelId);
-                Assert.That(scene.Rules.RuleIds, Is.Empty);
-                Assert.That(scene.Rules.VisibleCues, Is.Empty);
-                scene.NextLevel();
-                yield return null;
-            }
+            Assert.That(scene.Rules.ObjectiveVisible, Is.True);
+            Assert.That(scene.Rules.RuleIds, Is.EqualTo(new[] { "passport-upper", "shampoo-right" }));
+            Assert.That(scene.Rules.LabelOf("passport-upper"), Is.EqualTo("Pasaport üst bölgede olmalı"));
+            Assert.That(scene.Rules.LabelOf("shampoo-right"), Is.EqualTo("Şampuan sağ bölgede olmalı"));
+            Assert.That(scene.Rules.StatusOf("passport-upper"), Is.EqualTo(RuleTagStatus.Satisfied));
+            AssertMatchesDomain(scene);
+
+            scene.NextLevel();
+            yield return null;
+            Assert.That(scene.Level.Rules.Rules, Is.Empty);
+            Assert.That(scene.Rules.ObjectiveVisible, Is.False, scene.LevelId);
+            Assert.That(scene.Rules.RuleIds, Is.Empty);
+            Assert.That(scene.Rules.VisibleCues, Is.Empty);
         }
 
         [UnityTest]

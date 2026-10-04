@@ -9,7 +9,7 @@ using ZipTrip.Unity;
 
 namespace ZipTrip.Tests.EditMode
 {
-    // ZT-040 authoring gates for the shipped Lv1 / Lv2 content (Resources/LevelsV2).
+    // ZT-040 authoring gates for the shipped Lv2 content (Resources/LevelsV2).
     public sealed class FirstPlayableLevelsTests
     {
         private static string Json(string id) =>
@@ -46,37 +46,20 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(session.MoveCount, Is.EqualTo(solution.Moves.Count));
         }
 
+        // Lv1 is the Golden Lv1 (prepacked items, Zone rules): GoldenLv1ShippedTests.
         [Test]
-        public void BothLevels_AreEmptySuitcasePackLevelsWithoutLaterMechanics()
+        public void Lv2_IsAnEmptySuitcasePackLevelWithoutLaterMechanics()
         {
-            foreach (var id in new[] { "lv1-fit", "lv2-rotate" })
-            {
-                var level = Load(id);
-                Assert.That(level.Objective.Profile, Is.EqualTo(ObjectiveProfile.Pack), id);
-                Assert.That(level.InitialState.GetItems(ItemLocationKind.Suitcase), Is.Empty, id + " starts empty");
-                Assert.That(level.InitialState.Items.All(i => i.Location.Kind == ItemLocationKind.SourceTray), Is.True, id);
-                Assert.That(level.Spec.Board.Compartments.Single().Layers, Is.EqualTo(1), id + " is L = 1");
-                Assert.That(level.Spec.StagingCapacity, Is.Zero, id);
-                Assert.That(level.Rules.Rules, Is.Empty, id);
-                Assert.That(level.InitialState.Items.All(i => i.Definition.Transitions.Count == 0 && i.Definition.Nest.Capacity == 0), Is.True,
-                    id + " has no Fold / Compress / Nest");
-            }
-        }
-
-        [Test]
-        public void Lv1_Fit_IsSolvableWithChoice_AndNeedsNoRotation()
-        {
-            var level = Load("lv1-fit");
-            Assert.That(level.Objective.RequiredInstanceIds.Count, Is.EqualTo(4));
-            var result = SolveAndReport(level);
-            Assert.That(result.Status, Is.EqualTo(PackSolveStatus.Solvable));
-            Assert.That(result.SolutionCount, Is.GreaterThan(4), "several valid arrangements, not one painted slot each");
-            AssertReplayCompletes(level, result.Solution);
-
-            var upright = Load("lv1-fit", "laptop", "sweater", "sneaker", "book");
-            var withoutRotation = SolveAndReport(upright);
-            Assert.That(withoutRotation.Status, Is.EqualTo(PackSolveStatus.Solvable), "Lv1 never requires rotation");
-            Assert.That(withoutRotation.SolutionCount, Is.GreaterThan(4));
+            const string id = "lv2-rotate";
+            var level = Load(id);
+            Assert.That(level.Objective.Profile, Is.EqualTo(ObjectiveProfile.Pack), id);
+            Assert.That(level.InitialState.GetItems(ItemLocationKind.Suitcase), Is.Empty, id + " starts empty");
+            Assert.That(level.InitialState.Items.All(i => i.Location.Kind == ItemLocationKind.SourceTray), Is.True, id);
+            Assert.That(level.Spec.Board.Compartments.Single().Layers, Is.EqualTo(1), id + " is L = 1");
+            Assert.That(level.Spec.StagingCapacity, Is.Zero, id);
+            Assert.That(level.Rules.Rules, Is.Empty, id);
+            Assert.That(level.InitialState.Items.All(i => i.Definition.Transitions.Count == 0 && i.Definition.Nest.Capacity == 0), Is.True,
+                id + " has no Fold / Compress / Nest");
         }
 
         [Test]

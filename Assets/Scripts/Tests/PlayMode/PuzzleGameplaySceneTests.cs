@@ -23,6 +23,10 @@ namespace ZipTrip.Tests.PlayMode
                 Object.Destroy(_root);
         }
 
+        // GOLDEN-LV1-SHIP: the shipped Lv1 starts with three prepacked items and three in the Source Tray.
+        private static readonly string[] Lv1Prepacked = { "passport-1", "sweater-1", "towel-1" };
+        private static readonly string[] Lv1Tray = { "shampoo-1", "sunglasses-1", "travel-pouch-1" };
+
         private PuzzleGameplayScene Scene(int level = 0)
         {
             _root = new GameObject("Puzzle Gameplay");
@@ -77,9 +81,10 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Level.Id, Is.EqualTo("lv1-fit"));
             Assert.That(scene.Session.CurrentState, Is.SameAs(scene.Level.InitialState));
             Assert.That(scene.Session.MoveCount, Is.Zero);
-            Assert.That(scene.Tray.ItemViews.Keys, Is.EquivalentTo(new[] { "book-1", "laptop-1", "sneaker-1", "sweater-1" }));
-            Assert.That(scene.Board.ItemViews, Is.Empty);
+            Assert.That(scene.Tray.ItemViews.Keys, Is.EquivalentTo(Lv1Tray));
+            Assert.That(scene.Board.ItemViews.Keys, Is.EquivalentTo(Lv1Prepacked));
             Assert.That(scene.Hud.LevelLabel, Is.EqualTo("Seviye 1"));
+            Assert.That(scene.Hud.LevelSubtitle, Is.EqualTo("İlk Yolculuk"));
             Assert.That(scene.Hud.CompletionVisible, Is.False);
         }
 
@@ -130,20 +135,20 @@ namespace ZipTrip.Tests.PlayMode
             scene.Perform(PuzzleHudAction.Next);
             yield return null;
             Assert.That(scene.Level.Id, Is.EqualTo("lv1-fit"), "wraps to Lv1");
-            Assert.That(scene.Board.ItemViews, Is.Empty, "no leaked board views");
-            Assert.That(scene.Tray.ItemViews.Count, Is.EqualTo(4));
+            Assert.That(scene.Board.ItemViews.Keys, Is.EquivalentTo(Lv1Prepacked), "no leaked board views");
+            Assert.That(scene.Tray.ItemViews.Count, Is.EqualTo(3));
             Assert.That(scene.Hud.CompletionVisible, Is.False);
             Assert.That(scene.Drag.InteractionEnabled, Is.True);
 
-            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 0));
+            Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(1, 3));
             Assert.That(scene.Session.MoveCount, Is.EqualTo(1));
             scene.Perform(PuzzleHudAction.Restart);
             yield return null;
             Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(scene.Level.InitialState.Hash));
             Assert.That(scene.Session.MoveCount, Is.Zero);
             Assert.That(scene.Session.UndoDepth, Is.Zero);
-            Assert.That(scene.Tray.ItemViews.Count, Is.EqualTo(4));
-            Assert.That(scene.Board.ItemViews, Is.Empty);
+            Assert.That(scene.Tray.ItemViews.Count, Is.EqualTo(3));
+            Assert.That(scene.Board.ItemViews.Keys, Is.EquivalentTo(Lv1Prepacked));
         }
 
         [UnityTest]
@@ -151,16 +156,17 @@ namespace ZipTrip.Tests.PlayMode
         {
             var scene = Scene(0);
             yield return null;
-            // Laptop in the middle columns blocks both side lanes; relocating it is one normal move.
-            Assert.That(Place(scene, "laptop-1", Rotation.Degrees0, new Cell(1, 0)).Step.Move.IsAccepted, Is.True);
-            var laptop = scene.Board.ItemViews["laptop-1"];
-            Assert.That(scene.Drag.BeginDrag("laptop-1", laptop.transform.position + new Vector3(0.5f, 0f, -0.5f)), Is.EqualTo(DragBeginResult.Started));
-            scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(0.5f, 0f, -0.5f));
+            // Greedy trap: the pouch in the right strip leaves no right-zone room for the shampoo; relocating it is one
+            // normal move.
+            Assert.That(Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(3, 2)).Step.Move.IsAccepted, Is.True);
+            var pouch = scene.Board.ItemViews["travel-pouch-1"];
+            Assert.That(scene.Drag.BeginDrag("travel-pouch-1", pouch.transform.position + new Vector3(0.5f, 0f, -0.5f)), Is.EqualTo(DragBeginResult.Started));
+            scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(1.5f, 0f, -3.5f));
             Assert.That(scene.Drag.Drop().Move.IsAccepted, Is.True);
-            Assert.That(Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4)).Step.Move.IsAccepted, Is.True);
-            Assert.That(Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4)).Step.Move.IsAccepted, Is.True);
+            Assert.That(scene.Board.ItemViews["travel-pouch-1"].Placement.Anchor, Is.EqualTo(new Cell(1, 3)));
+            Assert.That(Place(scene, "shampoo-1", Rotation.Degrees0, new Cell(3, 2)).Step.Move.IsAccepted, Is.True);
             Assert.That(scene.Hud.CompletionVisible, Is.False);
-            var last = Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0));
+            var last = Place(scene, "sunglasses-1", Rotation.Degrees0, new Cell(3, 6));
             Assert.That(last.Step.CompletionReached, Is.True);
             scene.Completion.Advance(2f);
             Assert.That(scene.Hud.CompletionVisible, Is.EqualTo(scene.Session.CurrentCompletion.IsComplete));
@@ -177,12 +183,11 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(Quaternion.Angle(rig.Lid.localRotation, rig.LidOpenLocalRotation), Is.LessThan(0.01f));
             var basePosition = rig.Base.position;
             var baseRotation = rig.Base.rotation;
-            Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
-            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
-            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
-            var view = scene.Tray.ItemViews["sneaker-1"];
-            scene.Drag.BeginDrag("sneaker-1", TrayGrab(view));
-            scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(3.5f, 0f, -0.5f));
+            Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(1, 3));
+            Place(scene, "sunglasses-1", Rotation.Degrees0, new Cell(3, 6));
+            var view = scene.Tray.ItemViews["shampoo-1"];
+            scene.Drag.BeginDrag("shampoo-1", TrayGrab(view));
+            scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(3.5f, 0f, -2.5f));
             Assert.That(scene.Drag.PreviewValid, Is.True);
             Assert.That(scene.Drag.Preview.State.Hash, Is.Not.EqualTo(scene.Session.CurrentState.Hash));
             Assert.That(scene.Completion.PlayCount, Is.Zero, "a complete preview is not a commit");
@@ -223,10 +228,9 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Hud.CompletionVisible, Is.False);
             Assert.That(scene.Drag.InteractionEnabled, Is.True);
             Assert.That(Quaternion.Angle(rig.Lid.localRotation, rig.LidOpenLocalRotation), Is.LessThan(0.01f));
-            Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
-            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
-            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
-            Assert.That(Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0)).Step.CompletionReached, Is.True);
+            Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(1, 3));
+            Place(scene, "sunglasses-1", Rotation.Degrees0, new Cell(3, 6));
+            Assert.That(Place(scene, "shampoo-1", Rotation.Degrees0, new Cell(3, 2)).Step.CompletionReached, Is.True);
             scene.Completion.Advance(2f);
             scene.Perform(PuzzleHudAction.Next);
             Assert.That(scene.Level.Id, Is.EqualTo("lv2-rotate"));
@@ -242,11 +246,10 @@ namespace ZipTrip.Tests.PlayMode
         {
             var scene = Scene();
             yield return null;
-            Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
-            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
-            Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
+            Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(1, 3));
+            Place(scene, "sunglasses-1", Rotation.Degrees0, new Cell(3, 6));
             Assert.That(scene.Completion.PlayCount, Is.Zero);
-            Assert.That(Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0)).Step.CompletionReached, Is.True);
+            Assert.That(Place(scene, "shampoo-1", Rotation.Degrees0, new Cell(3, 2)).Step.CompletionReached, Is.True);
             scene.Completion.Advance(2f);
             Assert.That(scene.Hud.CompletionVisible, Is.True);
             scene.Perform(PuzzleHudAction.Next);
@@ -295,15 +298,15 @@ namespace ZipTrip.Tests.PlayMode
             var scene = Scene(0);
             yield return null;
             var camera = scene.Camera;
-            var view = scene.Tray.ItemViews["book-1"];
+            var view = scene.Tray.ItemViews["travel-pouch-1"];
             var grab = camera.WorldToScreenPoint(TrayGrab(view));
-            var target = camera.WorldToScreenPoint(scene.Board.Compartments["main"].transform.position + new Vector3(3.5f, 0f, -0.5f));
+            var target = camera.WorldToScreenPoint(scene.Board.Compartments["main"].transform.position + new Vector3(3.5f, 0f, -2.5f));
             scene.HandlePointer(new PointerSignal(PointerPhase.Down, grab));
-            Assert.That(scene.Drag.DraggedInstanceId, Is.EqualTo("book-1"));
+            Assert.That(scene.Drag.DraggedInstanceId, Is.EqualTo("travel-pouch-1"));
             scene.HandlePointer(new PointerSignal(PointerPhase.Move, target));
-            Assert.That(scene.Drag.CandidateAnchor, Is.EqualTo(new Cell(3, 0)));
+            Assert.That(scene.Drag.CandidateAnchor, Is.EqualTo(new Cell(3, 2)));
             scene.HandlePointer(new PointerSignal(PointerPhase.Up, target));
-            Assert.That(scene.Session.CurrentState.TryGetItem("book-1", out var book) && book.Location.Kind == ItemLocationKind.Suitcase, Is.True);
+            Assert.That(scene.Session.CurrentState.TryGetItem("travel-pouch-1", out var pouch) && pouch.Location.Kind == ItemLocationKind.Suitcase, Is.True);
 
             var undo = scene.Hud.ButtonCenter(PuzzleHudAction.Undo);
             scene.HandlePointer(new PointerSignal(PointerPhase.Down, undo));
@@ -324,25 +327,25 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Drag.FootprintPreview == null || !scene.Drag.FootprintPreview.gameObject.activeSelf, Is.True);
 
             var origin = main.transform.position;
-            scene.Drag.BeginDrag("book-1", TrayGrab(scene.Tray.ItemViews["book-1"]));
-            scene.Drag.UpdateDrag(origin + new Vector3(0.5f, 0f, -0.5f));
-            Assert.That(scene.Drag.CandidateAnchor, Is.EqualTo(new Cell(0, 0)));
+            scene.Drag.BeginDrag("travel-pouch-1", TrayGrab(scene.Tray.ItemViews["travel-pouch-1"]));
+            scene.Drag.UpdateDrag(origin + new Vector3(1.5f, 0f, -3.5f));
+            Assert.That(scene.Drag.CandidateAnchor, Is.EqualTo(new Cell(1, 3)));
             Assert.That(main.VisibleGuideCount, Is.Zero, "no cell guides during drag");
-            Assert.That(scene.Drag.GhostCellCount, Is.EqualTo(6), "book 2x3 footprint");
+            Assert.That(scene.Drag.GhostCellCount, Is.EqualTo(6), "pouch 2x3 footprint");
             var glow = scene.Drag.FootprintPreview;
             Assert.That(glow.gameObject.activeSelf, Is.True);
             Assert.That(glow.transform.parent.GetComponentsInChildren<Renderer>().Count(r => r.gameObject.activeSelf), Is.EqualTo(1),
                 "one merged shape, not a quad per cell");
-            AssertCovers(glow.bounds, origin, new Rect(0f, -3f, 2f, 3f));
+            AssertCovers(glow.bounds, origin, new Rect(1f, -6f, 2f, 3f));
             scene.Drag.Drop();
             Assert.That(glow.gameObject.activeSelf, Is.False, "preview disappears after drop");
             Assert.That(main.VisibleGuideCount, Is.Zero);
-            Assert.That(scene.Board.ItemViews["book-1"].IsGhosted, Is.False);
-            Assert.That(scene.Board.ItemViews["book-1"].ShadowVisible, Is.True, "packed item rests with its contact shadow");
+            Assert.That(scene.Board.ItemViews["travel-pouch-1"].IsGhosted, Is.False);
+            Assert.That(scene.Board.ItemViews["travel-pouch-1"].ShadowVisible, Is.True, "packed item rests with its contact shadow");
 
-            scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
-            scene.Drag.UpdateDrag(origin + new Vector3(0.5f, 0f, -0.5f));
-            Assert.That(scene.Drag.PreviewValid, Is.False, "overlaps the book");
+            scene.Drag.BeginDrag("shampoo-1", TrayGrab(scene.Tray.ItemViews["shampoo-1"]));
+            scene.Drag.UpdateDrag(origin + new Vector3(1.5f, 0f, -3.5f));
+            Assert.That(scene.Drag.PreviewValid, Is.False, "overlaps the pouch");
             Assert.That(scene.Drag.OffendingPreview.gameObject.activeSelf, Is.True, "offending region emphasised");
             scene.Drag.Cancel();
             Assert.That(glow.gameObject.activeSelf || scene.Drag.OffendingPreview.gameObject.activeSelf, Is.False,
@@ -356,8 +359,8 @@ namespace ZipTrip.Tests.PlayMode
         {
             var scene = Scene(0);
             yield return null;
-            Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
-            var view = scene.Board.ItemViews["book-1"];
+            Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(3, 2));
+            var view = scene.Board.ItemViews["travel-pouch-1"];
             var canonical = PuzzleBoardLayout.ItemLocalPosition(view.Placement);
             var hash = scene.Session.CurrentState.Hash;
             Assert.That(view.Feedback.IsAnimating, Is.True, "valid drop settles");
@@ -372,16 +375,16 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(view.Feedback.Root.localScale, Is.EqualTo(Vector3.one));
             Assert.That(view.Feedback.Root.localRotation, Is.EqualTo(Quaternion.identity));
 
-            // Rejected drop (laptop onto the book): the returned tray view wobbles home; state and move count unchanged.
+            // Rejected drop (shampoo onto the pouch): the returned tray view wobbles home; state and move count unchanged.
             var moves = scene.Session.MoveCount;
-            var tray = scene.Tray.ItemViews["laptop-1"];
-            scene.Drag.BeginDrag("laptop-1", TrayGrab(tray));
-            Assert.That(scene.Drag.DraggedInstanceId, Is.EqualTo("laptop-1"));
+            var tray = scene.Tray.ItemViews["shampoo-1"];
+            scene.Drag.BeginDrag("shampoo-1", TrayGrab(tray));
+            Assert.That(scene.Drag.DraggedInstanceId, Is.EqualTo("shampoo-1"));
             scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(3.5f, 0f, -4.5f));
             Assert.That(scene.Drag.PreviewValid, Is.False);
             scene.Drag.Drop();
             Assert.That(scene.Session.MoveCount, Is.EqualTo(moves), "a rejected drop is not a move");
-            var returned = scene.Tray.ItemViews["laptop-1"];
+            var returned = scene.Tray.ItemViews["shampoo-1"];
             Assert.That(returned.Feedback.IsAnimating, Is.True, "rejection feedback plays at home");
             returned.Feedback.CompleteAll();
             Assert.That(returned.Feedback.Root.localScale, Is.EqualTo(Vector3.one));
@@ -507,9 +510,9 @@ namespace ZipTrip.Tests.PlayMode
             var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
             var camera = scene.Camera;
             var origin = scene.Board.Compartments["main"].transform.position;
-            var view = scene.Tray.ItemViews["book-1"];
+            var view = scene.Tray.ItemViews["travel-pouch-1"];
             scene.HandlePointer(new PointerSignal(PointerPhase.Down, camera.WorldToScreenPoint(TrayGrab(view))));
-            Assert.That(scene.Drag.DraggedInstanceId, Is.EqualTo("book-1"), "picked on the lowered surface");
+            Assert.That(scene.Drag.DraggedInstanceId, Is.EqualTo("travel-pouch-1"), "picked on the lowered surface");
             var target = camera.WorldToScreenPoint(origin + new Vector3(3.5f, 0f, -2.5f));
             scene.HandlePointer(new PointerSignal(PointerPhase.Move, target));
             Assert.That(scene.Drag.CandidateAnchor, Is.EqualTo(new Cell(3, 2)));
@@ -517,7 +520,7 @@ namespace ZipTrip.Tests.PlayMode
             var glow = scene.Drag.FootprintPreview.bounds;
             AssertCovers(glow, origin, new Rect(3f, -5f, 2f, 3f));
             scene.HandlePointer(new PointerSignal(PointerPhase.Up, target));
-            var placed = scene.Board.ItemViews["book-1"];
+            var placed = scene.Board.ItemViews["travel-pouch-1"];
             Assert.That(placed.Placement.Anchor, Is.EqualTo(new Cell(3, 2)));
             Assert.That(placed.transform.position.x - origin.x, Is.EqualTo(glow.center.x - origin.x - 1f).Within(0.01f),
                 "committed item where the glow was");
@@ -583,10 +586,10 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Level.Id, Is.EqualTo("lv1-fit"));
             foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
                 Assert.That(root.GetComponentsInChildren<Component>(true), Has.None.Null, root.name + " has no missing scripts");
-            scene.Drag.BeginDrag("laptop-1", TrayGrab(scene.Tray.ItemViews["laptop-1"]));
-            scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(0.5f, 0f, -0.5f));
+            scene.Drag.BeginDrag("shampoo-1", TrayGrab(scene.Tray.ItemViews["shampoo-1"]));
+            scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(3.5f, 0f, -2.5f));
             scene.Drag.Drop();
-            Assert.That(scene.Board.ItemViews["laptop-1"].UsesPrefab, Is.True, "golden laptop");
+            Assert.That(scene.Board.ItemViews["shampoo-1"].UsesPrefab, Is.True, "golden shampoo");
         }
 
         // Visual smoke check: renders both levels at 1080x1920 and a 20:9 device aspect.

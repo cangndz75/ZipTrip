@@ -41,7 +41,7 @@ namespace ZipTrip.Tests.PlayMode
             yield return null;
             var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
             _art = new GoldenLv1LayoutReview.GoldenProxyArt();
-            scene.LoadLevel(GoldenLv1LayoutReview.LoadCandidate(), PuzzleRuleText.LevelTitle(1), _art.Resolve);
+            scene.LoadLevel(GoldenLv1LayoutReview.LoadShipped(), PuzzleRuleText.LevelTitle(1), _art.Resolve);
             scene.Completion.AutoAdvance = false;
             _target = new RenderTexture(width, height, 24);
             scene.Camera.targetTexture = _target;

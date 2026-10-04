@@ -17,7 +17,8 @@ namespace ZipTrip.Tests.PlayMode
     // FIX-SLICE-00: safe-area HUD, real-art drag presentation and Zip It lid occlusion. Presentation only.
     public sealed class FixSlice00Tests
     {
-        private static readonly string[] Lv1Items = { "laptop-1", "sweater-1", "sneaker-1", "book-1" };
+        // GOLDEN-LV1-SHIP: the shipped Lv1 Source Tray items (sweater, passport and towel start prepacked).
+        private static readonly string[] Lv1Items = { "shampoo-1", "sunglasses-1", "travel-pouch-1" };
         // Representative synthetic profiles (normalized, portrait). Not device-exact; Device Simulator is editor-UI only.
         public static readonly Rect AndroidPunchHole = Rect.MinMaxRect(0f, 0f, 1f, 1f - 110f / 2340f);
         public static readonly Rect IPhoneDynamicIsland = Rect.MinMaxRect(0f, 102f / 2556f, 1f, 1f - 177f / 2556f);
@@ -68,11 +69,10 @@ namespace ZipTrip.Tests.PlayMode
 
         private static void PackLv1(PuzzleGameplayScene scene, bool includeLast = true)
         {
-            Place(scene, "laptop-1", 0, 0);
-            Place(scene, "book-1", 3, 4);
-            Place(scene, "sweater-1", 0, 4);
+            Place(scene, "travel-pouch-1", 1, 3);
+            Place(scene, "sunglasses-1", 3, 6);
             if (includeLast)
-                Place(scene, "sneaker-1", 3, 0);
+                Place(scene, "shampoo-1", 3, 2);
         }
 
         // ---------------------------------------------------------------- safe area
@@ -175,7 +175,7 @@ namespace ZipTrip.Tests.PlayMode
                 var view = scene.Tray.ItemViews[id];
                 var before = Snapshot(view);
                 Assert.That(scene.Drag.BeginDrag(id, TrayGrab(view)), Is.EqualTo(DragBeginResult.Started));
-                scene.Drag.UpdateDrag(At(scene, 0f, 0f));
+                scene.Drag.UpdateDrag(At(scene, 3f, 2f));
                 Assert.That(scene.Drag.PreviewValid, Is.True, id + " valid hover");
                 AssertRealArt(view, before, id);
                 Assert.That(view.RejectTinted, Is.False, id + " valid hover is untinted");
@@ -192,21 +192,21 @@ namespace ZipTrip.Tests.PlayMode
                     Assert.That(renderer.HasPropertyBlock(), Is.False, id + " no tint left behind");
             }
 
-            Place(scene, "book-1", 3, 4);
+            Place(scene, "travel-pouch-1", 1, 3);
             hash = scene.Session.CurrentState.Hash;
             moves = scene.Session.MoveCount;
             undo = scene.Session.UndoDepth;
-            // In-bounds anchors that overlap the book (x 3-4, y 4-6).
-            foreach (var (id, x, y) in new[] { ("laptop-1", 2f, 3f), ("sweater-1", 2f, 4f), ("sneaker-1", 3f, 4f) })
+            // In-bounds anchors that overlap the pouch (x 1-2, y 3-5).
+            foreach (var (id, x, y) in new[] { ("shampoo-1", 1f, 3f), ("sunglasses-1", 1f, 5f) })
             {
                 var view = scene.Tray.ItemViews[id];
                 var before = Snapshot(view);
                 scene.Drag.BeginDrag(id, TrayGrab(view));
                 scene.Drag.UpdateDrag(At(scene, x, y));
-                Assert.That(scene.Drag.HasCandidate && !scene.Drag.PreviewValid, Is.True, id + " overlaps the book");
+                Assert.That(scene.Drag.HasCandidate && !scene.Drag.PreviewValid, Is.True, id + " overlaps the pouch");
                 AssertRealArt(view, before, id);
                 Assert.That(view.RejectTinted, Is.True, id + " invalid hover is tinted");
-                scene.Drag.UpdateDrag(At(scene, 0f, 0f));
+                scene.Drag.UpdateDrag(At(scene, 3f, 2f));
                 Assert.That(view.RejectTinted, Is.False, id + " tint clears when it fits again");
                 scene.Drag.UpdateDrag(At(scene, x, y));
                 var step = scene.Drag.Drop();
@@ -224,7 +224,6 @@ namespace ZipTrip.Tests.PlayMode
         {
             yield return LoadGameplayScene();
             var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
-            Place(scene, "sweater-1", 0, 0);
             var view = scene.Board.ItemViews["sweater-1"];
             var before = Snapshot(view);
             Assert.That(scene.Drag.BeginDrag("sweater-1", At(scene, 0f, 0f)), Is.EqualTo(DragBeginResult.Started));
