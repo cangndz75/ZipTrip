@@ -11,10 +11,10 @@ namespace ZipTrip.Unity
         public const float PressScale = 0.97f;
         public const float LiftScale = 1.06f;
         public const float HeldScale = 1.04f;
-        public const float LiftDuration = 0.14f;
-        public const float SettleDuration = 0.26f;
-        public const float RejectDuration = 0.28f;
-        public const float ModifierDuration = 0.22f;
+        public const float LiftDuration = MotionTokens.ItemLiftDuration;
+        public const float SettleDuration = MotionTokens.ItemSettleDuration;
+        public const float RejectDuration = MotionTokens.ItemRejectDuration;
+        public const float ModifierDuration = MotionTokens.ItemModifierDuration;
 
         private enum Channel { None, Lift, Settle, Reject, Fold, Compress }
 
@@ -77,23 +77,23 @@ namespace ZipTrip.Unity
                 case Channel.Lift:
                 {
                     // 0..40 ms press squash, then out-back to LiftScale, easing down to HeldScale.
-                    var press = Mathf.Clamp01(_time / 0.04f);
-                    var grow = Mathf.Clamp01((_time - 0.04f) / LiftDuration);
-                    var hold = Mathf.Clamp01((_time - 0.04f - LiftDuration) / 0.08f);
-                    var s = _time < 0.04f
+                    var press = Mathf.Clamp01(_time / MotionTokens.ItemPressDuration);
+                    var grow = Mathf.Clamp01((_time - MotionTokens.ItemPressDuration) / LiftDuration);
+                    var hold = Mathf.Clamp01((_time - MotionTokens.ItemPressDuration - LiftDuration) / MotionTokens.ItemLiftHoldDuration);
+                    var s = _time < MotionTokens.ItemPressDuration
                         ? Mathf.Lerp(1f, PressScale, press)
-                        : Mathf.LerpUnclamped(PressScale, LiftScale, OutBack(grow, 1.3f));
-                    s = Mathf.Lerp(s, HeldScale, EaseOutCubic(hold));
+                        : Mathf.LerpUnclamped(PressScale, LiftScale, MotionTokens.OutBack(grow, MotionTokens.ItemLiftOutBackOvershoot));
+                    s = Mathf.Lerp(s, HeldScale, MotionTokens.EaseOutCubic(hold));
                     Apply(Vector3.zero, Vector3.one * s, 0f);
                     break;
                 }
                 case Channel.Settle:
                 {
                     // 0..90 ms: falls the last 0.12 onto the lining; then squash 1.04 x .92 rebounds to rest.
-                    var fall = Mathf.Clamp01(_time / 0.09f);
-                    var y = Mathf.Lerp(0.12f, 0f, fall * fall);
-                    var t = Mathf.Clamp01((_time - 0.09f) / (SettleDuration - 0.09f));
-                    var squash = _time < 0.09f ? 0f : 1f - OutBack(t, 1.4f);
+                    var fall = Mathf.Clamp01(_time / MotionTokens.ItemSettleFallDuration);
+                    var y = Mathf.Lerp(0.12f, 0f, MotionTokens.EaseInQuadratic(fall));
+                    var t = Mathf.Clamp01((_time - MotionTokens.ItemSettleFallDuration) / (SettleDuration - MotionTokens.ItemSettleFallDuration));
+                    var squash = _time < MotionTokens.ItemSettleFallDuration ? 0f : 1f - MotionTokens.OutBack(t, MotionTokens.ItemSettleOutBackOvershoot);
                     var scale = new Vector3(1f + 0.04f * squash, 1f - 0.08f * squash, 1f + 0.04f * squash);
                     Apply(new Vector3(0f, y, 0f), scale, 0f);
                     if (_time >= SettleDuration)
@@ -103,13 +103,13 @@ namespace ZipTrip.Unity
                 case Channel.Reject:
                 {
                     // 60 ms recoil 0.12 back along the drag, then three decaying wobbles home.
-                    var recoil = Mathf.Clamp01(_time / 0.06f);
-                    var t = Mathf.Clamp01((_time - 0.06f) / (RejectDuration - 0.06f));
-                    var offset = _time < 0.06f
-                        ? -_rejectDirection * (0.12f * EaseOutCubic(recoil))
-                        : -_rejectDirection * (0.12f * (1f - EaseOutCubic(t)));
+                    var recoil = Mathf.Clamp01(_time / MotionTokens.ItemRejectRecoilDuration);
+                    var t = Mathf.Clamp01((_time - MotionTokens.ItemRejectRecoilDuration) / (RejectDuration - MotionTokens.ItemRejectRecoilDuration));
+                    var offset = _time < MotionTokens.ItemRejectRecoilDuration
+                        ? -_rejectDirection * (0.12f * MotionTokens.EaseOutCubic(recoil))
+                        : -_rejectDirection * (0.12f * (1f - MotionTokens.EaseOutCubic(t)));
                     var wobble = Mathf.Sin(t * Mathf.PI * 6f) * (1f - t) * 5f;
-                    Apply(offset + Vector3.up * (0.2f * Mathf.Sin(t * Mathf.PI) * (1f - t)), Vector3.one, wobble);
+                    Apply(offset + Vector3.up * (0.2f * MotionTokens.SinePulse(t) * (1f - t)), Vector3.one, wobble);
                     if (_time >= RejectDuration)
                         CompleteAll();
                     break;
@@ -117,7 +117,7 @@ namespace ZipTrip.Unity
                 case Channel.Fold:
                 {
                     var t = Mathf.Clamp01(_time / ModifierDuration);
-                    var pulse = Mathf.Sin(t * Mathf.PI);
+                    var pulse = MotionTokens.SinePulse(t);
                     Apply(Vector3.up * (0.06f * pulse), new Vector3(1f - 0.06f * pulse, 1f - 0.1f * pulse, 1f - 0.06f * pulse),
                         5f * pulse);
                     if (_time >= ModifierDuration)
@@ -127,7 +127,7 @@ namespace ZipTrip.Unity
                 case Channel.Compress:
                 {
                     var t = Mathf.Clamp01(_time / ModifierDuration);
-                    var press = Mathf.Sin(t * Mathf.PI);
+                    var press = MotionTokens.SinePulse(t);
                     Apply(Vector3.zero, new Vector3(1f, 1f - 0.24f * press, 1f), 0f);
                     if (_time >= ModifierDuration)
                         CompleteAll();
@@ -150,12 +150,5 @@ namespace ZipTrip.Unity
             Root.localRotation = Quaternion.Euler(0f, 0f, tiltDegrees);
         }
 
-        private static float EaseOutCubic(float t) => 1f - Mathf.Pow(1f - t, 3f);
-
-        private static float OutBack(float t, float s)
-        {
-            t -= 1f;
-            return t * t * ((s + 1f) * t + s) + 1f;
-        }
     }
 }

@@ -111,6 +111,27 @@ namespace ZipTrip.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator NewDragCompletesSettle_AndUndoDuringFeedbackRestoresState()
+        {
+            var scene = Scene(1);
+            yield return null;
+            var initialHash = scene.Session.CurrentState.Hash;
+            var placed = Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
+            Assert.That(placed.Step.Move.IsAccepted, Is.True);
+            var view = scene.Board.ItemViews["laptop-1"];
+            Assert.That(view.Feedback.IsAnimating, Is.True);
+            Assert.That(scene.Drag.BeginDrag("laptop-1", view.transform.position + new Vector3(0.5f, 0f, -0.5f)),
+                Is.EqualTo(DragBeginResult.Started));
+            Assert.That(view.Feedback.IsHeld, Is.True, "new drag replaces the settle channel");
+            Assert.That(view.Feedback.IsAnimating, Is.False);
+            scene.Drag.Cancel();
+            Assert.That(view.Feedback.Root.localScale, Is.EqualTo(Vector3.one), "cancel normalizes the owned transform");
+            Assert.That(scene.Undo(), Is.True);
+            Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(initialHash));
+            Assert.That(scene.Session.MoveCount, Is.Zero);
+        }
+
+        [UnityTest]
         public IEnumerator Lv2_PlaysToCompletionThroughTheUi_ThenNextAndRestartAreClean()
         {
             var scene = Scene(1);

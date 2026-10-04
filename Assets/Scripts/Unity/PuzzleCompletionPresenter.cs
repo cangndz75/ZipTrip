@@ -6,10 +6,10 @@ namespace ZipTrip.Unity
     /// <summary>Presentation-only Zip It sequence. The scene starts it only for a PuzzleSession completion edge.</summary>
     public sealed class PuzzleCompletionPresenter : MonoBehaviour
     {
-        public const float SettleDuration = ItemFeedback.SettleDuration;
-        public const float AnticipationDuration = 0.14f;
-        public const float LidDuration = 0.64f;
-        public const float ZipDuration = 0.36f;
+        public const float SettleDuration = MotionTokens.CompletionSettleDuration;
+        public const float AnticipationDuration = MotionTokens.CompletionAnticipationDuration;
+        public const float LidDuration = MotionTokens.CompletionLidDuration;
+        public const float ZipDuration = MotionTokens.CompletionZipDuration;
 
         public enum Phase { Idle, Settle, Anticipation, Lid, Zip, Confirmed }
         public Phase CurrentPhase { get; private set; }
@@ -103,7 +103,7 @@ namespace ZipTrip.Unity
             if (CurrentPhase == Phase.Lid && _rig != null)
             {
                 var t = Mathf.Clamp01(_elapsed / LidDuration);
-                var ease = t * t * (3f - 2f * t);
+                var ease = MotionTokens.LidSmoothStep(t);
                 _rig.Lid.localRotation = Quaternion.Slerp(_rig.LidOpenLocalRotation,
                     ContainerRig.LidClosedLocalRotation, ease);
             }

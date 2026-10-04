@@ -47,7 +47,7 @@ namespace ZipTrip.Unity
         private readonly List<Object> _owned = new List<Object>();
         private RectTransform _pressed;
         private float _pressTime;
-        public const float PressDuration = 0.16f;
+        public const float PressDuration = MotionTokens.UiPressDuration;
         public static readonly Color Ink = PaperUi.Ink;
         public static readonly Color PaperFill = PaperUi.Cream;
         public static readonly Color DropShadow = PaperUi.Shadow;
@@ -284,8 +284,7 @@ namespace ZipTrip.Unity
             _pressTime += Time.unscaledDeltaTime;
             var t = Mathf.Clamp01(_pressTime / PressDuration);
             // 0.92 dip then out-back to rest.
-            var back = t - 1f;
-            var ease = back * back * (2.6f * back + 1.6f) + 1f;
+            var ease = MotionTokens.UiPressOutBack(t);
             _pressed.localScale = Vector3.one * Mathf.LerpUnclamped(0.92f, 1f, ease);
             if (t >= 1f)
             {

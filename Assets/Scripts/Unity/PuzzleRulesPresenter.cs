@@ -27,7 +27,7 @@ namespace ZipTrip.Unity
     // only the overlays relevant to the dragged item (target zone, adjacency targets, forbidden partners).
     public sealed class PuzzleRulesPresenter : MonoBehaviour
     {
-        public const float PulseDuration = 0.32f;
+        public const float PulseDuration = MotionTokens.RulePulseDuration;
         /// <summary>Gap kept between the header and the note, and between the note and the playable bed (reference px).</summary>
         public const float NoteMargin = 10f;
         public const float BedClearance = 24f;
@@ -476,7 +476,7 @@ namespace ZipTrip.Unity
                     continue;
                 tag.Pulse += Time.unscaledDeltaTime;
                 var t = Mathf.Clamp01(tag.Pulse / PulseDuration);
-                tag.Note.Root.localScale = tag.Chip.Root.localScale = Vector3.one * (1f + 0.25f * Mathf.Sin(t * Mathf.PI));
+                tag.Note.Root.localScale = tag.Chip.Root.localScale = Vector3.one * (1f + 0.25f * MotionTokens.SinePulse(t));
                 if (t >= 1f)
                 {
                     tag.Note.Root.localScale = tag.Chip.Root.localScale = Vector3.one;
