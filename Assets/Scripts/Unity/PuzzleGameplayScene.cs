@@ -52,6 +52,9 @@ namespace ZipTrip.Unity
         private PackingTable _table;
         private string _ruleDragKey;
         private PuzzleLevel _fixture;
+        private int _remaining = -1;
+        private PuzzleState _statusState;
+        private Rect _objectiveSafeArea;
         private string _fixtureLabel;
         private Func<PuzzleItem, GameObject> _fixtureVisuals;
 
@@ -125,7 +128,7 @@ namespace ZipTrip.Unity
                 throw new InvalidOperationException("Missing level " + LevelFolder + LevelId);
             _fixture = null;
             _fixtureVisuals = null;
-            Present(LevelJsonLoaderV2.Load(json.text, PuzzleItemCatalog.Create()), $"Level {LevelIndex + 1}");
+            Present(LevelJsonLoaderV2.Load(json.text, PuzzleItemCatalog.Create()), PuzzleRuleText.LevelTitle(LevelIndex + 1));
         }
 
         /// <summary>
@@ -181,12 +184,14 @@ namespace ZipTrip.Unity
             LayoutStaging();
             Drag.Initialize(Session, Board, Tray, Camera, null, Staging);
             LayoutTable();
-            _table.SetMatVisible(Tray.ItemViews.Count > 0 || Staging.Capacity > 0);
             Drag.InteractionEnabled = !Session.CurrentCompletion.IsComplete;
 
-            Hud.SetLevel(label);
+            Hud.SetLevel(label, PuzzleRuleText.LevelSubtitle(Level.Id));
+            _remaining = -1;
+            _statusState = null;
             Rules.Build(Level, Hud, Board, materialTemplate);
-            Rules.Sync(Session.CurrentCompletion.Rules, false);
+            _objectiveSafeArea = default;
+            Rules.Sync(Session.CurrentCompletion.Rules, false, Session.CurrentState);
             _ruleDragKey = null;
             Hud.SetCompletionMode(Session.CurrentCompletion.IsComplete);
             Completion.ResetForLevel(Board.Container, Board.ContainerFootprint,
@@ -249,7 +254,6 @@ namespace ZipTrip.Unity
                 return false;
             Drag.CancelCandidate();
             Drag.SyncPresenters();
-            _table.SetMatVisible(Tray.ItemViews.Count > 0 || Staging.Capacity > 0);
             RefreshCompletion();
             return true;
         }
@@ -259,6 +263,15 @@ namespace ZipTrip.Unity
         {
             if (signal.Phase == PointerPhase.Down && !Drag.IsDragging)
             {
+                // Compact objective chip: a tap expands / collapses the note (presentation only); any other press
+                // collapses it and carries on as usual.
+                if (Rules.HitObjective(signal.ScreenPosition, Hud.GetComponent<Canvas>().worldCamera))
+                {
+                    _gestureOnHud = true;
+                    Rules.ToggleExpanded();
+                    return;
+                }
+                Rules.Collapse();
                 var action = Hud.Hit(signal.ScreenPosition);
                 if (action != PuzzleHudAction.None)
                 {
@@ -297,11 +310,10 @@ namespace ZipTrip.Unity
 
         private void RefreshCompletion(bool edge = false)
         {
-            _table.SetMatVisible(Tray.ItemViews.Count > 0 || Staging.Capacity > 0);
             if (edge)
                 CompletionCount++;
             var complete = Session.CurrentCompletion.IsComplete;
-            Rules.Sync(Session.CurrentCompletion.Rules, !edge);
+            Rules.Sync(Session.CurrentCompletion.Rules, !edge, Session.CurrentState);
             if (edge)
             {
                 Drag.Cancel();
@@ -327,6 +339,18 @@ namespace ZipTrip.Unity
             Hud.SetModifierVisible(!Hud.CompletionMode && Drag.CanSelectModifier(ItemModifier.Fold),
                 !Hud.CompletionMode && Drag.CanSelectModifier(ItemModifier.Compress));
             Hud.SetUndoEnabled(Session.UndoDepth > 0 && !Hud.CompletionMode);
+            // States are immutable: recount the loose items only when the session moves to a new one.
+            if (!ReferenceEquals(Session.CurrentState, _statusState))
+            {
+                _statusState = Session.CurrentState;
+                var remaining = _statusState.GetItems(ItemLocationKind.SourceTray).Count
+                    + _statusState.GetItems(ItemLocationKind.Staging).Count;
+                if (remaining != _remaining)
+                {
+                    _remaining = remaining;
+                    Hud.SetStatus(PuzzleRuleText.Remaining(remaining));
+                }
+            }
             if (!Hud.CompletionMode)
                 UpdateRuleDragContext();
             var keyboard = Keyboard.current;
@@ -340,6 +364,26 @@ namespace ZipTrip.Unity
         {
             if (Camera != null && (!Mathf.Approximately(Camera.aspect, _framedAspect) || _framedScreen != new Vector2Int(Screen.width, Screen.height)))
                 FrameCamera();
+            if (Hud != null && Hud.AppliedSafeArea != _objectiveSafeArea)
+                LayoutObjective();
+            if (_table != null)
+                _table.LayoutTray(Tray, Camera);
+        }
+
+        // Room between the header (inside the safe area) and the playable bed's back edge, in reference px; the rules
+        // presenter picks the full note or the compact chip from it. Re-run on framing and safe-area changes only.
+        private void LayoutObjective()
+        {
+            _objectiveSafeArea = Hud.AppliedSafeArea;
+            if (Camera == null || Board == null || Camera.pixelWidth <= 0)
+                return;
+            var toReference = PuzzleHud.ReferenceWidth / Camera.pixelWidth;
+            var bedTop = 0f;
+            foreach (var frame in Board.CompartmentFrames())
+                bedTop = Mathf.Max(bedTop, Camera.WorldToScreenPoint(frame.Origin).y);
+            var bedFromTop = (Camera.pixelHeight - bedTop) * toReference;
+            var safeTop = (1f - _objectiveSafeArea.yMax) * Camera.pixelHeight * toReference;
+            Rules.LayoutObjective(bedFromTop - safeTop - PuzzleHud.HeaderBottom);
         }
 
         // Largest scale (within bounds) that lays every Source Tray item, at its display rotation, in one row.
@@ -383,7 +427,9 @@ namespace ZipTrip.Unity
                 PuzzleHud.BottomFraction(Camera.pixelWidth, Camera.pixelHeight));
             _framedAspect = Camera.aspect;
             _framedScreen = new Vector2Int(Screen.width, Screen.height);
+            _table?.LayoutTray(Tray, Camera);
             _table?.LayoutProps(Camera, Board.ContainerFootprint);
+            LayoutObjective();
         }
 
         private void EnsureRuntimeObjects()
@@ -420,7 +466,7 @@ namespace ZipTrip.Unity
             _table.Build(materialTemplate, Camera, backdropSurface, backdropProps);
         }
 
-        // Table under the suitcase, felt mat under the loose items' row (deliberately not under Board / Tray, so camera
+        // Table under the suitcase; the compact Source Tray shell follows in LateUpdate (neither is under Board / Tray, so camera
         // framing ignores both).
         private void LayoutTable()
         {
@@ -428,17 +474,7 @@ namespace ZipTrip.Unity
                 return;
             var body = Board.ContainerFootprint;
             var surfaceY = Board.Container != null ? Board.ContainerBottomY : SuitcaseShell.SurfaceY;
-            var origin = Tray.transform.localPosition;
-            var depth = 0f;
-            foreach (var view in Tray.ItemViews.Values)
-            {
-                var rows = 0;
-                foreach (var cell in view.Footprint.OccupiedCells)
-                    rows = Mathf.Max(rows, cell.Y + 1);
-                depth = Mathf.Max(depth, rows * Tray.Scale);
-            }
-            var area = new Rect(origin.x, origin.z - Mathf.Max(depth, 1f), Tray.RowWidth, Mathf.Max(depth, 1f));
-            _table.Layout(body.center, surfaceY, area);
+            _table.Layout(body.center, surfaceY);
         }
 
         private void OnDestroy()

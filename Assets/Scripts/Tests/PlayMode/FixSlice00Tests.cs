@@ -96,8 +96,8 @@ namespace ZipTrip.Tests.PlayMode
             var hud = scene.Hud;
             Assert.That(hud.AppliedSafeArea, Is.EqualTo(AndroidPunchHole));
             Assert.That(hud.SafeArea.anchorMax.y, Is.EqualTo(AndroidPunchHole.yMax).Within(1e-5f));
-            var pill = hud.SafeArea.Find("Level Pill") as RectTransform;
-            Assert.That(pill, Is.Not.Null, "level pill lives inside the safe area");
+            var pill = hud.SafeArea.Find("Header") as RectTransform;
+            Assert.That(pill, Is.Not.Null, "level header lives inside the safe area");
             var corners = new Vector3[4];
             pill.GetWorldCorners(corners);
             Assert.That(corners[1].y, Is.LessThanOrEqualTo(AndroidPunchHole.yMax * Screen.height + 0.5f), "pill below the cutout");

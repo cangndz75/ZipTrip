@@ -79,7 +79,7 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Session.MoveCount, Is.Zero);
             Assert.That(scene.Tray.ItemViews.Keys, Is.EquivalentTo(new[] { "book-1", "laptop-1", "sneaker-1", "sweater-1" }));
             Assert.That(scene.Board.ItemViews, Is.Empty);
-            Assert.That(scene.Hud.LevelLabel, Is.EqualTo("Level 1"));
+            Assert.That(scene.Hud.LevelLabel, Is.EqualTo("Seviye 1"));
             Assert.That(scene.Hud.CompletionVisible, Is.False);
         }
 
@@ -264,12 +264,12 @@ namespace ZipTrip.Tests.PlayMode
             var scene = Scene();
             scene.LoadLevel(RulesFixture.Load(RulesFixture.LaptopExtracted), "Rules");
             yield return null;
-            Assert.That(scene.Rules.StripVisible, Is.True);
+            Assert.That(scene.Rules.ObjectiveVisible, Is.True);
             Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(0, 3));
             Assert.That(scene.Session.CurrentCompletion.IsComplete, Is.False);
             var last = Place(scene, "sweater-1", Rotation.Degrees0, new Cell(2, 4));
             Assert.That(last.Step.CompletionReached, Is.True, string.Join(", ", last.Step.Completion.Failures));
-            Assert.That(scene.Rules.StripVisible, Is.False);
+            Assert.That(scene.Rules.ObjectiveVisible, Is.False);
             Assert.That(scene.Rules.VisibleCues, Is.Empty);
             foreach (var id in scene.Rules.RuleIds)
                 Assert.That(scene.Rules.IsPulsing(id), Is.False, id);
@@ -876,7 +876,7 @@ namespace ZipTrip.Tests.PlayMode
                 var phase = System.Environment.GetEnvironmentVariable("ZT_VISUAL_SLICE_PHASE") == "before" ? "before" : "after";
                 var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../Builds/visual-slice-00/" + phase));
                 Directory.CreateDirectory(folder);
-                Assert.That(scene.Table.Mat.activeInHierarchy, Is.True, "source items rest on the felt mat");
+                Assert.That(scene.Table.TrayShellVisible, Is.True, "source items rest on the compact tray");
                 yield return Capture(scene, folder, "A-lv1-idle", 1080, 2340);
                 WriteVisualSliceBounds(scene, folder, "lv1-idle");
                 Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
@@ -885,7 +885,8 @@ namespace ZipTrip.Tests.PlayMode
                 Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
                 Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0));
                 Assert.That(scene.Session.CurrentCompletion.IsComplete, Is.True);
-                Assert.That(scene.Table.Mat.activeInHierarchy, Is.False, "empty source mat and its trim are hidden");
+                yield return null; // the tray shell follows the presenter in LateUpdate
+                Assert.That(scene.Table.TrayShellVisible, Is.False, "an empty tray shell is hidden");
                 yield return Capture(scene, folder, "C-lv1-complete-before-zip", 1080, 2340);
                 WriteVisualSliceBounds(scene, folder, "lv1-complete");
                 scene.NextLevel();

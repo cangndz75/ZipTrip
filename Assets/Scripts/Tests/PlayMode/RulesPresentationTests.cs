@@ -65,7 +65,7 @@ namespace ZipTrip.Tests.PlayMode
             for (var level = 0; level < 2; level++)
             {
                 Assert.That(scene.Level.Rules.Rules, Is.Empty);
-                Assert.That(scene.Rules.StripVisible, Is.False, scene.LevelId);
+                Assert.That(scene.Rules.ObjectiveVisible, Is.False, scene.LevelId);
                 Assert.That(scene.Rules.RuleIds, Is.Empty);
                 Assert.That(scene.Rules.VisibleCues, Is.Empty);
                 scene.NextLevel();
@@ -79,27 +79,33 @@ namespace ZipTrip.Tests.PlayMode
             yield return Fixture();
             var scene = Scene();
             Assert.That(scene.Rules.RuleIds, Is.EqualTo(new[] { "r1-zone", "r2-adjacent", "r3-apart", "r4-access" }));
-            Assert.That(scene.Rules.LabelOf("r1-zone"), Is.EqualTo("Book → Left"));
-            Assert.That(scene.Rules.LabelOf("r3-apart"), Is.EqualTo("Clothes ≠ Tech"));
+            Assert.That(scene.Rules.LabelOf("r1-zone"), Is.EqualTo("Kitap sol bölgede olmalı"));
+            Assert.That(scene.Rules.LabelOf("r3-apart"), Is.EqualTo("Kıyafet, Elektronik yanında olmamalı"));
             Assert.That(scene.Rules.StatusOf("r2-adjacent"), Is.EqualTo(RuleTagStatus.Violated));
             AssertMatchesDomain(scene);
-            Assert.That(scene.Rules.Strip.GetComponentsInChildren<Component>(true), Has.None.Null, "no missing scripts");
+            Assert.That(scene.Rules.Note.GetComponentsInChildren<Component>(true), Has.None.Null, "no missing scripts");
             Assert.That(scene.Rules.VisibleCues, Is.Empty, "idle: nothing violated that needs an in-suitcase cue");
 
-            // Layout at the Huawei portrait resolution: the strip (canvas scales with width, 1080 reference) ends above the
-            // suitcase interior's back row.
+            // Layout at the Huawei portrait resolution: the objective (full note, or the compact chip when the note does not
+            // fit) ends above the suitcase interior's back row.
             var camera = scene.Camera;
             var target = new RenderTexture(1080, 2340, 24);
             camera.targetTexture = target;
             try
             {
+                scene.Hud.RenderThrough(camera);
                 scene.FrameCamera();
-                var stripBottomFromTop = (PuzzleRulesPresenter.StripTop + scene.Rules.StripHeight + 6f) * camera.pixelWidth / PuzzleHud.ReferenceWidth;
+                Canvas.ForceUpdateCanvases();
+                var shown = scene.Rules.Compact ? scene.Rules.Chip : scene.Rules.Note;
+                var corners = new Vector3[4];
+                shown.GetWorldCorners(corners);
+                var bottomFromTop = camera.pixelHeight - corners.Min(c => camera.WorldToScreenPoint(c).y);
                 var backRowFromTop = camera.pixelHeight - camera.WorldToScreenPoint(scene.Board.CompartmentFrames().Single().Origin).y;
-                Assert.That(backRowFromTop, Is.GreaterThan(stripBottomFromTop), "rule strip does not cover the packing interior");
+                Assert.That(backRowFromTop, Is.GreaterThan(bottomFromTop), "the objective does not cover the packing interior");
             }
             finally
             {
+                scene.Hud.RenderThrough(null);
                 camera.targetTexture = null;
                 Object.Destroy(target);
             }

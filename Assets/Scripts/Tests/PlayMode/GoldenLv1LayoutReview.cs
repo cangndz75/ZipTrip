@@ -394,34 +394,7 @@ namespace ZipTrip.Tests.PlayMode
                 _remaining.gameObject.SetActive(!rotate);
                 _remaining.text = left > 0 ? $"{left} eşya kaldı" : "Hazır!";
 
-                // Tray treatment.
-                foreach (Transform child in _cards)
-                    Object.Destroy(child.gameObject);
-                _scene.Table.SetMatVisible(_variant == 'A' && _scene.Tray.ItemViews.Count > 0);
-                if (_variant != 'A' && _scene.Tray.ItemViews.Count > 0)
-                {
-                    var y = _scene.Tray.transform.position.y;
-                    var all = new List<Rect>();
-                    foreach (var view in _scene.Tray.ItemViews.Values)
-                    {
-                        int w = 0, d = 0;
-                        foreach (var c in view.Footprint.OccupiedCells)
-                        {
-                            w = Mathf.Max(w, c.X + 1);
-                            d = Mathf.Max(d, c.Y + 1);
-                        }
-                        var s = _scene.Tray.Scale;
-                        var p = view.transform.position;
-                        var card = new Rect(p.x - 0.18f, p.z - d * s - 0.18f, w * s + 0.36f, d * s + 0.36f);
-                        all.Add(card);
-                        Slab("Card " + view.InstanceId, card, 0.16f, y - 0.05f, y - 0.004f, _cardMaterial);
-                    }
-                    var xMin = all.Min(r => r.xMin) - 0.16f;
-                    var xMax = all.Max(r => r.xMax) + 0.16f;
-                    var zMin = all.Min(r => r.yMin) - 0.16f;
-                    var zMax = all.Max(r => r.yMax) + 0.16f;
-                    Slab("Tray Shell", Rect.MinMaxRect(xMin, zMin, xMax, zMax), 0.3f, y - 0.07f, y - 0.03f, _shellMaterial);
-                }
+                // Tray treatment: the runtime compact tray (UI-SLICE-01) replaced the review cards and the felt mat.
             }
 
             private void Slab(string name, Rect worldXZ, float radius, float bottom, float top, Material material)
@@ -620,7 +593,6 @@ namespace ZipTrip.Tests.PlayMode
             public void Dispose()
             {
                 _scene.Hud.SafeArea.gameObject.SetActive(true);
-                _scene.Table.SetMatVisible(_scene.Tray.ItemViews.Count > 0);
                 Object.Destroy(_canvasRoot);
                 Object.Destroy(_cards.gameObject);
                 foreach (var asset in _owned)
@@ -651,31 +623,26 @@ namespace ZipTrip.Tests.PlayMode
                     case "passport":
                         Part(root, new Rect(0.1f, -1.9f, 0.8f, 1.8f), 0.1f, 0f, 0.14f, 0x2E4A6B);
                         Part(root, new Rect(0.32f, -0.95f, 0.36f, 0.36f), 0.17f, 0.14f, 0.15f, 0xD7AA58);
-                        LabelOn(root, "PASAPORT", new Vector3(0.5f, 0.16f, -1.5f), 0.045f, 90f, Color.white);
                         break;
                     case "towel":
                         Part(root, new Rect(0.06f, -3.94f, 0.88f, 3.88f), 0.42f, 0f, 0.46f, 0xF4EFE6);
                         foreach (var z in new[] { -0.6f, -3.6f })
                             Part(root, new Rect(0.06f, z, 0.88f, 0.22f), 0.08f, 0.46f, 0.47f, 0x4E9FA2);
-                        LabelOn(root, "HAVLU", new Vector3(0.5f, 0.48f, -2f), 0.08f, 90f, Ink);
                         break;
                     case "shampoo":
                         Part(root, new Rect(0.14f, -2.86f, 0.72f, 2.1f), 0.3f, 0f, 0.5f, 0xE07A5F);
                         Part(root, new Rect(0.3f, -0.76f, 0.4f, 0.62f), 0.16f, 0f, 0.38f, 0x31515D);
                         Part(root, new Rect(0.2f, -2.3f, 0.6f, 0.9f), 0.1f, 0.5f, 0.51f, 0xF7F1E6);
-                        LabelOn(root, "ŞAMPUAN", new Vector3(0.5f, 0.53f, -1.85f), 0.045f, 90f, Ink);
                         break;
                     case "sunglasses":
                         Part(root, new Rect(0.1f, -0.88f, 1.8f, 0.76f), 0.3f, 0f, 0.06f, 0x8A5A3C);
                         Part(root, new Rect(0.16f, -0.82f, 0.78f, 0.64f), 0.3f, 0.06f, 0.14f, 0x22262B);
                         Part(root, new Rect(1.06f, -0.82f, 0.78f, 0.64f), 0.3f, 0.06f, 0.14f, 0x22262B);
-                        LabelOn(root, "GÖZLÜK", new Vector3(1f, 0.16f, -0.5f), 0.06f, 0f, Color.white);
                         break;
                     case "travel-pouch":
                         Part(root, new Rect(0.08f, -2.92f, 1.84f, 2.84f), 0.4f, 0f, 0.44f, 0xD7AA58);
                         Part(root, new Rect(0.24f, -0.5f, 1.52f, 0.1f), 0.04f, 0.44f, 0.46f, 0x31515D);
                         Part(root, new Rect(1.52f, -0.62f, 0.16f, 0.3f), 0.06f, 0.44f, 0.48f, 0xC36F58);
-                        LabelOn(root, "ÇANTA", new Vector3(1f, 0.47f, -1.7f), 0.08f, 0f, Ink);
                         break;
                     default:
                         Object.Destroy(root);
@@ -693,22 +660,6 @@ namespace ZipTrip.Tests.PlayMode
                 var mesh = Own(PresentationKit.Slab(rect, radius, bottom, top));
                 var part = PresentationKit.MeshObject("Part", root.transform, mesh, material);
                 part.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-            }
-
-            private static void LabelOn(GameObject root, string text, Vector3 position, float size, float yaw, Color color)
-            {
-                var label = new GameObject("Proxy Label", typeof(TextMesh));
-                label.transform.SetParent(root.transform, false);
-                label.transform.localPosition = position;
-                label.transform.localRotation = Quaternion.Euler(90f, yaw, 0f);
-                var mesh = label.GetComponent<TextMesh>();
-                mesh.text = text;
-                mesh.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                label.GetComponent<MeshRenderer>().sharedMaterial = mesh.font.material;
-                mesh.fontSize = 48;
-                mesh.characterSize = size;
-                mesh.anchor = TextAnchor.MiddleCenter;
-                mesh.color = color;
             }
 
             private T Own<T>(T asset) where T : Object

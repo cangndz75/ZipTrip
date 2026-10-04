@@ -595,6 +595,47 @@ namespace ZipTrip.Unity
         // Counter-clockwise ring arrow (restart glyph).
         public static Sprite RestartIcon(int size) => ArcArrowIcon(size, 70f, 290f, false, "Restart icon");
 
+        // UI-SLICE-01 glyphs: anti-aliased white masks tinted by the Image colour.
+        public static Sprite RingSprite(int size, float thickness) => Mask(size, "Ring", p =>
+            Mathf.Clamp01(0.5f - (Mathf.Abs(p.magnitude - (size * 0.5f - thickness * 0.5f - 1f)) - thickness * 0.5f)));
+
+        public static Sprite CheckIcon(int size) => Mask(size, "Check icon", p =>
+        {
+            var t = size * 0.11f;
+            var a = new Vector2(-0.26f, 0.0f) * size;
+            var b = new Vector2(-0.06f, -0.2f) * size;
+            var c = new Vector2(0.28f, 0.2f) * size;
+            return Mathf.Clamp01(0.5f - (Mathf.Min(SegmentDistance(p, a, b), SegmentDistance(p, b, c)) - t * 0.5f));
+        });
+
+        // Suitcase glyph: rounded body with a handle loop on top.
+        public static Sprite SuitcaseIcon(int size) => Mask(size, "Suitcase icon", p =>
+        {
+            var body = RoundedRectDistance(p, new Rect(-0.36f * size, -0.32f * size, 0.72f * size, 0.5f * size), 0.1f * size);
+            var handle = Mathf.Abs(RoundedRectDistance(p, new Rect(-0.15f * size, 0.12f * size, 0.3f * size, 0.22f * size), 0.07f * size))
+                - 0.035f * size;
+            var band = Mathf.Abs(p.y + 0.07f * size) < 0.035f * size && body < 0f ? 1f : 0f;
+            return Mathf.Max(Mathf.Clamp01(0.5f - Mathf.Min(body, handle)) - band, 0f);
+        });
+
+        private static Sprite Mask(int size, string name, System.Func<Vector2, float> coverage)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = name };
+            var c = new Vector2(size * 0.5f, size * 0.5f);
+            for (var y = 0; y < size; y++)
+                for (var x = 0; x < size; x++)
+                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, coverage(new Vector2(x + 0.5f, y + 0.5f) - c)));
+            texture.Apply(false, true);
+            return Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        private static float SegmentDistance(Vector2 p, Vector2 a, Vector2 b)
+        {
+            var ab = b - a;
+            var t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
+            return (p - (a + ab * t)).magnitude;
+        }
+
         // Arrow on an arc from startDeg sweeping sweepDeg (clockwise or counter-clockwise), head at the end.
         public static Sprite ArcArrowIcon(int size, float startDeg, float sweepDeg, bool clockwise, string name)
         {

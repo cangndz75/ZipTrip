@@ -12,15 +12,15 @@ namespace ZipTrip.Unity
     public sealed class PackingTable : MonoBehaviour
     {
         public const float SurfaceSize = 90f;
+        /// <summary>Source Tray card thickness: loose items rest on the card tops (tray presenter at surface + this).</summary>
         public const float MatThickness = 0.05f;
-        /// <summary>Felt margin around the loose items' row (the mat hugs the row; no off-screen bleed).</summary>
-        public const float MatMargin = 0.42f;
+        /// <summary>UI-SLICE-01 compact tray: paper card margin around each loose item, and shell margin around the cards.</summary>
+        public const float CardPad = 0.16f;
+        public const float ShellPad = 0.2f;
+        public static readonly Color ShellLinen = PresentationKit.Hex(0xD9C7A3);
+        public static readonly Color CardEdge = PresentationKit.Hex(0xE4D7BF);
         public static readonly Color TableLinen = PresentationKit.Hex(0xEADCC7);
         public static readonly Color TableShade = PresentationKit.Hex(0x4A3526);
-        // ZT-040D.1: warm taupe felt, a mid value between the light table and the dark teal lining, so the mat
-        // separates from the suitcase and the colourful loose items pop on it.
-        public static readonly Color Felt = PresentationKit.Hex(0xB5A48D);
-        public static readonly Color Stitch = PresentationKit.Hex(0xF7F1E6);
         public static readonly Color KeyColor = new Color(1f, 0.95f, 0.86f);
         public const float KeyIntensity = 1.35f;
         public static readonly Vector3 KeyEuler = new Vector3(52f, 135f, 0f); // from the top-left of the screen
@@ -51,8 +51,16 @@ namespace ZipTrip.Unity
         private readonly List<Object> _owned = new List<Object>();
         private readonly List<Renderer> _props = new List<Renderer>();
         private Material _template;
-        private Transform _matRoot;
         private float _surfaceY;
+        private Transform _trayRoot;
+        private readonly List<Mesh> _trayMeshes = new List<Mesh>();
+        private Material _cardMaterial;
+        private Material _edgeMaterial;
+        private Material _selectedMaterial;
+        private Material _shellMaterial;
+        private Material _trayShadowMaterial;
+        private Material _trayArtMaterial;
+        private int _trayKey;
 
         public GameObject Surface { get; private set; }
         /// <summary>Authored travel-world surface (null when no backdrop texture is configured).</summary>
@@ -60,7 +68,12 @@ namespace ZipTrip.Unity
         /// <summary>Edge props (one shared transparent material); empty when no prop atlas is configured.</summary>
         public IReadOnlyList<Renderer> PropRenderers => _props;
         public GameObject Vignette { get; private set; }
-        public GameObject Mat { get; private set; }
+        /// <summary>Compact Source Tray shell (hidden when no loose item is left).</summary>
+        public bool TrayShellVisible => _trayRoot != null && _trayRoot.gameObject.activeSelf;
+        /// <summary>One paper card per loose item currently in the Source Tray.</summary>
+        public int TrayCardCount { get; private set; }
+        /// <summary>Table-space XZ rect of the tray shell (zero when hidden).</summary>
+        public Rect TrayShellRect { get; private set; }
         public Light KeyLight { get; private set; }
         public Volume PostVolume { get; private set; }
 
@@ -95,14 +108,26 @@ namespace ZipTrip.Unity
                 Own(PresentationKit.Quad(new Rect(-13f, -22f, 26f, 44f), 0.004f)),
                 Own(PresentationKit.Transparent(_template, TableShade, falloff)));
 
+            _cardMaterial = Own(PresentationKit.Matte(_template, PaperUi.Paper, null, 0.08f));
+            _edgeMaterial = Own(PresentationKit.Matte(_template, CardEdge, null, 0.08f));
+            _selectedMaterial = Own(PresentationKit.Matte(_template, PaperUi.Mustard, null, 0.1f));
+            _shellMaterial = Own(PresentationKit.Matte(_template, ShellLinen, null, 0.06f));
+            _trayShadowMaterial = Own(PresentationKit.Transparent(_template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.28f),
+                Own(PresentationKit.SoftRect(64, 0.35f))));
+            var trayArt = Resources.Load<Texture2D>("UiSlice011/tray_slot");
+            if (trayArt != null)
+                _trayArtMaterial = Own(PresentationKit.Transparent(_template, Color.white, trayArt));
+            _trayRoot = new GameObject("Source Tray Shell").transform;
+            _trayRoot.SetParent(transform, false);
+            _trayRoot.gameObject.SetActive(false);
+
             BuildLighting();
             BuildPost(camera);
         }
 
-        /// <summary>Centres the table light on the suitcase and lays the felt mat under the loose items.</summary>
+        /// <summary>Centres the table surface and its light on the suitcase.</summary>
         /// <param name="center">Suitcase centre (x, z).</param>
-        /// <param name="matArea">Loose items' area (x, z), in table space; the mat grows by MatMargin and bleeds down.</param>
-        public void Layout(Vector2 center, float surfaceY, Rect matArea)
+        public void Layout(Vector2 center, float surfaceY)
         {
             if (Surface == null)
                 return;
@@ -111,35 +136,105 @@ namespace ZipTrip.Unity
             if (Backdrop != null)
                 Backdrop.transform.localPosition = new Vector3(center.x, surfaceY, center.y);
             Vignette.transform.localPosition = new Vector3(center.x, surfaceY, center.y - 3f);
-
-            if (_matRoot != null)
-            {
-                _matRoot.gameObject.SetActive(false);
-                Destroy(_matRoot.gameObject);
-            }
-            _matRoot = new GameObject("Packing Mat").transform;
-            _matRoot.SetParent(transform, false);
-            var rect = new Rect(matArea.xMin - MatMargin, matArea.yMin - MatMargin, matArea.width + 2f * MatMargin, matArea.height + 2f * MatMargin);
-            var top = surfaceY + MatThickness;
-            var feltTexture = Own(PresentationKit.FeltTexture(128, 3301));
-            var felt = Own(PresentationKit.Matte(_template, Felt, feltTexture, 0.02f));
-            felt.SetTextureScale(PresentationKit.BaseMapId, new Vector2(rect.width / 3f, rect.height / 3f));
-            Mat = PresentationKit.MeshObject("Felt", _matRoot, Own(PresentationKit.Slab(rect, 0.6f, surfaceY, top)), felt);
-            Mat.GetComponent<MeshRenderer>().receiveShadows = true;
-            var stitch = Own(PresentationKit.Matte(_template, Stitch, null, 0.15f));
-            var inset = new Rect(rect.xMin + 0.24f, rect.yMin + 0.24f, rect.width - 0.48f, rect.height - 0.48f);
-            PresentationKit.MeshObject("Stitch", _matRoot,
-                Own(PresentationKit.DashedPath(PresentationKit.RoundedRect(inset, 0.38f, 8), 0.17f, 0.11f, 0.045f, top + 0.003f, true)), stitch);
-            var shadowTexture = Own(PresentationKit.SoftRect(64, 0.35f));
-            PresentationKit.MeshObject("Mat Shadow", _matRoot, Own(PresentationKit.Quad(
-                new Rect(rect.xMin - 0.2f, rect.yMin - 0.35f, rect.width + 0.5f, rect.height + 0.5f), surfaceY + 0.002f)),
-                Own(PresentationKit.Transparent(_template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.3f), shadowTexture)));
+            _trayKey = 0;
         }
 
-        public void SetMatVisible(bool visible)
+        /// <summary>
+        /// UI-SLICE-01 compact Source Tray: one paper card under each loose item on a linen shell that hugs the cards, so
+        /// the tray contracts and re-centres with the presenter's row (3 -> 2 -> 1) and disappears when it is empty. Pure
+        /// presentation following the presenter's views; rebuilt only when their layout or the selection changes.
+        /// </summary>
+        public void LayoutTray(PuzzleTrayPresenter tray, Camera camera)
         {
-            if (_matRoot != null)
-                _matRoot.gameObject.SetActive(visible);
+            if (_trayRoot == null || tray == null)
+                return;
+            var key = 17;
+            foreach (var view in tray.ItemViews.Values)
+            {
+                var p = view.transform.position;
+                key = key * 31 + Mathf.RoundToInt(p.x * 100f);
+                key = key * 31 + Mathf.RoundToInt(p.z * 100f);
+                key = key * 31 + (int)view.Rotation + view.Footprint.CellCount * 7;
+            }
+            key = key * 31 + (tray.SelectedInstanceId?.GetHashCode() ?? 0) + Mathf.RoundToInt(tray.Scale * 1000f) + tray.ItemViews.Count;
+            if (camera != null)
+            {
+                var safe = PuzzleHud.SafeAreaOverride ?? PuzzleHud.NormalizeSafeArea(Screen.safeArea, Screen.width, Screen.height);
+                key = key * 31 + camera.pixelWidth + Mathf.RoundToInt(safe.width * 1000f);
+                key = key * 31 + Mathf.RoundToInt(camera.orthographicSize * 100f)
+                    + Mathf.RoundToInt(camera.transform.position.x * 100f);
+                key = key * 31 + Mathf.RoundToInt(safe.xMin * 1000f);
+            }
+            if (key == _trayKey)
+                return;
+            _trayKey = key;
+            foreach (Transform child in _trayRoot)
+                Destroy(child.gameObject);
+            foreach (var mesh in _trayMeshes)
+                Destroy(mesh);
+            _trayMeshes.Clear();
+            TrayCardCount = 0;
+            TrayShellRect = default;
+            _trayRoot.gameObject.SetActive(tray.ItemViews.Count > 0);
+            if (tray.ItemViews.Count == 0)
+                return;
+
+            var y = _surfaceY;
+            var shell = new Rect();
+            var index = 0;
+            foreach (var view in tray.ItemViews.Values)
+            {
+                int width = 0, depth = 0;
+                var cells = view.Footprint.OccupiedCells;
+                for (var i = 0; i < cells.Count; i++)
+                {
+                    width = Mathf.Max(width, cells[i].X + 1);
+                    depth = Mathf.Max(depth, cells[i].Y + 1);
+                }
+                var p = view.transform.position;
+                var card = new Rect(p.x - CardPad, p.z - depth * tray.Scale - CardPad, width * tray.Scale + 2f * CardPad,
+                    depth * tray.Scale + 2f * CardPad);
+                shell = index == 0 ? card : Rect.MinMaxRect(Mathf.Min(shell.xMin, card.xMin), Mathf.Min(shell.yMin, card.yMin),
+                    Mathf.Max(shell.xMax, card.xMax), Mathf.Max(shell.yMax, card.yMax));
+                // Neighbouring cards may overlap slightly (as in the locked frame): each sits a hair lower and the selected
+                // one on top with a mustard rim, so no two faces share a depth.
+                var selected = view.InstanceId == tray.SelectedInstanceId;
+                var top = y + (selected ? MatThickness : MatThickness - 0.003f * (index + 1));
+                var rim = new Rect(card.xMin - 0.03f, card.yMin - 0.03f, card.width + 0.06f, card.height + 0.06f);
+                TrayMesh("Card Edge " + view.InstanceId, PresentationKit.Slab(rim, 0.2f, y + 0.026f, top - 0.002f),
+                    _edgeMaterial);
+                TrayMesh("Card " + view.InstanceId, PresentationKit.Slab(card, 0.18f, y + 0.026f, top), _cardMaterial);
+                if (_trayArtMaterial != null)
+                    TrayMesh("Card Liner " + view.InstanceId, PresentationKit.Quad(card, top + 0.0005f), _trayArtMaterial);
+                if (selected)
+                {
+                    var tab = new Rect(card.xMin + 0.12f, card.yMax - 0.07f, Mathf.Min(0.42f, card.width - 0.24f), 0.15f);
+                    TrayMesh("Selected Tab " + view.InstanceId, PresentationKit.Slab(tab, 0.06f, top, top + 0.018f),
+                        _selectedMaterial);
+                }
+                index++;
+            }
+            TrayCardCount = index;
+            shell = new Rect(shell.xMin - ShellPad, shell.yMin - ShellPad, shell.width + 2f * ShellPad, shell.height + 2f * ShellPad);
+            if (camera != null)
+            {
+                var safe = PuzzleHud.SafeAreaOverride ?? PuzzleHud.NormalizeSafeArea(Screen.safeArea, Screen.width, Screen.height);
+                var left = GridProjector.ScreenToWorld(camera, new Vector2(camera.pixelWidth * safe.xMin, camera.pixelHeight * 0.5f), y).x + 0.18f;
+                var right = GridProjector.ScreenToWorld(camera, new Vector2(camera.pixelWidth * safe.xMax, camera.pixelHeight * 0.5f), y).x - 0.18f;
+                shell = Rect.MinMaxRect(Mathf.Max(shell.xMin, left), shell.yMin, Mathf.Min(shell.xMax, right), shell.yMax);
+            }
+            TrayShellRect = shell;
+            TrayMesh("Shell", PresentationKit.Slab(shell, 0.34f, y, y + 0.025f), _shellMaterial);
+            if (_trayArtMaterial != null)
+                TrayMesh("Organizer Liner", PresentationKit.Quad(shell, y + 0.0255f), _trayArtMaterial);
+            TrayMesh("Shell Shadow", PresentationKit.Quad(new Rect(shell.xMin - 0.12f, shell.yMin - 0.3f, shell.width + 0.4f,
+                shell.height + 0.4f), y + 0.002f), _trayShadowMaterial);
+        }
+
+        private void TrayMesh(string name, Mesh mesh, Material material)
+        {
+            _trayMeshes.Add(mesh);
+            PresentationKit.MeshObject(name, _trayRoot, mesh, material);
         }
 
         /// <summary>
@@ -246,6 +341,9 @@ namespace ZipTrip.Unity
 
         private void OnDestroy()
         {
+            foreach (var mesh in _trayMeshes)
+                if (mesh != null)
+                    Destroy(mesh);
             foreach (var asset in _owned)
                 if (asset != null)
                     Destroy(asset);

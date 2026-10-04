@@ -15,38 +15,54 @@ namespace ZipTrip.Unity
         Violated = 2
     }
 
-    // ZT-042 live rule presentation. Shows only the level's authored rules as compact paper travel tags (kind icon,
-    // short label, status badge) under the level pass, and world cues inside the suitcase. Every status comes from the
-    // Domain: committed status from PuzzleSession.CurrentCompletion.Rules (RuleEvaluator), drag-time hints from
-    // RuleEvaluator on the drag controller's Domain preview state. Nothing here re-derives zones, adjacency or access.
-    // Interaction context: idle shows the strip plus cues only for currently violated forbidden-adjacency / access rules;
-    // a drag shows only the overlays relevant to the dragged item (target zone, adjacency targets, forbidden partners).
+    // ZT-042 live rule presentation; UI-SLICE-01 objective note (STYLE-FRAME-01). The level's authored rules are listed
+    // on a compact paper travel note pinned on the open lid (title, one status dot + sentence per rule), and shown as world
+    // cues inside the suitcase. Every status comes from the Domain: committed status from
+    // PuzzleSession.CurrentCompletion.Rules (RuleEvaluator), drag-time hints from RuleEvaluator on the drag controller's
+    // Domain preview state. Nothing here re-derives zones, adjacency or access.
+    // Responsive: when the space between the header and the playable bed cannot hold the note at its readable type size,
+    // the note collapses to a one-line chip ("✓ Pasaport  ○ Şampuan"); tapping the chip expands the note over the lid
+    // until the next tap. Presentation state only: never reads or writes gameplay state.
+    // Interaction context: idle shows cues only for currently violated forbidden-adjacency / access rules; a drag shows
+    // only the overlays relevant to the dragged item (target zone, adjacency targets, forbidden partners).
     public sealed class PuzzleRulesPresenter : MonoBehaviour
     {
-        public const float TagHeight = 64f;
-        public const float TagGap = 14f;
-        public const float StripTop = PuzzleHud.TopBand + 8f;
         public const float PulseDuration = 0.32f;
+        /// <summary>Gap kept between the header and the note, and between the note and the playable bed (reference px).</summary>
+        public const float NoteMargin = 10f;
+        public const float BedClearance = 24f;
+        public const int RuleFontSize = 26;
+        public const float RowHeight = 40f;
+        public const float ChipHeight = 60f;
+        public const float NoteLeft = 40f;
         public static readonly Color SatisfiedColor = PresentationKit.Teal;
         public static readonly Color ViolatedColor = PresentationKit.Terracotta;
         public static readonly Color InactiveColor = PresentationKit.Hex(0xB9B2A6);
         public static readonly Color ZoneTint = new Color(1f, 0.96f, 0.84f, 0.3f);
-        /// <summary>Tags wrap into centred rows no wider than this (reference px).</summary>
-        public const float MaxRowWidth = 1000f;
-        public const float RowGap = 10f;
         public static readonly Color TargetTint = new Color(0.98f, 0.82f, 0.42f, 0.7f);
         public static readonly Color SuccessTint = new Color(0.36f, 0.8f, 0.6f, 0.72f);
         public static readonly Color WarningTint = new Color(0.86f, 0.32f, 0.24f, 0.62f);
         public static readonly Color AccessTint = new Color(0.95f, 0.62f, 0.24f, 0.6f);
 
+        // One status mark (filled dot + check / "!", or an empty ring), used in the note and in the chip.
+        private sealed class Mark
+        {
+            public RectTransform Root;
+            public Image Dot;
+            public Image Ring;
+            public Image Check;
+            public Image Bang;
+        }
+
         private sealed class Tag
         {
             public PuzzleRule Rule;
-            public RectTransform Root;
-            public Image Badge;
-            public Text Mark;
-            public RuleTagStatus Status;
             public string Label;
+            public string Short;
+            public Mark Note;
+            public Mark Chip;
+            public RuleTagStatus Status;
+            public bool Pending;
             public float Pulse = -1f;
         }
 
@@ -58,24 +74,39 @@ namespace ZipTrip.Unity
         private PuzzleLevel _level;
         private PuzzleBoardPresenter _board;
         private Material _template;
-        private RectTransform _strip;
+        private RectTransform _note;
+        private RectTransform _chip;
+        private Vector2 _noteSize;
+        private Vector2 _chipSize;
+        private bool _hidden;
         private Transform _overlayRoot;
         private IReadOnlyList<RuleResult> _committed;
         private string _dragKey;
 
-        /// <summary>Rule ids shown in the strip, in RuleSet (ordinal id) order.</summary>
+        /// <summary>Rule ids shown on the note, in RuleSet (ordinal id) order.</summary>
         public IReadOnlyList<string> RuleIds => _tags.ConvertAll(t => t.Rule.Id);
-        public bool StripVisible => _strip != null && _strip.gameObject.activeSelf;
+        /// <summary>The objective (full note or compact chip) is on screen.</summary>
+        public bool ObjectiveVisible => _note != null && (_note.gameObject.activeSelf || _chip.gameObject.activeSelf);
+        /// <summary>Not enough room for the full note: the chip is the resting presentation.</summary>
+        public bool Compact { get; private set; }
+        /// <summary>Compact mode with the note temporarily expanded by a tap.</summary>
+        public bool Expanded { get; private set; }
+        public RectTransform Note => _note;
+        public RectTransform Chip => _chip;
+        /// <summary>Full note height (reference px) at the readable type size; the layout switches to the chip below it.</summary>
+        public float NoteHeight => _noteSize.y;
         public RuleTagStatus StatusOf(string ruleId) => _tags.Find(t => t.Rule.Id == ruleId)?.Status ?? RuleTagStatus.Inactive;
+        /// <summary>
+        /// Violated only because its subjects are still waiting in the Source Tray: shown as an open "to do" ring, not as
+        /// a broken rule. <see cref="StatusOf"/> keeps the Domain status.
+        /// </summary>
+        public bool IsPending(string ruleId) => _tags.Find(t => t.Rule.Id == ruleId)?.Pending ?? false;
         public string LabelOf(string ruleId) => _tags.Find(t => t.Rule.Id == ruleId)?.Label;
         public bool IsPulsing(string ruleId) => (_tags.Find(t => t.Rule.Id == ruleId)?.Pulse ?? -1f) >= 0f;
         /// <summary>Visible world cue keys: "zone:&lt;rule&gt;", "target:&lt;item&gt;", "warn:&lt;item&gt;", "access:&lt;item&gt;".</summary>
         public IReadOnlyCollection<string> VisibleCues => _visibleShapes;
-        public RectTransform Strip => _strip;
-        /// <summary>Height of the tag rows (reference px; 0 when hidden).</summary>
-        public float StripHeight { get; private set; }
 
-        /// <summary>Builds the strip for a level (hidden when it authors no rules). Call after the HUD and board exist.</summary>
+        /// <summary>Builds the note and chip for a level (nothing when it authors no rules). Call after the HUD and board exist.</summary>
         public void Build(PuzzleLevel level, PuzzleHud hud, PuzzleBoardPresenter board, Material template)
         {
             Clear();
@@ -87,91 +118,197 @@ namespace ZipTrip.Unity
             if (level.Rules.Rules.Count == 0 || hud == null)
                 return;
 
-            _strip = new GameObject("Rule Strip", typeof(RectTransform)).GetComponent<RectTransform>();
-            _strip.SetParent(hud.SafeArea, false);
-            _strip.anchorMin = _strip.anchorMax = new Vector2(0.5f, 1f);
-            _strip.pivot = new Vector2(0.5f, 1f);
-            _strip.anchoredPosition = new Vector2(0f, -StripTop);
-            var rounded = Own(PresentationKit.RoundedSprite(64, 26));
+            var rounded = Own(PresentationKit.RoundedSprite(96, 40));
             Own(rounded.texture);
-            var circle = Own(PresentationKit.RoundedSprite(64, 31));
+            var circle = Own(PresentationKit.RoundedSprite(64, 32));
             Own(circle.texture);
-
-            var x = 0f;
+            var ring = Own(PresentationKit.RingSprite(64, 7f));
+            Own(ring.texture);
+            var check = Own(PresentationKit.CheckIcon(64));
+            Own(check.texture);
             foreach (var rule in level.Rules.Rules)
-            {
-                var tag = new Tag { Rule = rule, Label = PuzzleRuleText.Label(rule, level.InitialState) };
-                tag.Root = Panel(_strip, "Rule " + rule.Id, rounded, PuzzleHud.PaperFill);
-                tag.Root.gameObject.AddComponent<CanvasGroup>();
-                var shadow = Panel(tag.Root, "Drop Shadow", rounded, PuzzleHud.DropShadow);
-                shadow.SetAsFirstSibling();
-                var icon = new GameObject("Icon", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
-                icon.rectTransform.SetParent(tag.Root, false);
-                icon.sprite = Own(KindIcon(rule));
-                Own(icon.sprite.texture);
-                icon.color = PuzzleHud.Ink;
-                icon.raycastTarget = false;
-                var label = Text(tag.Root, tag.Label, hud.Font, 30, PuzzleHud.Ink);
-                tag.Badge = new GameObject("Status", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
-                tag.Badge.rectTransform.SetParent(tag.Root, false);
-                tag.Badge.sprite = circle;
-                tag.Badge.raycastTarget = false;
-                tag.Mark = Text(tag.Badge.rectTransform, "", hud.Font, 28, PuzzleHud.PaperFill);
+                _tags.Add(new Tag
+                {
+                    Rule = rule,
+                    Label = PuzzleRuleText.Label(rule, level.InitialState),
+                    Short = PuzzleRuleText.Subject(rule, level.InitialState)
+                });
 
-                var textWidth = Mathf.Ceil(label.preferredWidth);
-                var width = 16f + 40f + 10f + textWidth + 12f + 38f + 14f;
-                tag.Root.sizeDelta = new Vector2(width, TagHeight);
-                shadow.sizeDelta = new Vector2(width + 4f, TagHeight + 4f);
-                shadow.anchoredPosition = new Vector2(0f, -5f);
-                Place(icon.rectTransform, new Vector2(16f + 20f - width * 0.5f, 0f), new Vector2(40f, 40f));
-                Place(label.rectTransform, new Vector2(16f + 40f + 10f + textWidth * 0.5f - width * 0.5f, 0f), new Vector2(textWidth + 4f, TagHeight));
-                Place(tag.Badge.rectTransform, new Vector2(width * 0.5f - 14f - 19f, 0f), new Vector2(38f, 38f));
-                Place(tag.Mark.rectTransform, Vector2.zero, new Vector2(38f, 38f));
-                tag.Root.anchoredPosition = new Vector2(width, 0f); // width parked here; laid out below
-                _tags.Add(tag);
-            }
-            // Wrap into centred rows under the level pass.
-            var rows = new List<List<Tag>> { new List<Tag>() };
-            var rowWidth = 0f;
+            // Full note: title, then one ruled row per rule.
+            var title = PuzzleRuleText.Templates["objective.title"];
+            var measure = PaperUi.Label(transform, "", hud.Font, RuleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
+            var widestRule = 0f;
             foreach (var tag in _tags)
             {
-                var width = tag.Root.sizeDelta.x;
-                if (rows[rows.Count - 1].Count > 0 && rowWidth + TagGap + width > MaxRowWidth)
-                {
-                    rows.Add(new List<Tag>());
-                    rowWidth = 0f;
-                }
-                rowWidth += (rows[rows.Count - 1].Count > 0 ? TagGap : 0f) + width;
-                rows[rows.Count - 1].Add(tag);
+                measure.text = tag.Label;
+                widestRule = Mathf.Max(widestRule, measure.preferredWidth);
             }
-            for (var r = 0; r < rows.Count; r++)
+            measure.font = hud.DisplayFont;
+            measure.fontSize = 27;
+            measure.text = title;
+            var titleWidth = measure.preferredWidth;
+            Destroy(measure.gameObject);
+            // pad + dot + gap + rule + pad, or pad + title + room for the tape corner.
+            var noteWidth = Mathf.Max(22f + 30f + 12f + widestRule + 24f, 22f + titleWidth + 90f);
+            _noteSize = new Vector2(Mathf.Clamp(Mathf.Ceil(noteWidth), 420f, 1000f), 12f + 38f + _tags.Count * RowHeight + 14f);
+            _note = PaperUi.Card(hud.SafeArea, "Objective Note", rounded, new Vector2(0f, 1f), Vector2.zero, _noteSize, PaperUi.Paper,
+                0.28f, 9f, PaperUi.Skin("checklist"));
+            PaperUi.Face(_note).color = Color.white;
+            _note.localRotation = Quaternion.Euler(0f, 0f, 1.5f);
+            var top = _noteSize.y * 0.5f;
+            var left = -_noteSize.x * 0.5f;
+            PaperUi.Label(_note, title, hud.DisplayFont, 27, PaperUi.Ink, TextAnchor.MiddleLeft,
+                new Vector2(left + 22f + (_noteSize.x - 44f) * 0.5f, top - 12f - 19f), new Vector2(_noteSize.x - 44f, 38f));
+            var tape = PaperUi.Image(_note, "Tape", PaperUi.Skin("tape", 0), Color.white,
+                new Vector2(86f, 28f));
+            tape.anchoredPosition = new Vector2(_noteSize.x * 0.5f - 34f, top - 4f);
+            tape.localRotation = Quaternion.Euler(0f, 0f, -28f);
+            for (var i = 0; i < _tags.Count; i++)
             {
-                var total = rows[r].Sum(t => t.Root.sizeDelta.x) + TagGap * (rows[r].Count - 1);
-                x = -total * 0.5f;
-                foreach (var tag in rows[r])
-                {
-                    var width = tag.Root.sizeDelta.x;
-                    tag.Root.anchoredPosition = new Vector2(x + width * 0.5f, -TagHeight * 0.5f - r * (TagHeight + RowGap));
-                    x += width + TagGap;
-                }
+                var y = top - 12f - 38f - RowHeight * (i + 0.5f);
+                PaperUi.Image(_note, "Rule Line", null, PaperUi.Line, new Vector2(_noteSize.x - 40f, 2f)).anchoredPosition =
+                    new Vector2(0f, y - RowHeight * 0.5f + 2f);
+                _tags[i].Note = MakeMark(_note, "Status " + _tags[i].Rule.Id, new Vector2(left + 22f + 15f, y), circle, ring, check, hud.Font);
+                var width = _noteSize.x - 22f - 30f - 12f - 20f;
+                PaperUi.Label(_note, _tags[i].Label, hud.Font, RuleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft,
+                    new Vector2(left + 22f + 30f + 12f + width * 0.5f, y + 1f), new Vector2(width, RowHeight));
             }
-            StripHeight = rows.Count * TagHeight + (rows.Count - 1) * RowGap;
+
+            // Compact chip: one status mark + subject name per rule.
+            var names = new List<Text>();
+            var chipWidth = 58f; // keep the final label clear of the paper's folded corner
+            _chip = PaperUi.Card(hud.SafeArea, "Objective Chip", rounded, new Vector2(0f, 1f), Vector2.zero, Vector2.one, PaperUi.Paper,
+                0.24f, 6f, PaperUi.Skin("checklist_tab", 24));
+            PaperUi.Face(_chip).color = Color.white;
+            foreach (var tag in _tags)
+            {
+                var name = PaperUi.Label(_chip, tag.Short, hud.Font, RuleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft, Vector2.zero,
+                    new Vector2(10f, ChipHeight));
+                name.rectTransform.sizeDelta = new Vector2(Mathf.Ceil(name.preferredWidth) + 4f, ChipHeight);
+                names.Add(name);
+                chipWidth += 30f + 10f + name.rectTransform.sizeDelta.x + 22f;
+            }
+            _chipSize = new Vector2(chipWidth, ChipHeight);
+            PaperUi.Resize(_chip, _chipSize);
+            var x = -chipWidth * 0.5f + 22f;
+            for (var i = 0; i < _tags.Count; i++)
+            {
+                _tags[i].Chip = MakeMark(_chip, "Status " + _tags[i].Rule.Id, new Vector2(x + 15f, 0f), circle, ring, check, hud.Font);
+                x += 30f + 10f;
+                names[i].rectTransform.anchoredPosition = new Vector2(x + names[i].rectTransform.sizeDelta.x * 0.5f, 1f);
+                x += names[i].rectTransform.sizeDelta.x + 22f;
+            }
+            Compact = false;
+            Expanded = false;
+            _hidden = false;
+            LayoutObjective(float.MaxValue);
         }
 
-        /// <summary>Committed Domain results (PuzzleSession.CurrentCompletion.Rules). Animates only status changes.</summary>
-        public void Sync(IReadOnlyList<RuleResult> results, bool animate)
+        private static Mark MakeMark(Transform parent, string name, Vector2 position, Sprite circle, Sprite ring, Sprite check, Font font)
+        {
+            var root = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
+            root.SetParent(parent, false);
+            root.anchoredPosition = position;
+            root.sizeDelta = new Vector2(30f, 30f);
+            var mark = new Mark
+            {
+                Root = root,
+                Dot = PaperUi.Image(root, "Dot", circle, SatisfiedColor, new Vector2(30f, 30f)).GetComponent<Image>(),
+                Ring = PaperUi.Image(root, "Ring", ring, InactiveColor, new Vector2(30f, 30f)).GetComponent<Image>(),
+                Check = PaperUi.Image(root, "Check", PaperUi.Skin("stamp_check", 0) ?? check, Color.white,
+                    new Vector2(30f, 30f)).GetComponent<Image>(),
+                Bang = PaperUi.Image(root, "Bang", PaperUi.Skin("stamp_cross", 0), Color.white,
+                    new Vector2(30f, 30f)).GetComponent<Image>()
+            };
+            return mark;
+        }
+
+        private static void Apply(Mark mark, RuleTagStatus status, bool pending)
+        {
+            var open = status == RuleTagStatus.Inactive || pending;
+            mark.Dot.gameObject.SetActive(!open);
+            mark.Dot.color = status == RuleTagStatus.Violated ? ViolatedColor : SatisfiedColor;
+            mark.Ring.gameObject.SetActive(open);
+            mark.Check.gameObject.SetActive(!open && status == RuleTagStatus.Satisfied);
+            mark.Bang.gameObject.SetActive(!open && status == RuleTagStatus.Violated);
+        }
+
+        /// <summary>
+        /// Chooses the full note or the compact chip from the room (reference px) between the header and the playable bed,
+        /// and pins it under the header on the lid's left side. Never changes size of type: below the room the full note
+        /// needs, the chip is used instead.
+        /// </summary>
+        public void LayoutObjective(float availableHeight)
+        {
+            if (_note == null)
+                return;
+            Compact = availableHeight < _noteSize.y + NoteMargin + BedClearance;
+            if (!Compact)
+                Expanded = false;
+            var top = -(PuzzleHud.HeaderBottom + NoteMargin);
+            _note.anchoredPosition = new Vector2(NoteLeft + _noteSize.x * 0.5f, top - _noteSize.y * 0.5f);
+            _chip.anchoredPosition = new Vector2(NoteLeft + _chipSize.x * 0.5f, top - _chipSize.y * 0.5f);
+            ApplyVisibility();
+        }
+
+        /// <summary>Compact mode: the chip (or the expanded note) contains the screen point.</summary>
+        public bool HitObjective(Vector2 screenPosition, Camera eventCamera = null)
+        {
+            if (_note == null || _hidden || !Compact)
+                return false;
+            var target = Expanded ? _note : _chip;
+            return RectTransformUtility.RectangleContainsScreenPoint(target, screenPosition, eventCamera);
+        }
+
+        /// <summary>Compact mode: expands the chip into the note, or collapses it again. Presentation only.</summary>
+        public void ToggleExpanded()
+        {
+            if (!Compact)
+                return;
+            Expanded = !Expanded;
+            ApplyVisibility();
+        }
+
+        public void Collapse()
+        {
+            if (!Expanded)
+                return;
+            Expanded = false;
+            ApplyVisibility();
+        }
+
+        private void ApplyVisibility()
+        {
+            if (_note == null)
+                return;
+            _note.gameObject.SetActive(!_hidden && (!Compact || Expanded));
+            _chip.gameObject.SetActive(!_hidden && Compact && !Expanded);
+        }
+
+        /// <summary>
+        /// Committed Domain results (PuzzleSession.CurrentCompletion.Rules) and the state they were evaluated on (only to
+        /// tell "not packed yet" from "packed in the wrong place"). Animates only status changes.
+        /// </summary>
+        public void Sync(IReadOnlyList<RuleResult> results, bool animate, PuzzleState state = null)
         {
             _committed = results;
             foreach (var tag in _tags)
             {
-                var status = StatusFrom(Find(results, tag.Rule.Id));
-                if (animate && status != tag.Status)
+                var result = Find(results, tag.Rule.Id);
+                var status = StatusFrom(result);
+                var pending = status == RuleTagStatus.Violated && state != null && result.OffendingIds.All(id =>
+                    state.TryGetItem(id, out var item) && item.Location.Kind == ItemLocationKind.SourceTray);
+                if (animate && (status != tag.Status || pending != tag.Pending))
                     tag.Pulse = 0f;
                 tag.Status = status;
-                tag.Badge.color = status == RuleTagStatus.Satisfied ? SatisfiedColor : status == RuleTagStatus.Violated ? ViolatedColor : InactiveColor;
-                tag.Mark.text = status == RuleTagStatus.Violated ? "!" : status == RuleTagStatus.Satisfied ? "•" : "";
-                var group = tag.Root.GetComponent<CanvasGroup>();
-                group.alpha = status == RuleTagStatus.Inactive ? 0.55f : 1f;
+                tag.Pending = pending;
+                Apply(tag.Note, status, pending);
+                Apply(tag.Chip, status, pending);
+            }
+            if (_note != null && _hidden)
+            {
+                _hidden = false;
+                ApplyVisibility();
             }
             _dragKey = null;
             ShowIdleCues();
@@ -183,12 +320,13 @@ namespace ZipTrip.Unity
             foreach (var tag in _tags)
             {
                 tag.Pulse = -1f;
-                tag.Root.localScale = Vector3.one;
+                tag.Note.Root.localScale = tag.Chip.Root.localScale = Vector3.one;
             }
             BeginCues();
             EndCues();
-            if (_strip != null)
-                _strip.gameObject.SetActive(false);
+            Expanded = false;
+            _hidden = true;
+            ApplyVisibility();
         }
 
         /// <summary>
@@ -338,10 +476,10 @@ namespace ZipTrip.Unity
                     continue;
                 tag.Pulse += Time.unscaledDeltaTime;
                 var t = Mathf.Clamp01(tag.Pulse / PulseDuration);
-                tag.Root.localScale = Vector3.one * (1f + 0.12f * Mathf.Sin(t * Mathf.PI));
+                tag.Note.Root.localScale = tag.Chip.Root.localScale = Vector3.one * (1f + 0.25f * Mathf.Sin(t * Mathf.PI));
                 if (t >= 1f)
                 {
-                    tag.Root.localScale = Vector3.one;
+                    tag.Note.Root.localScale = tag.Chip.Root.localScale = Vector3.one;
                     tag.Pulse = -1f;
                 }
             }
@@ -363,14 +501,15 @@ namespace ZipTrip.Unity
 
         public void Clear()
         {
-            if (_strip != null)
-            {
-                _strip.gameObject.SetActive(false);
-                Destroy(_strip.gameObject);
-                _strip = null;
-            }
+            foreach (var panel in new[] { _note, _chip })
+                if (panel != null)
+                {
+                    panel.gameObject.SetActive(false);
+                    Destroy(panel.gameObject);
+                }
+            _note = _chip = null;
             _tags.Clear();
-            StripHeight = 0f;
+            Compact = Expanded = false;
             foreach (var shape in _shapes.Values)
                 shape.Dispose();
             _shapes.Clear();
@@ -396,99 +535,6 @@ namespace ZipTrip.Unity
         {
             _owned.Add(asset);
             return asset;
-        }
-
-        private static RectTransform Panel(Transform parent, string name, Sprite sprite, Color color)
-        {
-            var rect = new GameObject(name, typeof(RectTransform), typeof(Image)).GetComponent<RectTransform>();
-            rect.SetParent(parent, false);
-            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            var image = rect.GetComponent<Image>();
-            image.sprite = sprite;
-            image.type = Image.Type.Sliced;
-            image.color = color;
-            image.raycastTarget = false;
-            return rect;
-        }
-
-        private static Text Text(Transform parent, string text, Font font, int size, Color color)
-        {
-            var label = new GameObject("Label", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
-            label.rectTransform.SetParent(parent, false);
-            label.font = font;
-            label.fontSize = size;
-            label.fontStyle = font != null && font.name.StartsWith("BricolageGrotesque") ? FontStyle.Normal : FontStyle.Bold;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.horizontalOverflow = HorizontalWrapMode.Overflow;
-            label.color = color;
-            label.text = text;
-            label.raycastTarget = false;
-            return label;
-        }
-
-        private static void Place(RectTransform rect, Vector2 position, Vector2 size)
-        {
-            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
-        }
-
-        // Kind icons drawn from signed distances (anti-aliased, white; tinted by the Image colour).
-        private static Sprite KindIcon(PuzzleRule rule)
-        {
-            Func<Vector2, float> sdf;
-            switch (rule)
-            {
-                case ZoneRule _:
-                    // Rounded frame with its left half filled: "this part of the bag".
-                    sdf = p => Mathf.Min(Ring(Box(p, new Vector2(0.5f, 0.5f), new Vector2(0.36f, 0.3f), 0.08f), 0.045f),
-                        Box(p, new Vector2(0.32f, 0.5f), new Vector2(0.17f, 0.29f), 0.06f));
-                    break;
-                case AdjacencyRequiredRule _:
-                    // Two blocks touching.
-                    sdf = p => Mathf.Min(Box(p, new Vector2(0.31f, 0.5f), new Vector2(0.17f, 0.2f), 0.05f),
-                        Ring(Box(p, new Vector2(0.69f, 0.5f), new Vector2(0.17f, 0.2f), 0.05f), 0.04f));
-                    break;
-                case AdjacencyForbiddenRule _:
-                    // Two blocks kept apart by a slash.
-                    sdf = p => Mathf.Min(Mathf.Min(Box(p, new Vector2(0.2f, 0.5f), new Vector2(0.13f, 0.18f), 0.04f),
-                        Box(p, new Vector2(0.8f, 0.5f), new Vector2(0.13f, 0.18f), 0.04f)),
-                        Segment(p, new Vector2(0.4f, 0.24f), new Vector2(0.6f, 0.76f)) - 0.04f);
-                    break;
-                default:
-                    // Access: a block with a lift arrow above it.
-                    sdf = p => Mathf.Min(Box(p, new Vector2(0.5f, 0.3f), new Vector2(0.26f, 0.13f), 0.05f),
-                        Mathf.Min(Segment(p, new Vector2(0.5f, 0.52f), new Vector2(0.5f, 0.86f)) - 0.04f,
-                            Mathf.Min(Segment(p, new Vector2(0.5f, 0.86f), new Vector2(0.36f, 0.71f)) - 0.04f,
-                                Segment(p, new Vector2(0.5f, 0.86f), new Vector2(0.64f, 0.71f)) - 0.04f)));
-                    break;
-            }
-            const int size = 64;
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Rule icon" };
-            for (var y = 0; y < size; y++)
-                for (var x = 0; x < size; x++)
-                {
-                    var d = sdf(new Vector2((x + 0.5f) / size, (y + 0.5f) / size));
-                    texture.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Clamp01(0.5f - d * size)));
-                }
-            texture.Apply(false, true);
-            return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
-        }
-
-        private static float Box(Vector2 p, Vector2 center, Vector2 half, float radius)
-        {
-            var q = new Vector2(Mathf.Abs(p.x - center.x), Mathf.Abs(p.y - center.y)) - half + Vector2.one * radius;
-            return Vector2.Max(q, Vector2.zero).magnitude + Mathf.Min(Mathf.Max(q.x, q.y), 0f) - radius;
-        }
-
-        private static float Ring(float d, float thickness) => Mathf.Abs(d) - thickness;
-
-        private static float Segment(Vector2 p, Vector2 a, Vector2 b)
-        {
-            var pa = p - a;
-            var ba = b - a;
-            var h = Mathf.Clamp01(Vector2.Dot(pa, ba) / Vector2.Dot(ba, ba));
-            return (pa - ba * h).magnitude;
         }
     }
 }

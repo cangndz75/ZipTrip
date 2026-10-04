@@ -3,36 +3,57 @@ using ZipTrip.Domain.Puzzle;
 
 namespace ZipTrip.Unity
 {
-    // ZT-042 presentation strings for rule tags. Localization-ready: every user-facing word comes from these keyed
-    // tables (English defaults here; a localization pass replaces the tables, not the call sites). The Domain carries
-    // ids only and never any display text.
+    // ZT-042 / UI-SLICE-01 presentation strings. Localization-ready: every user-facing word comes from these keyed tables
+    // (Turkish, the locked STYLE-FRAME-01 copy; a localization pass replaces the tables, not the call sites). The Domain
+    // carries ids only and never any display text.
     public static class PuzzleRuleText
     {
-        /// <summary>Tag templates by rule kind; {0} = subject, {1} = target or zone.</summary>
+        /// <summary>Rule sentences by rule kind; {0} = subject, {1} = target or zone. Plus the objective note title.</summary>
         public static readonly Dictionary<string, string> Templates = new Dictionary<string, string>
         {
-            ["rule.zone"] = "{0} → {1}",
-            ["rule.adjacencyRequired"] = "{0} + {1}",
-            ["rule.adjacencyForbidden"] = "{0} ≠ {1}",
-            ["rule.access"] = "{0} on top"
+            ["rule.zone"] = "{0} {1} bölgede olmalı",
+            ["rule.adjacencyRequired"] = "{0}, {1} yanında olmalı",
+            ["rule.adjacencyForbidden"] = "{0}, {1} yanında olmamalı",
+            ["rule.access"] = "{0} üstte olmalı",
+            ["objective.title"] = "Yolculuk Hazırlıkları"
         };
 
         /// <summary>Display names for item definitions, tags and zones; unknown keys fall back to a capitalised id.</summary>
         public static readonly Dictionary<string, string> Names = new Dictionary<string, string>
         {
             ["item.laptop"] = "Laptop",
-            ["item.book"] = "Book",
-            ["item.sneaker"] = "Sneakers",
-            ["item.sweater"] = "Sweater",
-            ["tag.tech"] = "Tech",
-            ["tag.clothes"] = "Clothes",
-            ["tag.shoes"] = "Shoes",
-            ["tag.soft"] = "Soft",
-            ["zone.left"] = "Left",
-            ["zone.right"] = "Right",
-            ["zone.bottom"] = "Bottom",
-            ["zone.top"] = "Top"
+            ["item.book"] = "Kitap",
+            ["item.sneaker"] = "Spor ayakkabı",
+            ["item.sweater"] = "Kazak",
+            ["item.passport"] = "Pasaport",
+            ["item.towel"] = "Havlu",
+            ["item.shampoo"] = "Şampuan",
+            ["item.sunglasses"] = "Gözlük",
+            ["item.travel-pouch"] = "Çanta",
+            ["tag.tech"] = "Elektronik",
+            ["tag.clothes"] = "Kıyafet",
+            ["tag.shoes"] = "Ayakkabı",
+            ["tag.soft"] = "Yumuşak",
+            ["zone.left"] = "sol",
+            ["zone.right"] = "sağ",
+            ["zone.bottom"] = "alt",
+            ["zone.top"] = "üst",
+            ["zone.upper"] = "üst"
         };
+
+        /// <summary>Authored level names shown under "Seviye N", by level id (none = title only).</summary>
+        public static readonly Dictionary<string, string> LevelSubtitles = new Dictionary<string, string>
+        {
+            ["golden-lv1-candidate"] = "İlk Yolculuk"
+        };
+
+        public static string LevelTitle(int number) => "Seviye " + number;
+
+        public static string LevelSubtitle(string levelId) =>
+            levelId != null && LevelSubtitles.TryGetValue(levelId, out var subtitle) ? subtitle : null;
+
+        /// <summary>Centre-slot status for the items still outside the suitcase; null when there are none.</summary>
+        public static string Remaining(int count) => count > 0 ? count + " eşya kaldı" : null;
 
         public static string Label(PuzzleRule rule, PuzzleState state)
         {
@@ -50,6 +71,9 @@ namespace ZipTrip.Unity
                     return rule.Id;
             }
         }
+
+        /// <summary>Short form for the compact rule chip: the rule's subject name ("Pasaport").</summary>
+        public static string Subject(PuzzleRule rule, PuzzleState state) => Name(rule.Subjects, state);
 
         // Instance selectors name the instance's definition; definition and tag selectors name themselves.
         private static string Name(ItemSelector selector, PuzzleState state)
