@@ -18,7 +18,7 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(renderers.Select(r => r.sharedMaterial.name),
                 Is.All.EqualTo("M_CabinInterior_Review"));
             Assert.That(renderers[0].sharedMaterial.GetTexture("_BaseMap").name,
-                Is.EqualTo("T_CabinInterior_Review_BaseColor"));
+                Is.EqualTo("T_CabinInterior_Richness_BaseColor"));
             Assert.That(renderers[0].sharedMaterial.GetTexture("_BumpMap").name,
                 Is.EqualTo("T_CabinInterior_Review_Normal"));
             AssertVisualOnly(interior.gameObject);

@@ -41,6 +41,20 @@ namespace ZipTrip.Editor
             importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), lining.name), lining);
             importer.SaveAndReimport();
 
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            if (existing != null)
+            {
+                ContainerRig.Bind(existing.transform);
+                var interior = existing.transform.Find("CabinInterior_Review");
+                if (interior == null ||
+                    PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(interior.gameObject) !=
+                    Folder + "Models/CabinInterior_Review.fbx")
+                    throw new InvalidOperationException("Approved Cabin Interior nested prefab is missing from " + PrefabPath);
+                // Reimporting the source model updates this variant; replacing it would discard the approved interior.
+                Debug.Log("[ZT-040C] Preserved " + PrefabPath);
+                return;
+            }
+
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(model);
             try
@@ -75,12 +89,12 @@ namespace ZipTrip.Editor
                 material = new Material(Shader.Find("Universal Render Pipeline/Lit")
                     ?? throw new InvalidOperationException("URP Lit shader not found."));
                 AssetDatabase.CreateAsset(material, path);
+                material.SetColor("_BaseColor", color);
+                material.SetTexture("_BaseMap", texture);
+                material.SetFloat("_Metallic", 0f);
+                material.SetFloat("_Smoothness", smoothness);
+                EditorUtility.SetDirty(material);
             }
-            material.SetColor("_BaseColor", color);
-            material.SetTexture("_BaseMap", texture);
-            material.SetFloat("_Metallic", 0f);
-            material.SetFloat("_Smoothness", smoothness);
-            EditorUtility.SetDirty(material);
             return material;
         }
     }

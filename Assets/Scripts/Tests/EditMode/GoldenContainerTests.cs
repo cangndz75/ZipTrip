@@ -18,6 +18,35 @@ namespace ZipTrip.Tests.EditMode
         private static GameObject Prefab() =>
             AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) ?? throw new AssertionException("Missing " + PrefabPath);
 
+        [Test]
+        public void Rebuild_PreservesApprovedInteriorAndRichnessMaterials()
+        {
+            var before = File.ReadAllBytes(PrefabPath);
+            var exteriorBefore = File.ReadAllBytes("Assets/Art/Models/Containers/CabinSuitcase/Materials/M_CabinSuitcase_Exterior.mat");
+            var liningBefore = File.ReadAllBytes("Assets/Art/Models/Containers/CabinSuitcase/Materials/M_CabinSuitcase_Lining.mat");
+            var exterior = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Models/Containers/CabinSuitcase/Materials/M_CabinSuitcase_Exterior.mat");
+            var bump = exterior.GetTexture("_BumpMap");
+            var metallic = exterior.GetTexture("_MetallicGlossMap");
+            var smoothness = exterior.GetFloat("_Smoothness");
+
+            Assert.That(EditorApplication.ExecuteMenuItem("ZipTrip/ZT-040C/Build Golden Cabin Suitcase Prefab"), Is.True);
+
+            Assert.That(File.ReadAllBytes(PrefabPath), Is.EqualTo(before), "approved prefab serialization");
+            Assert.That(File.ReadAllBytes("Assets/Art/Models/Containers/CabinSuitcase/Materials/M_CabinSuitcase_Exterior.mat"),
+                Is.EqualTo(exteriorBefore), "approved exterior material serialization");
+            Assert.That(File.ReadAllBytes("Assets/Art/Models/Containers/CabinSuitcase/Materials/M_CabinSuitcase_Lining.mat"),
+                Is.EqualTo(liningBefore), "approved shell lining material serialization");
+            var interior = Prefab().transform.Find("CabinInterior_Review");
+            Assert.That(interior, Is.Not.Null);
+            Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(interior.gameObject),
+                Is.EqualTo("Assets/Art/Models/Containers/CabinSuitcase/Models/CabinInterior_Review.fbx"));
+            Assert.That(interior.GetComponentsInChildren<MeshRenderer>(true), Has.Length.EqualTo(3));
+            exterior = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Models/Containers/CabinSuitcase/Materials/M_CabinSuitcase_Exterior.mat");
+            Assert.That(exterior.GetTexture("_BumpMap"), Is.EqualTo(bump));
+            Assert.That(exterior.GetTexture("_MetallicGlossMap"), Is.EqualTo(metallic));
+            Assert.That(exterior.GetFloat("_Smoothness"), Is.EqualTo(smoothness));
+        }
+
         private static Rect BoardRect(string levelId)
         {
             var json = File.ReadAllText(Path.Combine(UnityEngine.Application.dataPath, "Resources/LevelsV2", levelId + ".json"));
@@ -79,6 +108,26 @@ namespace ZipTrip.Tests.EditMode
                 "explicit Unity material, not an FBX-generated one");
             var lining = liningMaterial.GetColor("_BaseColor");
             Assert.That(new[] { lining.r, lining.g, lining.b }, Is.EqualTo(new[] { 0.10f, 0.27f, 0.28f }).Within(0.005f));
+        }
+
+        [Test]
+        public void Richness_ChangesOnlyOpaqueMaterialResponse_NotContainerBudget()
+        {
+            var prefab = Prefab();
+            var renderers = prefab.GetComponentsInChildren<MeshRenderer>(true);
+            var materials = renderers.SelectMany(r => r.sharedMaterials).Distinct().ToArray();
+            Assert.That(renderers, Has.Length.EqualTo(6));
+            Assert.That(materials, Has.Length.EqualTo(3));
+            Assert.That(renderers.Sum(r => Enumerable.Range(0, r.GetComponent<MeshFilter>().sharedMesh.subMeshCount)
+                .Sum(i => (long)r.GetComponent<MeshFilter>().sharedMesh.GetIndexCount(i) / 3)), Is.EqualTo(39555));
+            Assert.That(prefab.GetComponentsInChildren<Collider>(true), Is.Empty);
+            Assert.That(materials.All(m => m.GetFloat("_Surface") == 0f), Is.True, "opaque URP materials");
+            var exterior = materials.Single(m => m.name == "M_CabinSuitcase_Exterior");
+            var interior = materials.Single(m => m.name == "M_CabinInterior_Review");
+            Assert.That(exterior.GetTexture("_BumpMap").name, Is.EqualTo("T_CabinSuitcase_Exterior_Richness_Normal"));
+            Assert.That(exterior.GetTexture("_MetallicGlossMap").name,
+                Is.EqualTo("T_CabinSuitcase_Exterior_Richness_MetallicSmoothness"));
+            Assert.That(interior.GetTexture("_OcclusionMap").name, Is.EqualTo("T_CabinInterior_Richness_Occlusion"));
         }
 
         [Test]
