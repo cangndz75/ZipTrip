@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using ZipTrip.Application;
@@ -57,6 +58,9 @@ namespace ZipTrip.Unity
         private Rect _objectiveSafeArea;
         private string _fixtureLabel;
         private Func<PuzzleItem, GameObject> _fixtureVisuals;
+        private HapticsService _haptics;
+        private AudioCueService _audio;
+        private readonly Dictionary<string, bool> _ruleStates = new Dictionary<string, bool>();
 
         public PuzzleLevel Level { get; private set; }
         public PuzzleSession Session { get; private set; }
@@ -149,6 +153,9 @@ namespace ZipTrip.Unity
             Completion.ResetForLevel(null, default, 0f, Hud);
             Level = level;
             Session = new PuzzleSession(Level);
+            _ruleStates.Clear();
+            foreach (var rule in Session.CurrentCompletion.Rules)
+                _ruleStates[rule.RuleId] = rule.IsSatisfied;
 
             Board.UseContainer(containerPrefab);
             Board.Present(Level.Spec.Board, materialTemplate,
@@ -183,6 +190,7 @@ namespace ZipTrip.Unity
             }
             LayoutStaging();
             Drag.Initialize(Session, Board, Tray, Camera, null, Staging);
+            Drag.ConfigureCues(_haptics, _audio);
             LayoutTable();
             Drag.InteractionEnabled = !Session.CurrentCompletion.IsComplete;
 
@@ -254,6 +262,8 @@ namespace ZipTrip.Unity
                 return false;
             Drag.CancelCandidate();
             Drag.SyncPresenters();
+            _haptics?.Play(FeelCue.Undo);
+            _audio?.Play(FeelCue.Undo);
             RefreshCompletion();
             return true;
         }
@@ -310,6 +320,16 @@ namespace ZipTrip.Unity
 
         private void RefreshCompletion(bool edge = false)
         {
+            foreach (var rule in Session.CurrentCompletion.Rules)
+            {
+                if (_ruleStates.TryGetValue(rule.RuleId, out var previous) && previous != rule.IsSatisfied)
+                {
+                    var cue = rule.IsSatisfied ? FeelCue.RuleSatisfied : FeelCue.RuleViolated;
+                    _haptics?.Play(cue);
+                    _audio?.Play(cue);
+                }
+                _ruleStates[rule.RuleId] = rule.IsSatisfied;
+            }
             if (edge)
                 CompletionCount++;
             var complete = Session.CurrentCompletion.IsComplete;
@@ -451,6 +471,8 @@ namespace ZipTrip.Unity
             Staging.Configure(Board);
             Drag = new GameObject("Drag Controller").AddComponent<PuzzleDragController>();
             Drag.transform.SetParent(transform, false);
+            _haptics = gameObject.AddComponent<HapticsService>();
+            _audio = gameObject.AddComponent<AudioCueService>();
             Drag.StepCommitted += step => RefreshCompletion(step.CompletionReached);
             Hud = new GameObject("Puzzle HUD").AddComponent<PuzzleHud>();
             Hud.transform.SetParent(transform, false);

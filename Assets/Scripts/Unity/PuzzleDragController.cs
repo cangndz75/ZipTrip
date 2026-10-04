@@ -52,6 +52,7 @@ namespace ZipTrip.Unity
         private PuzzleItem _item;
         private Vector3 _grabOffset;
         private Vector3 _lastPointer;
+        private bool _hasDragSample;
         private Vector3 _dragStart;
         private Transform _ghostRoot;
         private PuzzleStagingPresenter _staging;
@@ -59,6 +60,14 @@ namespace ZipTrip.Unity
         private string _candidateStateId;
         private ItemModifier? _candidateModifier;
         private bool _temporaryNestedView;
+        private HapticsService _haptics;
+        private AudioCueService _audio;
+
+        public void ConfigureCues(HapticsService haptics, AudioCueService audio)
+        {
+            _haptics = haptics;
+            _audio = audio;
+        }
 
         public PuzzleSession Session => _session;
         public bool IsDragging => _view != null;
@@ -185,7 +194,10 @@ namespace ZipTrip.Unity
             _grabOffset = new Vector3(origin.x - pointerWorld.x, 0f, origin.z - pointerWorld.z) / scale;
             view.transform.localScale = Vector3.one;
             _dragStart = pointerWorld;
+            _hasDragSample = false;
             view.Feedback?.PlayLift();
+            _haptics?.Play(FeelCue.ItemLift);
+            _audio?.Play(FeelCue.ItemLift, view.Feedback.Profile.Family);
             UpdateDrag(pointerWorld);
             return DragBeginResult.Started;
         }
@@ -194,7 +206,10 @@ namespace ZipTrip.Unity
         {
             if (!IsDragging)
                 return;
+            if (_hasDragSample)
+                _view.Feedback?.SetDragTilt((pointerWorld - _lastPointer) / Mathf.Max(Time.unscaledDeltaTime, 0.016f));
             _lastPointer = pointerWorld;
+            _hasDragSample = true;
             var anchorWorld = new Vector3(pointerWorld.x, 0f, pointerWorld.z) + _grabOffset;
             _view.transform.position = anchorWorld + Vector3.up * LiftHeight;
             var lossy = _view.transform.lossyScale.y;
@@ -265,6 +280,8 @@ namespace ZipTrip.Unity
             CandidateRotation = allowed[(index + 1) % allowed.Count];
             _view.SetVisual(shown, CandidateRotation, _board.ResolveVisual(shown), _board.Template,
                 _board.ColorFor(_item.Definition.Id));
+            _haptics?.Play(FeelCue.Rotate);
+            _audio?.Play(FeelCue.Rotate);
             UpdateDrag(_lastPointer);
         }
 
@@ -307,6 +324,8 @@ namespace ZipTrip.Unity
             else
                 _staging.SetDisplayRotation(item.InstanceId, unique[(index + 1) % unique.Count]);
             SyncPresenters();
+            _haptics?.Play(FeelCue.Rotate);
+            _audio?.Play(FeelCue.Rotate);
             return true;
         }
 
@@ -398,11 +417,17 @@ namespace ZipTrip.Unity
             if (step.Move.IsAccepted)
             {
                 shown?.Feedback?.PlaySettle();
+                _haptics?.Play(FeelCue.ItemSettle);
+                _audio?.Play(FeelCue.ItemSettle, shown != null ? shown.Feedback.Profile.Family : MaterialFamily.Neutral);
                 if (nestParent != null)
                     ViewOf(nestParent)?.Feedback?.PlaySettle();
             }
             else
+            {
                 shown?.Feedback?.PlayReject(direction);
+                _haptics?.Play(FeelCue.Reject);
+                _audio?.Play(FeelCue.Reject);
+            }
             StepCommitted?.Invoke(step);
             return step;
         }

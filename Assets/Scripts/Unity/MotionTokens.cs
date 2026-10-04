@@ -21,6 +21,27 @@ namespace ZipTrip.Unity
         public const float CompletionZipDuration = 0.36f;
         public const float UiPressDuration = 0.16f;
         public const float RulePulseDuration = 0.32f;
+        public const float FabricSettleDuration = 0.34f;
+        public const float LeatherSettleDuration = 0.29f;
+        public const float PlasticSettleDuration = 0.23f;
+        public const float PaperSettleDuration = 0.22f;
+        public const float MetalSettleDuration = 0.18f;
+        public const float DragTiltMaxDegrees = 8f;
+        public const float DragTiltDegreesPerWorldUnit = 3f;
+
+        public static float SettleResponse(MaterialFamily family, float t)
+        {
+            t = Mathf.Clamp01(t);
+            switch (family)
+            {
+                case MaterialFamily.Fabric: return Mathf.Sin(t * Mathf.PI * 2f) * (1f - t);
+                case MaterialFamily.Plastic: return Mathf.Sin(t * Mathf.PI * 4f) * (1f - t);
+                case MaterialFamily.Leather: return 1f - EaseOutCubic(t);
+                case MaterialFamily.Paper: return Mathf.Sin(t * Mathf.PI) * (1f - t);
+                case MaterialFamily.MetalGlass: return 0f;
+                default: return 1f - OutBack(t, ItemSettleOutBackOvershoot);
+            }
+        }
 
         public static float EaseInQuadratic(float t) => t * t;
         public static float EaseOutCubic(float t) => 1f - Mathf.Pow(1f - t, 3f);

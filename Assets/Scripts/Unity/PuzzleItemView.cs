@@ -198,6 +198,7 @@ namespace ZipTrip.Unity
                 Feedback = gameObject.AddComponent<ItemFeedback>();
                 Feedback.Attach(feedbackRoot);
             }
+            Feedback.SetProfile(PuzzleItemCatalog.ResolveMotion(DefinitionId));
             Feedback.CompleteAll();
             int pivotWidth = 0, pivotDepth = 0;
             foreach (var cell in footprint.OccupiedCells)

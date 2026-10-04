@@ -21,6 +21,8 @@ namespace ZipTrip.Unity
         private Channel _channel;
         private float _time;
         private Vector3 _rejectDirection;
+        private MaterialMotionProfile _profile;
+        private float _dragTilt;
 
         /// <summary>The pivot transform this component animates (footprint centre).</summary>
         public Transform Root { get; private set; }
@@ -30,6 +32,17 @@ namespace ZipTrip.Unity
         public bool IsHeld => _channel == Channel.Lift;
 
         internal void Attach(Transform root) => Root = root;
+        internal void SetProfile(MaterialMotionProfile profile) => _profile = profile;
+        public MaterialMotionProfile Profile => _profile;
+
+        public void SetDragTilt(Vector3 velocity)
+        {
+            if (_channel != Channel.Lift)
+                return;
+            _dragTilt = Mathf.Clamp(-velocity.x * MotionTokens.DragTiltDegreesPerWorldUnit,
+                -MotionTokens.DragTiltMaxDegrees, MotionTokens.DragTiltMaxDegrees);
+            Apply(Root.localPosition - _pivot, Root.localScale, _dragTilt);
+        }
 
         /// <summary>Pick: quick squash, then grows past the held size and eases back (out-back). Held until released.</summary>
         public void PlayLift() => Begin(Channel.Lift);
@@ -53,6 +66,7 @@ namespace ZipTrip.Unity
         {
             _channel = Channel.None;
             _time = 0f;
+            _dragTilt = 0f;
             Apply(Vector3.zero, Vector3.one, 0f);
         }
 
@@ -80,11 +94,15 @@ namespace ZipTrip.Unity
                     var press = Mathf.Clamp01(_time / MotionTokens.ItemPressDuration);
                     var grow = Mathf.Clamp01((_time - MotionTokens.ItemPressDuration) / LiftDuration);
                     var hold = Mathf.Clamp01((_time - MotionTokens.ItemPressDuration - LiftDuration) / MotionTokens.ItemLiftHoldDuration);
+                    var liftScale = _profile.LiftScale > 0f ? _profile.LiftScale : LiftScale;
+                    var heldScale = _profile.HeldScale > 0f ? _profile.HeldScale : HeldScale;
                     var s = _time < MotionTokens.ItemPressDuration
                         ? Mathf.Lerp(1f, PressScale, press)
-                        : Mathf.LerpUnclamped(PressScale, LiftScale, MotionTokens.OutBack(grow, MotionTokens.ItemLiftOutBackOvershoot));
-                    s = Mathf.Lerp(s, HeldScale, MotionTokens.EaseOutCubic(hold));
-                    Apply(Vector3.zero, Vector3.one * s, 0f);
+                        : Mathf.LerpUnclamped(PressScale, liftScale, MotionTokens.OutBack(grow, MotionTokens.ItemLiftOutBackOvershoot));
+                    s = Mathf.Lerp(s, heldScale, MotionTokens.EaseOutCubic(hold));
+                    var materialTilt = _profile.Family == MaterialFamily.Paper ? 3f * (1f - press) * (1f - grow)
+                        : _profile.Family == MaterialFamily.Fabric ? 1.5f * MotionTokens.SinePulse(grow) : 0f;
+                    Apply(Vector3.zero, Vector3.one * s, _dragTilt + materialTilt);
                     break;
                 }
                 case Channel.Settle:
@@ -92,11 +110,15 @@ namespace ZipTrip.Unity
                     // 0..90 ms: falls the last 0.12 onto the lining; then squash 1.04 x .92 rebounds to rest.
                     var fall = Mathf.Clamp01(_time / MotionTokens.ItemSettleFallDuration);
                     var y = Mathf.Lerp(0.12f, 0f, MotionTokens.EaseInQuadratic(fall));
-                    var t = Mathf.Clamp01((_time - MotionTokens.ItemSettleFallDuration) / (SettleDuration - MotionTokens.ItemSettleFallDuration));
-                    var squash = _time < MotionTokens.ItemSettleFallDuration ? 0f : 1f - MotionTokens.OutBack(t, MotionTokens.ItemSettleOutBackOvershoot);
-                    var scale = new Vector3(1f + 0.04f * squash, 1f - 0.08f * squash, 1f + 0.04f * squash);
-                    Apply(new Vector3(0f, y, 0f), scale, 0f);
-                    if (_time >= SettleDuration)
+                    var duration = _profile.SettleDuration > 0f ? _profile.SettleDuration : SettleDuration;
+                    var t = Mathf.Clamp01((_time - MotionTokens.ItemSettleFallDuration) / (duration - MotionTokens.ItemSettleFallDuration));
+                    var response = _time < MotionTokens.ItemSettleFallDuration ? 0f : MotionTokens.SettleResponse(_profile.Family, t);
+                    var squash = _profile.SettleSquash > 0f ? _profile.SettleSquash : 0.08f;
+                    var scale = new Vector3(1f + squash * 0.5f * response, 1f - squash * response, 1f + squash * 0.5f * response);
+                    var bounce = _profile.SettleBounce * Mathf.Max(0f, -response);
+                    Apply(new Vector3(0f, y + bounce, 0f), scale,
+                        _profile.Family == MaterialFamily.Paper ? 2f * response : 0f);
+                    if (_time >= duration)
                         CompleteAll();
                     break;
                 }

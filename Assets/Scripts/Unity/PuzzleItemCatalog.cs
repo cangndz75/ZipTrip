@@ -13,6 +13,22 @@ namespace ZipTrip.Unity
     // canonical; the towel is open only (its folded state is deferred so Lv1 needs no Fold).
     public static class PuzzleItemCatalog
     {
+        public static MaterialMotionProfile MetalGlassMotion =>
+            new MaterialMotionProfile(MaterialFamily.MetalGlass, 1.03f, 1.02f, 0.005f, 0f, MotionTokens.MetalSettleDuration);
+
+        public static MaterialMotionProfile ResolveMotion(string definitionId)
+        {
+            switch (definitionId)
+            {
+                case "sweater":
+                case "towel": return new MaterialMotionProfile(MaterialFamily.Fabric, 1.055f, 1.035f, 0.05f, 0.045f, MotionTokens.FabricSettleDuration);
+                case "travel-pouch": return new MaterialMotionProfile(MaterialFamily.Leather, 1.04f, 1.025f, 0.02f, 0.012f, MotionTokens.LeatherSettleDuration);
+                case "shampoo":
+                case "sunglasses": return new MaterialMotionProfile(MaterialFamily.Plastic, 1.06f, 1.04f, 0.025f, 0.035f, MotionTokens.PlasticSettleDuration);
+                case "passport": return new MaterialMotionProfile(MaterialFamily.Paper, 1.035f, 1.025f, 0.01f, 0.006f, MotionTokens.PaperSettleDuration);
+                default: return new MaterialMotionProfile(MaterialFamily.Neutral, ItemFeedback.LiftScale, ItemFeedback.HeldScale, 0.08f, 0.025f, MotionTokens.ItemSettleDuration);
+            }
+        }
         private static readonly Rotation[] Upright = { Rotation.Degrees0, Rotation.Degrees90 };
         private static readonly Rotation[] All = { Rotation.Degrees0, Rotation.Degrees90, Rotation.Degrees180, Rotation.Degrees270 };
 
