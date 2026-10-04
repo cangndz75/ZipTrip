@@ -21,9 +21,9 @@ namespace ZipTrip.Unity
         /// <summary>Container models face +Z (handle side); the board's near side is -Z, towards the camera.</summary>
         public const float ContainerYaw = 180f;
         /// <summary>Lining margin (cells) kept between the board and the authored interior walls.</summary>
-        public const float ContainerPadding = 0.15f;
+        public const float ContainerPadding = 0.05f;
         /// <summary>Spare interior width (cells, per side) at or above which a padded filler closes the gap.</summary>
-        public const float FillerMinGap = 0.5f;
+        public const float FillerMinGap = 0.15f;
         public const float FillerHeight = 0.42f;
         public static readonly Color ContainerLining = new Color(0.10f, 0.27f, 0.28f);
         /// <summary>

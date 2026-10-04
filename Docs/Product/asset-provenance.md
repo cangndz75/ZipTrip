@@ -95,19 +95,31 @@ The human owner accepted this asset on 2026-10-02. The earlier square-ish golden
 | Asset | `M_Item_SweaterFolded` |
 | Geometry authorship | Procedurally authored in Blender; no Meshy or Tripo generated mesh is used in production geometry |
 | Production selection | Meshy and Tripo AI meshes repeatedly failed topology/readability quality; AI outputs were visual/reference exploration only. The final geometry was procedurally authored in Blender. |
-| Reproducible Blender script | `Assets/Art/Models/Items/Source/M_Item_SweaterFolded_Procedural.py` |
-| Blender source | `Assets/Art/Models/Items/Source/M_Item_SweaterFolded_Source.blend` |
+| Reproducible Blender script | `Tools/Art/build_folded_sweater_02a1.py`; original ZA-003 script remains archived at `Assets/Art/Models/Items/Source/M_Item_SweaterFolded_Procedural.py` |
+| Blender source | `ArtSource/GoldenItems/SweaterFolded/SweaterFolded_PhysicalReview.blend`; original ZA-003 source remains archived at `Assets/Art/Models/Items/Source/M_Item_SweaterFolded_Source.blend` |
 | Approved long-form reference | `Assets/Art/Items/Golden/item_sweater_folded.png` |
 | Top-surface texture source | `Assets/Art/Materials/Items/SweaterFolded/Textures/SweaterFolded_LongFront.jpeg`; the approved reference supplies the visual identity and mustard collar knit |
 | Rejected R&D | Meshy and Tripo generated meshes were tried and rejected; their raw/retopo/Smart-Mesh outputs are not production dependencies |
 | Unity final interchange | `Assets/Art/Models/Items/Final/M_Item_SweaterFolded.fbx` |
 | Canonical logical footprint | 2 × 4 cells |
-| Unity visual bounds | X = [0.0500, 1.9500], Z = [-3.9500, -0.0500]; bottom at Y = 0 |
-| Packing thickness | 0.371316 Unity units |
-| Final geometry | 9,600 triangles: body 8,064; collar 1,536 |
+| Unity visual bounds | X = [0.0500, 1.9500], Z = [-3.9500, -0.0550]; bottom at Y = 0 |
+| Packing thickness | 0.40199 Unity units |
+| Final geometry | 6,428 triangles across lower return, upper fold, collar, and sleeve return |
 | Unity import | PASS via `ModelImporter` |
 | Human visual review | PASS: folded-sweater identity and Sweater Open family, visual/hidden footprint agreement, revised collar, no giant cavity, texture smear or visible holes, and +0.15 Y drag lift |
 | Generation and cleanup time | ~4.5 h retrospective human-approved active-work estimate; not an instrumented timing. Stage durations were not measured. |
+
+## ART-GATE-02A review and Unity promotion
+
+On 2026-10-04 the human owner approved the Interior, Sweater Open, and Sweater Folded review assets. Folded passes for its layered profile, folded sleeve/cuff, integrated collar, and gameplay-angle garment identity. The optional layer compression, separation shadow, and corner softness are deferred to a later polish pass.
+
+| Asset | Approved review source | Unity asset |
+|---|---|---|
+| Cabin Interior | `ArtSource/CabinSuitcase/Interior/CabinInterior_Review.blend` | `Assets/Art/Models/Containers/CabinSuitcase/Models/CabinInterior_Review.fbx`, attached to `CabinSuitcase_Golden.prefab` with its own fabric material and basecolor texture |
+| Sweater Open | `ArtSource/GoldenItems/SweaterOpen/SweaterOpen_Review.blend` | `Assets/Art/Models/Items/Final/M_Item_SweaterOpen.fbx` through `PF_Item_SweaterOpen.prefab` |
+| Sweater Folded | `ArtSource/GoldenItems/SweaterFolded/SweaterFolded_PhysicalReview.blend` | `Assets/Art/Models/Items/Final/M_Item_SweaterFolded.fbx` through `PF_Item_SweaterFolded.prefab` |
+
+Unity import and focused prefab tests passed on 2026-10-04. A gameplay visual review of the promoted assets remains separate from the ART-GATE-02A approval.
 
 ## ZA-003 sneaker pair 3D candidate — asset accepted
 

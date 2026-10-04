@@ -22,7 +22,7 @@ namespace ZipTrip.Unity
         public static readonly Color Felt = PresentationKit.Hex(0xB5A48D);
         public static readonly Color Stitch = PresentationKit.Hex(0xF7F1E6);
         public static readonly Color KeyColor = new Color(1f, 0.95f, 0.86f);
-        public const float KeyIntensity = 1.25f;
+        public const float KeyIntensity = 1.35f;
         public static readonly Vector3 KeyEuler = new Vector3(52f, 135f, 0f); // from the top-left of the screen
 
         private readonly List<Object> _owned = new List<Object>();
@@ -92,6 +92,12 @@ namespace ZipTrip.Unity
                 Own(PresentationKit.Transparent(_template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.3f), shadowTexture)));
         }
 
+        public void SetMatVisible(bool visible)
+        {
+            if (_matRoot != null)
+                _matRoot.gameObject.SetActive(visible);
+        }
+
         // One warm key from the top-left (shadows fall to the bottom-right, matching the contact shadows) and a
         // trilight ambient that keeps shadow sides readable instead of a second real-time light.
         private void BuildLighting()
@@ -110,11 +116,11 @@ namespace ZipTrip.Unity
             KeyLight.color = KeyColor;
             KeyLight.intensity = KeyIntensity;
             KeyLight.shadows = LightShadows.Soft;
-            KeyLight.shadowStrength = 0.5f;
+            KeyLight.shadowStrength = 0.58f;
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.78f, 0.8f, 0.84f);
-            RenderSettings.ambientEquatorColor = new Color(0.66f, 0.62f, 0.56f);
-            RenderSettings.ambientGroundColor = new Color(0.33f, 0.29f, 0.26f);
+            RenderSettings.ambientSkyColor = new Color(0.74f, 0.77f, 0.81f);
+            RenderSettings.ambientEquatorColor = new Color(0.60f, 0.57f, 0.52f);
+            RenderSettings.ambientGroundColor = new Color(0.30f, 0.27f, 0.24f);
         }
 
         // Mobile-safe, restrained, all inside URP's single uber pass: neutral tonemapping, a little contrast/saturation and
@@ -127,8 +133,8 @@ namespace ZipTrip.Unity
             var tonemapping = profile.Add<Tonemapping>(true);
             tonemapping.mode.Override(TonemappingMode.Neutral);
             var color = profile.Add<ColorAdjustments>(true);
-            color.postExposure.Override(0.12f);
-            color.contrast.Override(10f);
+            color.postExposure.Override(0f);
+            color.contrast.Override(16f);
             color.saturation.Override(8f);
             var vignette = profile.Add<UnityEngine.Rendering.Universal.Vignette>(true);
             vignette.intensity.Override(0.2f);

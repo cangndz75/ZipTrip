@@ -24,16 +24,16 @@ namespace ZipTrip.Unity
         public const float MaxTrayScale = 0.8f;
         /// <summary>How far the row of loose items may extend past the suitcase's outer width (both sides together).</summary>
         public const float TrayOverhang = 0.7f;
-        public const float TrayItemGap = 0.3f;
+        public const float TrayItemGap = 0.15f;
         /// <summary>Distance from the suitcase interior's front edge to the loose items (clears wall + handle).</summary>
         public const float TrayGap = 1.5f;
         /// <summary>Gap between an authored container's front (handle included) and the loose items.</summary>
-        public const float ContainerTrayGap = 0.55f;
+        public const float ContainerTrayGap = 0.1f;
         /// <summary>
         /// Height (world y above the hinge) of the open lid that camera framing reserves; the rest of the lid may rise
         /// into the top HUD band or past the screen edge, so the lid reads without shrinking the board.
         /// </summary>
-        public const float LidFrameHeight = 3.5f;
+        public const float LidFrameHeight = 1.8f;
 
         [SerializeField] private string[] levelIds = { "lv1-fit", "lv2-rotate" };
         [SerializeField] private int startLevel;
@@ -154,7 +154,7 @@ namespace ZipTrip.Unity
             {
                 // Loose items rest on the same surface as the suitcase, in one centred row in front of it.
                 var body = Board.ContainerFootprint;
-                Tray.RowWidth = Mathf.Max(body.width + TrayOverhang, 4f);
+                Tray.RowWidth = Mathf.Max(body.width, 4f);
                 Tray.Scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
                 Tray.transform.localPosition = new Vector3(body.center.x - Tray.RowWidth * 0.5f,
                     Board.ContainerBottomY + PackingTable.MatThickness, body.yMin - ContainerTrayGap);
@@ -169,6 +169,7 @@ namespace ZipTrip.Unity
             LayoutStaging();
             Drag.Initialize(Session, Board, Tray, Camera, null, Staging);
             LayoutTable();
+            _table.SetMatVisible(Tray.ItemViews.Count > 0 || Staging.Capacity > 0);
             Drag.InteractionEnabled = !Session.CurrentCompletion.IsComplete;
 
             Hud.SetLevel(label);
@@ -236,6 +237,7 @@ namespace ZipTrip.Unity
                 return false;
             Drag.CancelCandidate();
             Drag.SyncPresenters();
+            _table.SetMatVisible(Tray.ItemViews.Count > 0 || Staging.Capacity > 0);
             RefreshCompletion();
             return true;
         }
@@ -283,6 +285,7 @@ namespace ZipTrip.Unity
 
         private void RefreshCompletion(bool edge = false)
         {
+            _table.SetMatVisible(Tray.ItemViews.Count > 0 || Staging.Capacity > 0);
             if (edge)
                 CompletionCount++;
             var complete = Session.CurrentCompletion.IsComplete;
@@ -354,7 +357,8 @@ namespace ZipTrip.Unity
             var bounds = new Bounds(Board.transform.position, Vector3.zero);
             var lid = Board.Lid;
             foreach (var renderer in Board.GetComponentsInChildren<Renderer>())
-                if (lid == null || !renderer.transform.IsChildOf(lid))
+                if ((lid == null || !renderer.transform.IsChildOf(lid))
+                    && renderer.name != "Contact Shadow" && renderer.name != "Soft Shadow")
                     bounds.Encapsulate(renderer.bounds);
             if (lid != null)
                 bounds.Encapsulate(lid.position + Vector3.up * LidFrameHeight);

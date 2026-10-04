@@ -35,7 +35,7 @@ namespace ZipTrip.Unity
             {
                 var guide = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 guide.name = $"Cell {column.X},{column.Y}";
-                UnityEngine.Object.Destroy(guide.GetComponent<Collider>());
+                UnityEngine.Object.Destroy(guide.GetComponent<MeshCollider>());
                 guide.transform.SetParent(transform, false);
                 guide.transform.localPosition = PuzzleBoardLayout.ColumnCenter(column) + new Vector3(0f, GuideY, 0f);
                 guide.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);

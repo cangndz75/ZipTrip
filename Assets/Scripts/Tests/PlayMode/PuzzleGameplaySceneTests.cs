@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
@@ -859,6 +860,99 @@ namespace ZipTrip.Tests.PlayMode
             RenderTexture.active = null;
             Object.Destroy(target);
             Object.Destroy(image);
+        }
+
+        [UnityTest, Explicit("Writes VISUAL-SLICE-00 review captures and projected bounds")]
+        public IEnumerator CaptureVisualSlice00()
+        {
+            var quality = QualitySettings.GetQualityLevel();
+            QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "Mobile"), true);
+            try
+            {
+                yield return LoadGameplayScene();
+                var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+                scene.Hud.RenderThrough(scene.Camera);
+                scene.Completion.AutoAdvance = false;
+                var phase = System.Environment.GetEnvironmentVariable("ZT_VISUAL_SLICE_PHASE") == "before" ? "before" : "after";
+                var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../Builds/visual-slice-00/" + phase));
+                Directory.CreateDirectory(folder);
+                Assert.That(scene.Table.Mat.activeInHierarchy, Is.True, "source items rest on the felt mat");
+                yield return Capture(scene, folder, "A-lv1-idle", 1080, 2340);
+                WriteVisualSliceBounds(scene, folder, "lv1-idle");
+                Place(scene, "laptop-1", Rotation.Degrees0, new Cell(0, 0));
+                Place(scene, "book-1", Rotation.Degrees0, new Cell(3, 4));
+                yield return Capture(scene, folder, "B-lv1-partial", 1080, 2340);
+                Place(scene, "sweater-1", Rotation.Degrees0, new Cell(0, 4));
+                Place(scene, "sneaker-1", Rotation.Degrees0, new Cell(3, 0));
+                Assert.That(scene.Session.CurrentCompletion.IsComplete, Is.True);
+                Assert.That(scene.Table.Mat.activeInHierarchy, Is.False, "empty source mat and its trim are hidden");
+                yield return Capture(scene, folder, "C-lv1-complete-before-zip", 1080, 2340);
+                WriteVisualSliceBounds(scene, folder, "lv1-complete");
+                scene.NextLevel();
+                yield return Capture(scene, folder, "D-lv2-idle", 1080, 2340);
+                WriteVisualSliceBounds(scene, folder, "lv2-idle");
+                Debug.Log("[visual-slice-00] " + folder);
+            }
+            finally
+            {
+                QualitySettings.SetQualityLevel(quality, true);
+            }
+        }
+
+        private static void WriteVisualSliceBounds(PuzzleGameplayScene scene, string folder, string label)
+        {
+            var camera = scene.Camera;
+            var target = new RenderTexture(1080, 2340, 24);
+            camera.targetTexture = target;
+            scene.FrameCamera();
+            var frame = scene.Board.CompartmentFrames().Single();
+            var origin = frame.Origin;
+            var board = new Rect(origin.x, origin.z - frame.Height, frame.Width, frame.Height);
+            var lines = new System.Collections.Generic.List<string>();
+            void Add(string name, Rect rect) => lines.Add(string.Join(",", name,
+                rect.xMin.ToString("F2", CultureInfo.InvariantCulture),
+                rect.yMin.ToString("F2", CultureInfo.InvariantCulture),
+                rect.xMax.ToString("F2", CultureInfo.InvariantCulture),
+                rect.yMax.ToString("F2", CultureInfo.InvariantCulture)));
+            Add("board", ProjectVisualSliceRect(camera, board, 0f));
+            Add("interior", ProjectVisualSliceRect(camera, scene.Board.ContainerInterior, SuitcaseShell.LiningY));
+            Add("base", ProjectVisualSliceBounds(camera, scene.Board.Container.Base.GetComponentsInChildren<Renderer>()));
+            Add("lid", ProjectVisualSliceBounds(camera, scene.Board.Container.Lid.GetComponentsInChildren<Renderer>()));
+            var trayRenderers = scene.Tray.GetComponentsInChildren<Renderer>();
+            if (trayRenderers.Length > 0)
+                Add("tray", ProjectVisualSliceBounds(camera, trayRenderers));
+            foreach (var item in scene.Tray.ItemViews.OrderBy(pair => pair.Key))
+                Add("item-" + item.Key, ProjectVisualSliceBounds(camera, item.Value.GetComponentsInChildren<Renderer>()));
+            lines.Add("cameraSize," + camera.orthographicSize.ToString("F4", CultureInfo.InvariantCulture));
+            lines.Add("trayScale," + scene.Tray.Scale.ToString("F4", CultureInfo.InvariantCulture));
+            File.WriteAllLines(Path.Combine(folder, label + "-bounds.csv"), lines);
+            camera.targetTexture = null;
+            Object.Destroy(target);
+        }
+
+        private static Rect ProjectVisualSliceRect(Camera camera, Rect rect, float y)
+        {
+            var points = new[]
+            {
+                camera.WorldToScreenPoint(new Vector3(rect.xMin, y, rect.yMin)),
+                camera.WorldToScreenPoint(new Vector3(rect.xMax, y, rect.yMin)),
+                camera.WorldToScreenPoint(new Vector3(rect.xMin, y, rect.yMax)),
+                camera.WorldToScreenPoint(new Vector3(rect.xMax, y, rect.yMax))
+            };
+            return Rect.MinMaxRect(points.Min(p => p.x), points.Min(p => p.y), points.Max(p => p.x), points.Max(p => p.y));
+        }
+
+        private static Rect ProjectVisualSliceBounds(Camera camera, Renderer[] renderers)
+        {
+            var points = renderers.SelectMany(renderer =>
+            {
+                var bounds = renderer.bounds;
+                return Enumerable.Range(0, 8).Select(i => camera.WorldToScreenPoint(new Vector3(
+                    (i & 1) == 0 ? bounds.min.x : bounds.max.x,
+                    (i & 2) == 0 ? bounds.min.y : bounds.max.y,
+                    (i & 4) == 0 ? bounds.min.z : bounds.max.z)));
+            }).ToArray();
+            return Rect.MinMaxRect(points.Min(p => p.x), points.Min(p => p.y), points.Max(p => p.x), points.Max(p => p.y));
         }
 #endif
     }
