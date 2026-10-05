@@ -22,7 +22,7 @@ namespace ZipTrip.Unity
         public static readonly Color TableLinen = PresentationKit.Hex(0xEADCC7);
         public static readonly Color TableShade = PresentationKit.Hex(0x4A3526);
         public static readonly Color KeyColor = new Color(1f, 0.95f, 0.86f);
-        public const float KeyIntensity = 1.35f;
+        public const float KeyIntensity = 1.65f;
         public static readonly Vector3 KeyEuler = new Vector3(52f, 135f, 0f); // from the top-left of the screen
 
         // BACKDROP-SLICE-01 (STYLE-FRAME-01 travel world). The authored surface covers SurfaceRect around the suitcase
@@ -61,6 +61,7 @@ namespace ZipTrip.Unity
         private Material _trayShadowMaterial;
         private Material _trayArtMaterial;
         private int _trayKey;
+        private bool _vacationBackdrop;
 
         public GameObject Surface { get; private set; }
         /// <summary>Authored travel-world surface (null when no backdrop texture is configured).</summary>
@@ -85,10 +86,14 @@ namespace ZipTrip.Unity
             if (_template == null)
                 return;
             Material table;
+            var vacation = Resources.Load<Texture2D>("UiSlice011/santorini_vacation");
+            _vacationBackdrop = vacation != null;
+            if (_vacationBackdrop)
+                backdrop = vacation;
             if (backdrop != null)
             {
                 table = Own(PresentationKit.Matte(_template, SurfaceTone, null, 0.04f));
-                Backdrop = PresentationKit.MeshObject("Backdrop Surface", transform, Own(PresentationKit.Quad(SurfaceRect, 0.001f)),
+                Backdrop = PresentationKit.MeshObject("Backdrop Surface", transform, Own(PresentationKit.Quad(_vacationBackdrop ? new Rect(0f, 0f, 1f, 1f) : SurfaceRect, 0.001f)),
                     Own(PresentationKit.Matte(_template, Color.white, backdrop, 0.04f)));
             }
             else
@@ -114,7 +119,7 @@ namespace ZipTrip.Unity
             _shellMaterial = Own(PresentationKit.Matte(_template, ShellLinen, null, 0.06f));
             _trayShadowMaterial = Own(PresentationKit.Transparent(_template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.28f),
                 Own(PresentationKit.SoftRect(64, 0.35f))));
-            var trayArt = Resources.Load<Texture2D>("UiSlice011/tray_slot");
+            var trayArt = Resources.Load<Texture2D>("UiSlice011/travel_frame");
             if (trayArt != null)
                 _trayArtMaterial = Own(PresentationKit.Transparent(_template, Color.white, trayArt));
             _trayRoot = new GameObject("Source Tray Shell").transform;
@@ -151,7 +156,7 @@ namespace ZipTrip.Unity
             var key = 17;
             foreach (var view in tray.ItemViews.Values)
             {
-                var p = view.transform.position;
+                var p = tray.RestPosition(view.InstanceId);
                 key = key * 31 + Mathf.RoundToInt(p.x * 100f);
                 key = key * 31 + Mathf.RoundToInt(p.z * 100f);
                 key = key * 31 + (int)view.Rotation + view.Footprint.CellCount * 7;
@@ -191,9 +196,18 @@ namespace ZipTrip.Unity
                     width = Mathf.Max(width, cells[i].X + 1);
                     depth = Mathf.Max(depth, cells[i].Y + 1);
                 }
-                var p = view.transform.position;
-                var card = new Rect(p.x - CardPad, p.z - depth * tray.Scale - CardPad, width * tray.Scale + 2f * CardPad,
+                var p = tray.RestPosition(view.InstanceId);
+                var cardWidth = Mathf.Max(2, width);
+                var card = new Rect(p.x - (cardWidth - width) * tray.Scale * 0.5f - CardPad, p.z - depth * tray.Scale - CardPad, cardWidth * tray.Scale + 2f * CardPad,
                     depth * tray.Scale + 2f * CardPad);
+                // Equal-depth authored cards, not empty gameplay slots. Only existing tray views create a card.
+                var rowDepth = 0f;
+                foreach (var rowView in tray.ItemViews.Values)
+                    foreach (var cell in rowView.Footprint.OccupiedCells)
+                        rowDepth = Mathf.Max(rowDepth, (cell.Y + 1) * tray.Scale);
+                var cardTop = p.z;
+                card.yMax = cardTop + CardPad;
+                card.yMin = cardTop - rowDepth - CardPad - 0.32f;
                 shell = index == 0 ? card : Rect.MinMaxRect(Mathf.Min(shell.xMin, card.xMin), Mathf.Min(shell.yMin, card.yMin),
                     Mathf.Max(shell.xMax, card.xMax), Mathf.Max(shell.yMax, card.yMax));
                 // Neighbouring cards may overlap slightly (as in the locked frame): each sits a hair lower and the selected
@@ -202,7 +216,7 @@ namespace ZipTrip.Unity
                 var top = y + (selected ? MatThickness : MatThickness - 0.003f * (index + 1));
                 var rim = new Rect(card.xMin - 0.03f, card.yMin - 0.03f, card.width + 0.06f, card.height + 0.06f);
                 TrayMesh("Card Edge " + view.InstanceId, PresentationKit.Slab(rim, 0.2f, y + 0.026f, top - 0.002f),
-                    _edgeMaterial);
+                    selected ? _selectedMaterial : _edgeMaterial);
                 TrayMesh("Card " + view.InstanceId, PresentationKit.Slab(card, 0.18f, y + 0.026f, top), _cardMaterial);
                 if (_trayArtMaterial != null)
                     TrayMesh("Card Liner " + view.InstanceId, PresentationKit.Quad(card, top + 0.0005f), _trayArtMaterial);
@@ -215,7 +229,7 @@ namespace ZipTrip.Unity
                 index++;
             }
             TrayCardCount = index;
-            shell = new Rect(shell.xMin - ShellPad, shell.yMin - ShellPad, shell.width + 2f * ShellPad, shell.height + 2f * ShellPad);
+            shell = new Rect(shell.xMin - ShellPad, shell.yMin - ShellPad, shell.width + 2f * ShellPad, shell.height + 2f * ShellPad + 0.64f);
             if (camera != null)
             {
                 var safe = PuzzleHud.SafeAreaOverride ?? PuzzleHud.NormalizeSafeArea(Screen.safeArea, Screen.width, Screen.height);
@@ -243,6 +257,18 @@ namespace ZipTrip.Unity
         /// </summary>
         public void LayoutProps(Camera camera, Rect body)
         {
+            if (camera != null && _vacationBackdrop && Backdrop != null)
+            {
+                // Infinite orthographic projection also covers unusually large test boards where a viewport-edge
+                // ray begins beyond the table plane. This backdrop has no picking or gameplay role.
+                var bottom = camera.ViewportToWorldPoint(new Vector3(0f, 0f, 0f));
+                var top = camera.ViewportToWorldPoint(new Vector3(1f, 1f, 0f));
+                var forward = camera.transform.forward;
+                bottom += forward * ((_surfaceY - bottom.y) / forward.y);
+                top += forward * ((_surfaceY - top.y) / forward.y);
+                Backdrop.transform.position = new Vector3(bottom.x, _surfaceY, bottom.z);
+                Backdrop.transform.localScale = new Vector3(top.x - bottom.x, 1f, top.z - bottom.z);
+            }
             if (camera == null || _props.Count == 0)
                 return;
             var y = _surfaceY + PropLift;
@@ -252,6 +278,9 @@ namespace ZipTrip.Unity
             {
                 var prop = Props[i];
                 var x = prop.Right ? right - prop.Inward : left + prop.Inward;
+                // The wider authored dock owns the lower centre. Keep loose travel props at the outer edges.
+                if (prop.Name == "Postcard")
+                    x += 0.7f;
                 var z = body.yMin + prop.Offset / FrontToScreen;
                 _props[i].transform.localPosition = new Vector3(x, y, z);
             }
@@ -316,11 +345,11 @@ namespace ZipTrip.Unity
             var tonemapping = profile.Add<Tonemapping>(true);
             tonemapping.mode.Override(TonemappingMode.Neutral);
             var color = profile.Add<ColorAdjustments>(true);
-            color.postExposure.Override(0f);
-            color.contrast.Override(16f);
-            color.saturation.Override(8f);
+            color.postExposure.Override(0.18f);
+            color.contrast.Override(20f);
+            color.saturation.Override(16f);
             var vignette = profile.Add<UnityEngine.Rendering.Universal.Vignette>(true);
-            vignette.intensity.Override(0.2f);
+            vignette.intensity.Override(0.12f);
             vignette.smoothness.Override(0.5f);
             vignette.color.Override(new Color(0.2f, 0.13f, 0.08f));
             PostVolume = new GameObject("Presentation Post").AddComponent<Volume>();

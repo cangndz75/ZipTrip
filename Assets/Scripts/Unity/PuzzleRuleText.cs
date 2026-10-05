@@ -28,8 +28,8 @@ namespace ZipTrip.Unity
             ["item.passport"] = "Pasaport",
             ["item.towel"] = "Havlu",
             ["item.shampoo"] = "Şampuan",
-            ["item.sunglasses"] = "Gözlük",
-            ["item.travel-pouch"] = "Çanta",
+            ["item.sunglasses"] = "Güneş Gözlüğü",
+            ["item.travel-pouch"] = "Seyahat Çantası",
             ["tag.tech"] = "Elektronik",
             ["tag.clothes"] = "Kıyafet",
             ["tag.shoes"] = "Ayakkabı",
@@ -54,6 +54,29 @@ namespace ZipTrip.Unity
 
         /// <summary>Centre-slot status for the items still outside the suitcase; null when there are none.</summary>
         public static string Remaining(int count) => count > 0 ? count + " eşya kaldı" : null;
+
+        /// <summary>Presentation-only name used under authored staging cards. Canonical ids stay unchanged.</summary>
+        public static string StagingName(string definitionId) => Lookup("item." + definitionId, definitionId);
+
+        /// <summary>The authored subject word highlighted in a rule row.</summary>
+        public static string Keyword(PuzzleRule rule, PuzzleState state) => Name(rule.Subjects, state);
+
+        /// <summary>Definition id used to select a presentation icon for the rule subject.</summary>
+        public static string SubjectDefinitionId(PuzzleRule rule, PuzzleState state)
+        {
+            var selector = rule.Subjects;
+            if (selector.Kind == ItemSelectorKind.Instance && state.TryGetItem(selector.Value, out var item))
+                return item.Definition.Id;
+            return selector.Kind == ItemSelectorKind.Definition ? selector.Value : null;
+        }
+
+        public static string RichLabel(PuzzleRule rule, PuzzleState state)
+        {
+            var label = Label(rule, state);
+            var keyword = Keyword(rule, state);
+            return string.IsNullOrEmpty(keyword) ? label
+                : label.Replace(keyword, "<b><color=#168C8C>" + keyword + "</color></b>");
+        }
 
         public static string Label(PuzzleRule rule, PuzzleState state)
         {

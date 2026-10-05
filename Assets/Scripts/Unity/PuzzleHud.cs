@@ -17,22 +17,21 @@ namespace ZipTrip.Unity
 
     // Gameplay HUD. Taps are hit-tested through the single PointerInteractor flow (no EventSystem; every Graphic keeps
     // raycastTarget off). UI-SLICE-01 (STYLE-FRAME-01): a safe-area header card (travel badge, "Seviye N", optional
-    // subtitle), a bottom paper dock with Geri Al / Baştan at thumb reach and a contextual centre slot (a medium-priority
-    // Döndür pill while the selection can rotate, otherwise a quiet "N eşya kaldı" status), and the existing Zip It
-    // confirmation whose Sonraki uses the hero mustard tier. Camera framing still reserves TopBand / BottomBand.
+    // subtitle), an authored packing dock with its own title/count, and grouped Geri Al / Baştan / contextual Döndür.
+    // The green Sonraki hero exists only after the ZIP-02 completion sequence.
     public sealed class PuzzleHud : MonoBehaviour
     {
         public const float ReferenceWidth = 1080f;
         public const float ReferenceHeight = 1920f;
-        public const float TopBand = 150f;
-        public const float BottomBand = 250f;
+        public const float TopBand = 430f;
+        public const float BottomBand = 170f;
         /// <summary>Header card bottom, reference px below the safe-area top (the objective note starts below it).</summary>
-        public const float HeaderBottom = 150f;
-        public static readonly Vector2 HeaderSize = new Vector2(560f, 128f);
-        public static readonly Vector2 DockSize = new Vector2(1016f, 196f);
-        public const float DockCenterY = 120f;
-        public static readonly Vector2 RotateSize = new Vector2(350f, 124f);
-        public const float ControlSize = 140f;
+        public const float HeaderBottom = 180f;
+        public static readonly Vector2 HeaderSize = new Vector2(720f, 156f);
+        public static readonly Vector2 DockSize = new Vector2(1016f, 820f);
+        public const float DockCenterY = 24f;
+        public static readonly Vector2 RotateSize = new Vector2(228f, 104f);
+        public static readonly Vector2 ControlSize = new Vector2(228f, 104f);
 
         private readonly Dictionary<PuzzleHudAction, RectTransform> _buttons = new Dictionary<PuzzleHudAction, RectTransform>();
         private Font _font;
@@ -42,6 +41,12 @@ namespace ZipTrip.Unity
         private RectTransform _header;
         private RectTransform _dock;
         private Text _status;
+        private Text _stagingTitle;
+        private RectTransform _stagingTitleRow;
+        private RectTransform _utilityBlock;
+        private readonly Dictionary<string, Text> _stagingLabels = new Dictionary<string, Text>();
+        private readonly HashSet<string> _liveStaging = new HashSet<string>();
+        private readonly List<string> _staleStaging = new List<string>();
         private RectTransform _card;
         private RectTransform _stamp;
         private Sprite _rounded;
@@ -65,12 +70,13 @@ namespace ZipTrip.Unity
         public bool RotateVisible => _buttons.TryGetValue(PuzzleHudAction.Rotate, out var rotate) && rotate.gameObject.activeSelf;
         public bool FoldVisible => _buttons.TryGetValue(PuzzleHudAction.Fold, out var fold) && fold.gameObject.activeSelf;
         public bool CompressVisible => _buttons.TryGetValue(PuzzleHudAction.Compress, out var compress) && compress.gameObject.activeSelf;
+        public int StagingItemCardCount => _stagingLabels.Count;
         public string LevelLabel => _title != null ? _title.text : null;
         public string LevelSubtitle => _subtitle != null && _subtitle.gameObject.activeSelf ? _subtitle.text : null;
-        /// <summary>Centre-slot status line ("3 eşya kaldı"); null while hidden (Rotate shown, or nothing to say).</summary>
+        /// <summary>Staging title-row count ("3 eşya kaldı"), independent of the contextual Rotate utility.</summary>
         public string StatusText => _status != null && _status.gameObject.activeInHierarchy ? _status.text : null;
         public RectTransform Header => _header;
-        public RectTransform Dock => _dock;
+        public RectTransform Dock => _utilityBlock;
 
         /// <summary>
         /// Parent of every HUD element: the canvas inset to the device safe area (notch / cutout / home indicator).
@@ -133,7 +139,12 @@ namespace ZipTrip.Unity
         }
 
         /// <summary>Fraction of a pixelWidth x pixelHeight view covered by the top HUD band (width-matched scaling).</summary>
-        public static float TopFraction(float pixelWidth, float pixelHeight) => TopBand * pixelWidth / ReferenceWidth / Mathf.Max(1f, pixelHeight);
+        public static float TopFraction(float pixelWidth, float pixelHeight)
+        {
+            var referenceHeight = pixelHeight * ReferenceWidth / Mathf.Max(1f, pixelWidth);
+            var band = Mathf.Lerp(310f, TopBand, Mathf.InverseLerp(1920f, 2340f, referenceHeight));
+            return band * pixelWidth / ReferenceWidth / Mathf.Max(1f, pixelHeight);
+        }
 
         public static float BottomFraction(float pixelWidth, float pixelHeight) =>
             BottomBand * pixelWidth / ReferenceWidth / Mathf.Max(1f, pixelHeight);
@@ -170,28 +181,34 @@ namespace ZipTrip.Unity
 
             // Header: travel badge + level title / subtitle, top centre of the safe area.
             _header = PaperUi.Card(SafeArea, "Header", _rounded, new Vector2(0.5f, 1f), new Vector2(0f, -HeaderBottom + HeaderSize.y * 0.5f + 8f),
-                HeaderSize, Color.white, 0.24f, 9f, PaperUi.Skin("luggage_label"));
-            var backing = PaperUi.Image(_header, "Offset Label", PaperUi.Skin("luggage_label"),
-                new Color(0.71f, 0.58f, 0.4f, 0.85f), HeaderSize);
-            backing.anchoredPosition = new Vector2(8f, -10f);
-            backing.SetSiblingIndex(1);
+                HeaderSize, Color.white, 0.36f, 12f, PaperUi.Skin("travel_frame", 0));
             var badge = PaperUi.Image(_header, "Travel Badge", PaperUi.Skin("control_seal", 20), Color.white, new Vector2(92f, 92f));
             badge.anchoredPosition = new Vector2(-HeaderSize.x * 0.5f + 76f, 0f);
             PaperUi.Image(badge, "Suitcase", suitcaseIcon, PaperUi.Teal, new Vector2(60f, 60f));
-            _title = PaperUi.Label(_header, "", _display, 48, PaperUi.Ink, TextAnchor.MiddleLeft, Vector2.zero, new Vector2(380f, 60f));
-            _subtitle = PaperUi.Label(_header, "", _font, 32, PaperUi.Muted, TextAnchor.MiddleLeft, Vector2.zero, new Vector2(380f, 44f));
+            _title = PaperUi.Label(_header, "", _display, 64, PaperUi.Ink, TextAnchor.MiddleLeft, Vector2.zero, new Vector2(450f, 74f));
+            _subtitle = PaperUi.Label(_header, "", _font, 34, PaperUi.Teal, TextAnchor.MiddleLeft, Vector2.zero, new Vector2(450f, 46f));
 
-            // Dock: secondary controls at thumb reach, contextual centre slot.
+            // Cohesive staging dock overlay. The real item art and physical cards stay in the world; this layer supplies
+            // the authored title/count/name treatment and keeps all utility actions in one compact, subordinate block.
             _dock = PaperUi.Card(SafeArea, "Dock", _rounded, new Vector2(0.5f, 0f), new Vector2(0f, DockCenterY), DockSize, PaperUi.Cream);
             _dock.Find("Face").gameObject.SetActive(false);
             _dock.Find("Shadow").gameObject.SetActive(false);
-            AddControl(PuzzleHudAction.Undo, "Geri Al", undoIcon, new Vector2(-DockSize.x * 0.5f + 98f, 0f));
-            AddControl(PuzzleHudAction.Restart, "Baştan", restartIcon, new Vector2(DockSize.x * 0.5f - 98f, 0f));
-            _status = PaperUi.Label(_dock, "", _font, 34, PaperUi.Muted, TextAnchor.MiddleCenter, Vector2.zero, new Vector2(520f, 60f));
-            var rotate = AddPill(_dock, PuzzleHudAction.Rotate, "Döndür", Vector2.zero, RotateSize, PaperUi.SoftMustard, PaperUi.MustardEdge, 5f, 42);
-            var rotateGlyph = PaperUi.Image(rotate, "Icon", rotateIcon, PaperUi.Ink, new Vector2(64f, 64f));
-            rotateGlyph.anchoredPosition = new Vector2(-92f, 0f);
-            rotate.Find("Label").GetComponent<RectTransform>().anchoredPosition = new Vector2(26f, 2f);
+            _stagingTitleRow = PaperUi.Card(_dock, "Staging Title Row", _rounded, new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(860f, 96f), Color.white, 0.22f, 6f, PaperUi.Skin("travel_frame", 0));
+            _stagingTitle = PaperUi.Label(_stagingTitleRow, "Yerleştirilecek Eşyalar", _display, 40, PaperUi.Ink,
+                TextAnchor.MiddleLeft, new Vector2(-55f, 0f), new Vector2(540f, 58f));
+            _status = PaperUi.Label(_stagingTitleRow, "", _display, 30, PaperUi.Teal, TextAnchor.MiddleRight,
+                new Vector2(270f, 0f), new Vector2(180f, 58f));
+
+            _utilityBlock = PaperUi.Card(_dock, "Secondary Utilities", _rounded, new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(800f, 140f), Color.white, 0.32f, 10f, PaperUi.Skin("travel_frame", 0));
+            AddControl(PuzzleHudAction.Undo, "Geri Al", undoIcon, new Vector2(-250f, 0f));
+            AddControl(PuzzleHudAction.Restart, "Baştan", restartIcon, Vector2.zero);
+            var rotate = AddPill(_utilityBlock, PuzzleHudAction.Rotate, "Döndür", new Vector2(250f, 0f), RotateSize,
+                PaperUi.Cream, PresentationKit.Hex(0xD9CDB8), 5f, 30);
+            var rotateGlyph = PaperUi.Image(rotate, "Icon", rotateIcon, PaperUi.Teal, new Vector2(36f, 36f));
+            rotateGlyph.anchoredPosition = new Vector2(-72f, 0f);
+            rotate.Find("Label").GetComponent<RectTransform>().anchoredPosition = new Vector2(20f, 1f);
 
             // Modifier intents (Fold / Compress levels only): medium pills above the dock's right end.
             AddPill(SafeArea, PuzzleHudAction.Fold, "Katla", new Vector2(-150f, DockCenterY + 190f), new Vector2(220f, 96f),
@@ -202,17 +219,18 @@ namespace ZipTrip.Unity
             SetRotateVisible(false);
 
             // Existing Zip It confirmation (PACKED-SLICE owns its redesign): Sonraki on the hero tier, Tekrar secondary.
-            _card = PaperUi.Card(SafeArea, "Packed Tag", _rounded, new Vector2(0.5f, 0f), new Vector2(0f, 390f), new Vector2(640f, 245f),
-                Color.white, 0.26f, 10f, PaperUi.Skin("checklist"));
+            _card = PaperUi.Card(SafeArea, "Packed Tag", _rounded, new Vector2(0.5f, 0f), new Vector2(0f, 300f), new Vector2(680f, 410f),
+                Color.white, 0.36f, 14f, PaperUi.Skin("travel_frame", 0));
             _stamp = PaperUi.Label(_card, "Paketlendi!", _display, 64, PaperUi.Ink, TextAnchor.MiddleCenter,
-                new Vector2(0f, 62f), new Vector2(590f, 82f)).rectTransform;
-            AddPill(_card, PuzzleHudAction.Next, "Sonraki", new Vector2(140f, -58f), new Vector2(260f, 100f), PaperUi.Mustard,
-                PaperUi.MustardUnder, 8f, 44);
-            AddPill(_card, PuzzleHudAction.Restart, "Tekrar", new Vector2(-140f, -58f), new Vector2(260f, 100f), PaperUi.ButtonFill,
-                PresentationKit.Hex(0xD9CDB8), 6f, 40, register: false);
+                new Vector2(0f, 142f), new Vector2(620f, 82f)).rectTransform;
+            AddPill(_card, PuzzleHudAction.Next, "Sonraki  ›", new Vector2(0f, 24f), new Vector2(560f, 150f),
+                PresentationKit.Hex(0x3DBA3F), PresentationKit.Hex(0x24892B), 8f, 48);
+            AddPill(_card, PuzzleHudAction.Restart, "Tekrar", new Vector2(0f, -116f), new Vector2(560f, 96f), PaperUi.Cream,
+                PresentationKit.Hex(0xD9CDB8), 5f, 38, register: false);
             _card.gameObject.SetActive(false);
-            var next = (RectTransform)_card.Find("Button Sonraki");
-            PaperUi.Face(next).color = PresentationKit.Hex(0x289964);
+            var next = (RectTransform)_card.Find("Button Sonraki  ›");
+            next.name = "Button Sonraki";
+            PaperUi.Face(next).color = Color.white;
             next.Find("Shadow").GetComponent<Image>().color = PresentationKit.Hex(0x14754C);
             next.GetComponentInChildren<Text>().color = Color.white;
         }
@@ -224,17 +242,94 @@ namespace ZipTrip.Unity
             var hasSubtitle = !string.IsNullOrEmpty(subtitle);
             _subtitle.text = hasSubtitle ? subtitle : "";
             _subtitle.gameObject.SetActive(hasSubtitle);
-            var x = -HeaderSize.x * 0.5f + 150f + 190f;
+            var x = -HeaderSize.x * 0.5f + 154f + 225f;
             _title.rectTransform.anchoredPosition = new Vector2(x, hasSubtitle ? 18f : 0f);
-            _subtitle.rectTransform.anchoredPosition = new Vector2(x, -28f);
+            _subtitle.rectTransform.anchoredPosition = new Vector2(x, -34f);
         }
 
-        /// <summary>Centre-slot status shown while Rotate is not offered; null / empty hides it.</summary>
+        /// <summary>Remaining count in the staging title row. Independent from the contextual Rotate utility.</summary>
         public void SetStatus(string text)
         {
             if (_status.text != (text ?? ""))
                 _status.text = text ?? "";
-            _status.gameObject.SetActive(!string.IsNullOrEmpty(text) && !RotateVisible);
+            _status.gameObject.SetActive(!string.IsNullOrEmpty(text));
+        }
+
+        /// <summary>
+        /// Aligns presentation labels and the compact utility block with the real world-space tray cards. No slot or
+        /// gameplay state is created here; the card count comes directly from the tray presenter.
+        /// </summary>
+        public void LayoutStagingDock(PuzzleTrayPresenter tray, Camera camera, Rect shell)
+        {
+            if (_dock == null || tray == null || camera == null || CompletionMode)
+                return;
+            var visible = tray.ItemViews.Count > 0;
+            _stagingTitleRow.gameObject.SetActive(visible);
+            var live = _liveStaging;
+            live.Clear();
+            var eventCamera = GetComponent<Canvas>().renderMode == RenderMode.ScreenSpaceOverlay
+                ? null : GetComponent<Canvas>().worldCamera;
+            if (visible)
+            {
+                var surfaceY = 0f;
+                foreach (var view in tray.ItemViews.Values)
+                {
+                    surfaceY = tray.transform.position.y;
+                    break;
+                }
+                var shellTop = camera.WorldToScreenPoint(new Vector3(shell.center.x, surfaceY, shell.yMax));
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(_dock, shellTop, eventCamera, out var titleLocal);
+                _stagingTitleRow.anchoredPosition = titleLocal + new Vector2(0f, -30f);
+
+                foreach (var pair in tray.ItemViews)
+                {
+                    live.Add(pair.Key);
+                    var view = pair.Value;
+                    if (!_stagingLabels.TryGetValue(pair.Key, out var label))
+                    {
+                        var plate = PaperUi.Card(_dock, "Item Name " + pair.Key, _rounded, new Vector2(0.5f, 0.5f),
+                            Vector2.zero, new Vector2(242f, 64f), Color.white, 0.18f, 4f, PaperUi.Skin("luggage_label", 32));
+                        label = PaperUi.Label(plate, PuzzleRuleText.StagingName(view.DefinitionId), _display, 28, PaperUi.Ink,
+                            TextAnchor.MiddleCenter, Vector2.zero, new Vector2(230f, 60f));
+                        label.horizontalOverflow = HorizontalWrapMode.Wrap;
+                        _stagingLabels.Add(pair.Key, label);
+                    }
+                    var cells = view.Footprint.OccupiedCells;
+                    var width = 0;
+                    var depth = 0;
+                    for (var i = 0; i < cells.Count; i++)
+                    {
+                        width = Mathf.Max(width, cells[i].X + 1);
+                        depth = Mathf.Max(depth, cells[i].Y + 1);
+                    }
+                    var world = new Vector3(tray.RestPosition(pair.Key).x + width * tray.Scale * 0.5f,
+                        surfaceY + 0.08f, shell.yMin + 0.35f);
+                    RectTransformUtility.ScreenPointToLocalPointInRectangle(_dock,
+                        camera.WorldToScreenPoint(world), eventCamera, out var local);
+                    label.transform.parent.GetComponent<RectTransform>().anchoredPosition = local;
+                    var cardWidthPx = Mathf.Max(2, width) * tray.Scale * camera.pixelHeight
+                        / (2f * camera.orthographicSize) * ReferenceWidth / camera.pixelWidth;
+                    PaperUi.Resize(label.transform.parent.GetComponent<RectTransform>(), new Vector2(cardWidthPx, 70f));
+                    label.rectTransform.sizeDelta = new Vector2(cardWidthPx - 16f, 64f);
+                    label.text = PuzzleRuleText.StagingName(view.DefinitionId);
+                }
+
+                var shellRight = camera.WorldToScreenPoint(new Vector3(shell.center.x, surfaceY, shell.yMin));
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(_dock, shellRight, eventCamera, out var utilitiesLocal);
+                utilitiesLocal.x = 0f;
+                utilitiesLocal.y = Mathf.Max(utilitiesLocal.y - 70f, 80f - DockCenterY);
+                _utilityBlock.anchoredPosition = utilitiesLocal;
+            }
+            var stale = _staleStaging;
+            stale.Clear();
+            foreach (var id in _stagingLabels.Keys)
+                if (!live.Contains(id))
+                    stale.Add(id);
+            foreach (var id in stale)
+            {
+                Destroy(_stagingLabels[id].transform.parent.gameObject);
+                _stagingLabels.Remove(id);
+            }
         }
 
         /// <summary>Capture only: draw the HUD through a camera so off-screen renders include it.</summary>
@@ -252,7 +347,6 @@ namespace ZipTrip.Unity
             if (rotate.activeSelf == visible)
                 return;
             rotate.SetActive(visible);
-            _status.gameObject.SetActive(!visible && !string.IsNullOrEmpty(_status.text));
         }
 
         public void SetModifierVisible(bool fold, bool compress)
@@ -345,17 +439,19 @@ namespace ZipTrip.Unity
         /// <summary>Topmost visible HUD action under a screen point, or None.</summary>
         public PuzzleHudAction Hit(Vector2 screenPosition)
         {
+            var canvas = GetComponent<Canvas>();
+            var eventCamera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
             if (CompletionMode)
             {
                 foreach (Transform child in _card)
                     if (child.name.StartsWith("Button ") && child.gameObject.activeSelf
-                        && RectTransformUtility.RectangleContainsScreenPoint((RectTransform)child, screenPosition, null))
+                        && RectTransformUtility.RectangleContainsScreenPoint((RectTransform)child, screenPosition, eventCamera))
                         return child.name == "Button Sonraki" ? PuzzleHudAction.Next : PuzzleHudAction.Restart;
                 return PuzzleHudAction.None;
             }
             foreach (var pair in _buttons)
                 if (pair.Value.gameObject.activeInHierarchy && !pair.Value.IsChildOf(_card)
-                    && RectTransformUtility.RectangleContainsScreenPoint(pair.Value, screenPosition, null))
+                    && RectTransformUtility.RectangleContainsScreenPoint(pair.Value, screenPosition, eventCamera))
                     return pair.Key;
             return PuzzleHudAction.None;
         }
@@ -366,23 +462,19 @@ namespace ZipTrip.Unity
             var rect = action == PuzzleHudAction.Next ? (RectTransform)_card.Find("Button Sonraki") : _buttons[action];
             var corners = new Vector3[4];
             rect.GetWorldCorners(corners);
-            return (corners[0] + corners[2]) * 0.5f;
+            var canvas = GetComponent<Canvas>();
+            return RectTransformUtility.WorldToScreenPoint(canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera,
+                (corners[0] + corners[2]) * 0.5f);
         }
 
-        // Secondary dock control: rounded paper square, ink glyph, small caption. The whole square is the hit target.
+        // Compact secondary utility: cream kit art, small teal glyph and restrained type.
         private void AddControl(PuzzleHudAction action, string caption, Sprite icon, Vector2 position)
         {
-            var button = PaperUi.Card(_dock, "Button " + caption, _rounded, new Vector2(0.5f, 0.5f), position,
-                new Vector2(ControlSize, ControlSize), Color.white, 0.2f, 6f, PaperUi.Skin("control_seal", 20));
+            var button = PaperUi.Card(_utilityBlock, "Button " + caption, _rounded, new Vector2(0.5f, 0.5f), position,
+                ControlSize, Color.white, 0.22f, 5f, PaperUi.Skin("luggage_label", 32));
             button.gameObject.AddComponent<CanvasGroup>();
-            foreach (var part in new[] { "Shadow", "Face" })
-            {
-                var plate = (RectTransform)button.Find(part);
-                plate.sizeDelta = new Vector2(116f, 116f);
-                plate.anchoredPosition += new Vector2(0f, 16f);
-            }
-            PaperUi.Image(button, "Icon", icon, PaperUi.Ink, new Vector2(62f, 62f)).anchoredPosition = new Vector2(0f, 25f);
-            PaperUi.Label(button, caption, _font, 24, PaperUi.Ink, TextAnchor.MiddleCenter, new Vector2(0f, -51f), new Vector2(ControlSize, 32f));
+            PaperUi.Image(button, "Icon", icon, PaperUi.Teal, new Vector2(36f, 36f)).anchoredPosition = new Vector2(-72f, 0f);
+            PaperUi.Label(button, caption, _display, 30, PaperUi.Ink, TextAnchor.MiddleCenter, new Vector2(20f, 1f), new Vector2(146f, 48f));
             _buttons[action] = button;
         }
 
@@ -390,8 +482,7 @@ namespace ZipTrip.Unity
         private RectTransform AddPill(Transform parent, PuzzleHudAction action, string text, Vector2 position, Vector2 size, Color face,
             Color edge, float drop, int fontSize, Vector2? anchor = null, bool register = true)
         {
-            var skin = PaperUi.Skin(action == PuzzleHudAction.Next ? "ticket"
-                : action == PuzzleHudAction.Restart && !register ? "checklist_tab" : "action_tag");
+            var skin = action == PuzzleHudAction.Next ? PaperUi.Skin("next_hero", 0) : PaperUi.Skin("luggage_label");
             var pill = PaperUi.Card(parent, "Button " + text, _rounded, anchor ?? new Vector2(0.5f, 0.5f), position, size,
                 skin != null ? Color.white : face, 0.32f, drop, skin);
             var under = pill.Find("Shadow").GetComponent<Image>();

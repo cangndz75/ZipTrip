@@ -618,6 +618,58 @@ namespace ZipTrip.Unity
             return Mathf.Max(Mathf.Clamp01(0.5f - Mathf.Min(body, handle)) - band, 0f);
         });
 
+        // Small authored silhouettes for mission rows. These are presentation glyphs only; gameplay still resolves the
+        // canonical item definition and footprint through Domain/Application.
+        public static Sprite ItemIcon(string definitionId, int size) => Mask(size, "Item icon " + definitionId, p =>
+        {
+            var s = size;
+            switch (definitionId)
+            {
+                case "passport":
+                {
+                    var book = RoundedRectDistance(p, new Rect(-0.3f * s, -0.36f * s, 0.6f * s, 0.72f * s), 0.06f * s);
+                    var spine = Mathf.Abs(p.x + 0.18f * s) < 0.035f * s && Mathf.Abs(p.y) < 0.3f * s ? 1f : 0f;
+                    var seal = (p - new Vector2(0.07f * s, 0.05f * s)).magnitude < 0.09f * s ? 1f : 0f;
+                    return Mathf.Max(Mathf.Clamp01(0.5f - book), Mathf.Max(spine, seal));
+                }
+                case "towel":
+                {
+                    var roll = RoundedRectDistance(p, new Rect(-0.18f * s, -0.38f * s, 0.36f * s, 0.76f * s), 0.16f * s);
+                    var band = Mathf.Abs(p.y) < 0.045f * s && Mathf.Abs(p.x) < 0.2f * s ? 1f : 0f;
+                    return Mathf.Max(Mathf.Clamp01(0.5f - roll), band);
+                }
+                case "shampoo":
+                {
+                    var body = RoundedRectDistance(p, new Rect(-0.2f * s, -0.3f * s, 0.4f * s, 0.55f * s), 0.11f * s);
+                    var neck = RoundedRectDistance(p, new Rect(-0.11f * s, 0.2f * s, 0.22f * s, 0.16f * s), 0.03f * s);
+                    return Mathf.Clamp01(0.5f - Mathf.Min(body, neck));
+                }
+                case "sunglasses":
+                {
+                    var left = Mathf.Abs((p - new Vector2(-0.2f * s, 0f)).magnitude - 0.16f * s) < 0.055f * s ? 1f : 0f;
+                    var right = Mathf.Abs((p - new Vector2(0.2f * s, 0f)).magnitude - 0.16f * s) < 0.055f * s ? 1f : 0f;
+                    var bridge = Mathf.Abs(p.y) < 0.035f * s && Mathf.Abs(p.x) < 0.09f * s ? 1f : 0f;
+                    return Mathf.Max(left, Mathf.Max(right, bridge));
+                }
+                case "travel-pouch":
+                {
+                    var bag = RoundedRectDistance(p, new Rect(-0.34f * s, -0.25f * s, 0.68f * s, 0.52f * s), 0.11f * s);
+                    var handle = Mathf.Abs(RoundedRectDistance(p, new Rect(-0.15f * s, 0.18f * s, 0.3f * s, 0.18f * s), 0.07f * s)) < 0.035f * s ? 1f : 0f;
+                    return Mathf.Max(Mathf.Clamp01(0.5f - bag), handle);
+                }
+                case "sweater":
+                {
+                    var body = RoundedRectDistance(p, new Rect(-0.2f * s, -0.3f * s, 0.4f * s, 0.58f * s), 0.08f * s);
+                    var left = RoundedRectDistance(p, new Rect(-0.36f * s, -0.17f * s, 0.18f * s, 0.42f * s), 0.08f * s);
+                    var right = RoundedRectDistance(p, new Rect(0.18f * s, -0.17f * s, 0.18f * s, 0.42f * s), 0.08f * s);
+                    return Mathf.Clamp01(0.5f - Mathf.Min(body, Mathf.Min(left, right)));
+                }
+                default:
+                    return Mathf.Clamp01(0.5f - RoundedRectDistance(p,
+                        new Rect(-0.27f * s, -0.27f * s, 0.54f * s, 0.54f * s), 0.1f * s));
+            }
+        });
+
         private static Sprite Mask(int size, string name, System.Func<Vector2, float> coverage)
         {
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = name };

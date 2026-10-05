@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using Unity.Profiling;
 using ZipTrip.Domain;
 using ZipTrip.Domain.Puzzle;
 using ZipTrip.Unity;
@@ -42,6 +43,22 @@ namespace ZipTrip.Tests.PlayMode
             var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
             _art = new GoldenLv1LayoutReview.GoldenProxyArt();
             scene.LoadLevel(GoldenLv1LayoutReview.LoadShipped(), PuzzleRuleText.LevelTitle(1), _art.Resolve);
+            scene.Completion.AutoAdvance = false;
+            _target = new RenderTexture(width, height, 24);
+            scene.Camera.targetTexture = _target;
+            scene.Hud.RenderThrough(scene.Camera);
+            scene.FrameCamera();
+            yield return null;
+            yield return null;
+        }
+
+        private IEnumerator GoldenProduction(int width = 1080, int height = 2340)
+        {
+            yield return UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(
+                "Assets/Scenes/PuzzleGameplay.unity", new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            scene.LoadLevel(GoldenLv1LayoutReview.LoadShipped(), PuzzleRuleText.LevelTitle(1));
             scene.Completion.AutoAdvance = false;
             _target = new RenderTexture(width, height, 24);
             scene.Camera.targetTexture = _target;
@@ -124,6 +141,10 @@ namespace ZipTrip.Tests.PlayMode
                 Assert.That(header.yMax, Is.LessThanOrEqualTo(profile.yMax * camera.pixelHeight + 0.5f), "header below the cutout");
                 var dock = ScreenRect(camera, scene.Hud.Dock);
                 Assert.That(dock.yMin, Is.GreaterThanOrEqualTo(profile.yMin * camera.pixelHeight - 0.5f), "dock above the home indicator");
+                foreach (var text in scene.Hud.GetComponentsInChildren<Text>())
+                    if (text.transform.parent.name.StartsWith("Item Name "))
+                        Assert.That(ScreenRect(camera, (RectTransform)text.transform.parent).Overlaps(dock), Is.False,
+                            "home indicator must not push utilities over " + text.text);
                 scene.FrameCamera();
                 Assert.That(camera.transform.position, Is.EqualTo(position), "UI adapts, framing does not");
                 Assert.That(camera.orthographicSize, Is.EqualTo(size));
@@ -174,16 +195,17 @@ namespace ZipTrip.Tests.PlayMode
             var bed = camera.pixelHeight - camera.WorldToScreenPoint(scene.Board.CompartmentFrames()[0].Origin).y;
             Assert.That(camera.pixelHeight - ScreenRect(camera, scene.Rules.Note).yMin, Is.LessThan(bed), "note clear of the bed");
 
-            // ADR-0010 (65° pitch) lowers the bed on screen: under the Dynamic Island the full note now fits, clear of the bed.
+            // The revised mission composition keeps the full card even under the Dynamic Island.
             PuzzleHud.SafeAreaOverride = FixSlice00Tests.IPhoneDynamicIsland;
             yield return null;
             yield return null;
             Canvas.ForceUpdateCanvases();
-            Assert.That(scene.Rules.Compact, Is.False, "Dynamic Island: room for the full note");
-            Assert.That(camera.pixelHeight - ScreenRect(camera, scene.Rules.Note).yMin, Is.LessThan(bed), "note clear of the bed");
+            Assert.That(scene.Rules.Compact, Is.False, "Dynamic Island: major mission card remains visible");
+            Assert.That(scene.Rules.Note.gameObject.activeSelf && !scene.Rules.Chip.gameObject.activeSelf, Is.True);
+            Assert.That(camera.pixelHeight - ScreenRect(camera, scene.Rules.Note).yMin, Is.LessThan(bed), "mission clear of the bed");
 
             // A deeper top inset leaves no room: chip, not a shrunken note.
-            PuzzleHud.SafeAreaOverride = Rect.MinMaxRect(0f, 102f / 2556f, 1f, 1f - 250f / 2556f);
+            PuzzleHud.SafeAreaOverride = Rect.MinMaxRect(0f, 102f / 2556f, 1f, 1f - 450f / 2556f);
             yield return null;
             yield return null;
             Canvas.ForceUpdateCanvases();
@@ -219,30 +241,45 @@ namespace ZipTrip.Tests.PlayMode
         // ------------------------------------------------------------------ source tray
 
         [UnityTest]
+        public IEnumerator AuthoredMission_RemainsFullAt1080x1920_WithoutCoveringTheBoard()
+        {
+            yield return GoldenProduction(1080, 1920);
+            var scene = Scene;
+            Assert.That(scene.Rules.Compact, Is.False, "short phone still gets the authored mission card");
+            Assert.That(scene.Rules.Note.Find("Santorini Polaroid").gameObject.activeInHierarchy, Is.True);
+            var bedTop = scene.Camera.WorldToScreenPoint(scene.Board.CompartmentFrames()[0].Origin).y;
+            Assert.That(ScreenRect(scene.Camera, scene.Rules.Note).yMin, Is.GreaterThan(bedTop), "no board occlusion");
+        }
+
+        [UnityTest]
         public IEnumerator SourceTray_ReflowsThreeTwoOneZero_UndoAndRestartRestoreIt_AndItemsStayDraggable()
         {
             yield return Golden();
             var scene = Scene;
             var table = scene.Table;
             Assert.That(table.TrayCardCount, Is.EqualTo(3));
+            Assert.That(scene.Hud.StagingItemCardCount, Is.EqualTo(scene.Tray.ItemViews.Count), "one authored label/card per real tray item");
             var full = table.TrayShellRect;
             var initialHash = scene.Level.InitialState.Hash;
 
             Place(scene, "sunglasses-1", 4, 0, Rotation.Degrees90);
             yield return null;
             Assert.That(table.TrayCardCount, Is.EqualTo(2));
+            Assert.That(scene.Hud.StagingItemCardCount, Is.EqualTo(2));
             Assert.That(table.TrayShellRect.width, Is.LessThan(full.width), "tray contracts");
             Assert.That(table.TrayShellRect.center.x, Is.EqualTo(full.center.x).Within(0.05f), "and stays centred");
             var two = table.TrayShellRect;
             Place(scene, "travel-pouch-1", 1, 3);
             yield return null;
             Assert.That(table.TrayCardCount, Is.EqualTo(1));
+            Assert.That(scene.Hud.StagingItemCardCount, Is.EqualTo(1));
             Assert.That(table.TrayShellRect.width, Is.LessThan(two.width));
             var one = table.TrayShellRect;
             Place(scene, "shampoo-1", 1, 6, Rotation.Degrees90);
             yield return null;
             Assert.That(table.TrayShellVisible, Is.False, "no empty tray panel");
             Assert.That(table.TrayCardCount, Is.Zero);
+            Assert.That(scene.Hud.StagingItemCardCount, Is.Zero);
             Assert.That(scene.Session.CurrentCompletion.IsComplete, Is.False, "shampoo outside the right zone");
             Assert.That(scene.Hud.StatusText, Is.Null, "nothing left: no status");
 
@@ -289,6 +326,31 @@ namespace ZipTrip.Tests.PlayMode
         // ------------------------------------------------------------------ dock / actions
 
         [UnityTest]
+        public IEnumerator AuthoredDock_StaysAtRestWhileAnItemIsDragged_AndCardsMatchTheTray()
+        {
+            yield return GoldenProduction();
+            var scene = Scene;
+            Select(scene, "travel-pouch-1");
+            yield return null;
+            var shell = scene.Table.TrayShellRect;
+            var utilityPosition = scene.Hud.Dock.anchoredPosition;
+            var hash = scene.Session.CurrentState.Hash;
+            Assert.That(scene.Hud.CompletionActionsVisible, Is.False, "no green hero during active play");
+            Assert.That(scene.Hud.RotateVisible, Is.True);
+            Assert.That(scene.Hud.StatusText, Is.EqualTo("3 eşya kaldı"));
+            scene.Drag.BeginDrag("travel-pouch-1", GoldenLv1LayoutReview.TrayGrab(scene.Tray.ItemViews["travel-pouch-1"]));
+            scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(2.5f, 0f, -4.5f));
+            yield return null;
+            yield return null;
+            Assert.That(scene.Table.TrayShellRect, Is.EqualTo(shell), "dragged view cannot resize the dock");
+            Assert.That(scene.Hud.Dock.anchoredPosition, Is.EqualTo(utilityPosition), "utilities stay with the dock");
+            Assert.That(scene.Hud.StagingItemCardCount, Is.EqualTo(scene.Tray.ItemViews.Count));
+            Assert.That(scene.Table.TrayCardCount, Is.EqualTo(scene.Tray.ItemViews.Count));
+            Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(hash), "presentation never commits a drag");
+            scene.Drag.Cancel();
+        }
+
+        [UnityTest]
         public IEnumerator Dock_UndoRestartRotateUseTheExistingCommands_StatusFollowsTheTray_AndNoManualCompletionExists()
         {
             yield return Golden();
@@ -308,10 +370,10 @@ namespace ZipTrip.Tests.PlayMode
             scene.Drag.Cancel();
             yield return null;
             Assert.That(scene.Hud.RotateVisible, Is.True);
-            Assert.That(scene.Hud.StatusText, Is.Null, "the slot shows Döndür instead");
+            Assert.That(scene.Hud.StatusText, Is.EqualTo("3 eşya kaldı"), "title-row count is independent from contextual Döndür");
             var hash = scene.Session.CurrentState.Hash;
             var before = scene.Tray.DisplayRotation(scene.Session.CurrentState.Items.Single(i => i.InstanceId == "travel-pouch-1"));
-            scene.Perform(PuzzleHudAction.Rotate);
+            Tap(scene, scene.Hud.ButtonCenter(PuzzleHudAction.Rotate));
             Assert.That(scene.Tray.DisplayRotation(scene.Session.CurrentState.Items.Single(i => i.InstanceId == "travel-pouch-1")),
                 Is.Not.EqualTo(before), "existing Rotate: display orientation only");
             Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(hash));
@@ -332,11 +394,13 @@ namespace ZipTrip.Tests.PlayMode
             Place(scene, "shampoo-1", 3, 2);
             Assert.That(scene.Session.CurrentCompletion.IsComplete, Is.True, "completion is automatic on the last drop");
             Assert.That(scene.Hud.CompletionVisible, Is.False, "Sonraki waits for Zip It");
+            Assert.That(scene.Hud.CompletionActionsVisible, Is.False, "no active-play green hero CTA");
             var level = scene.Level;
             scene.Perform(PuzzleHudAction.Next);
             Assert.That(scene.Level, Is.SameAs(level), "Next is gated by the Zip It ritual");
             scene.Completion.Advance(5f);
             Assert.That(scene.Hud.CompletionVisible, Is.True);
+            Assert.That(scene.Hud.CompletionActionsVisible, Is.True, "green Sonraki hero appears only after completion");
             scene.Perform(PuzzleHudAction.Restart);
             Assert.That(scene.Session.MoveCount, Is.Zero, "Tekrar replays");
             yield return null;
@@ -415,6 +479,74 @@ namespace ZipTrip.Tests.PlayMode
                 scene.FrameCamera();
                 yield return Shot(scene, folder, "16-shipped-lv2");
                 Debug.Log("[ui-slice-01] " + folder);
+            }
+            finally
+            {
+                PuzzleHud.SafeAreaOverride = null;
+                QualitySettings.SetQualityLevel(quality, true);
+            }
+        }
+
+        [UnityTest, Explicit("Writes VISUAL-ALIGN-03 A-G and aspect captures")]
+        public IEnumerator CaptureVisualAlign03()
+        {
+            var quality = QualitySettings.GetQualityLevel();
+            QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "Mobile"), true);
+            var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../Builds/visual-align-03-revision/captures"));
+            Directory.CreateDirectory(folder);
+            try
+            {
+                yield return GoldenProduction();
+                var scene = Scene;
+                var drawCalls = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Draw Calls Count", 4);
+                var beforeDraw = drawCalls.LastValue;
+                yield return Shot(scene, folder, "A-level-start");
+                var va03Draws = drawCalls.LastValue - beforeDraw;
+                Debug.Log($"[visual-align-03] drawCalls={va03Draws} recorderValid={drawCalls.Valid} "
+                    + $"sceneObjects={scene.GetComponentsInChildren<Transform>(true).Length} "
+                    + $"uiImages={scene.GetComponentsInChildren<Image>(true).Length}");
+                drawCalls.Dispose();
+
+                foreach (var asset in new[] { "travel_frame", "santorini_vacation", "next_hero" })
+                {
+                    var texture = Resources.Load<Texture2D>("UiSlice011/" + asset);
+                    Debug.Log($"[visual-align-03-revision] texture={asset} size={texture.width}x{texture.height} "
+                        + $"runtimeBytes={UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(texture)}");
+                }
+
+                Select(scene, "travel-pouch-1");
+                yield return new WaitForSecondsRealtime(0.25f);
+                yield return Shot(scene, folder, "B-selected-rotate-visible");
+
+                scene.Drag.BeginDrag("travel-pouch-1", GoldenLv1LayoutReview.TrayGrab(scene.Tray.ItemViews["travel-pouch-1"]));
+                scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(2.5f, 0f, -4.5f));
+                yield return Shot(scene, folder, "C-mid-drag");
+                scene.Drag.Cancel();
+
+                Place(scene, "sunglasses-1", 3, 5);
+                Place(scene, "travel-pouch-1", 3, 2);
+                yield return Shot(scene, folder, "D-one-item-remaining");
+
+                Place(scene, "shampoo-1", 1, 3);
+                Assert.That(scene.Session.CurrentCompletion.IsComplete, Is.False, "pre-completion proof keeps the live rule invalid");
+                yield return Shot(scene, folder, "E-pre-completion");
+                scene.Undo();
+                Move(scene, "travel-pouch-1", 1, 3);
+                Move(scene, "sunglasses-1", 3, 6);
+                Place(scene, "shampoo-1", 3, 2);
+                scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration
+                    + PuzzleCompletionPresenter.AnticipationDuration + PuzzleCompletionPresenter.RuleCascadeDuration
+                    + PuzzleCompletionPresenter.StrapsDuration + PuzzleCompletionPresenter.LidDuration * 0.5f);
+                yield return Shot(scene, folder, "F-zip02-mid-close");
+                scene.Completion.Advance(5f);
+                yield return Shot(scene, folder, "G-final-paketlendi-sonraki");
+
+                scene.Perform(PuzzleHudAction.Restart);
+                yield return null;
+                yield return Shot(scene, folder, "H-1080x1920-level-start", 1080, 1920);
+                PuzzleHud.SafeAreaOverride = FixSlice00Tests.IPhoneDynamicIsland;
+                yield return Shot(scene, folder, "I-notched-phone-level-start");
+                Debug.Log("[visual-align-03] " + folder);
             }
             finally
             {

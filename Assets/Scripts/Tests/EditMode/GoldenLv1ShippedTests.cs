@@ -61,6 +61,28 @@ namespace ZipTrip.Tests.EditMode
         }
 
         [Test]
+        public void Va03_PresentationCopyCoversEveryRuleAndAllSixItems_WithoutChangingCanonicalIds()
+        {
+            var level = Load();
+            Assert.That(level.InitialState.Items.Select(i => i.Definition.Id).OrderBy(id => id), Is.EqualTo(new[]
+            {
+                "passport", "shampoo", "sunglasses", "sweater", "towel", "travel-pouch"
+            }));
+            foreach (var rule in level.Rules.Rules)
+            {
+                var keyword = PuzzleRuleText.Keyword(rule, level.InitialState);
+                Assert.That(keyword, Is.Not.Null.And.Not.Empty, rule.Id);
+                Assert.That(PuzzleRuleText.Label(rule, level.InitialState), Does.Contain(keyword), rule.Id);
+                Assert.That(PuzzleRuleText.RichLabel(rule, level.InitialState), Does.Contain("<b><color=#168C8C>" + keyword), rule.Id);
+            }
+            Assert.That(new[] { "sweater", "passport", "towel", "shampoo", "sunglasses", "travel-pouch" }
+                .Select(PuzzleRuleText.StagingName), Is.EqualTo(new[]
+            {
+                "Kazak", "Pasaport", "Havlu", "Şampuan", "Güneş Gözlüğü", "Seyahat Çantası"
+            }));
+        }
+
+        [Test]
         public void Shipped_SplitIsThreePrepackedAndThreeSourceTray()
         {
             var state = Load().InitialState;

@@ -50,6 +50,7 @@ namespace ZipTrip.Unity
         private bool _gestureOnHud;
         private float _framedAspect;
         private Vector2Int _framedScreen;
+        private Bounds? _trayFrameBounds;
         private PackingTable _table;
         private string _ruleDragKey;
         private PuzzleLevel _fixture;
@@ -151,6 +152,7 @@ namespace ZipTrip.Unity
 
         private void Present(PuzzleLevel level, string label)
         {
+            _trayFrameBounds = null;
             Completion.ResetForLevel(null, default, 0f, Hud);
             Level = level;
             Session = new PuzzleSession(Level);
@@ -198,7 +200,7 @@ namespace ZipTrip.Unity
             Hud.SetLevel(label, PuzzleRuleText.LevelSubtitle(Level.Id));
             _remaining = -1;
             _statusState = null;
-            Rules.Build(Level, Hud, Board, materialTemplate);
+            Rules.Build(Level, Hud, Board, materialTemplate, backdropProps);
             _objectiveSafeArea = default;
             Rules.Sync(Session.CurrentCompletion.Rules, false, Session.CurrentState);
             _ruleDragKey = null;
@@ -397,7 +399,10 @@ namespace ZipTrip.Unity
             if (Hud != null && Hud.AppliedSafeArea != _objectiveSafeArea)
                 LayoutObjective();
             if (_table != null)
+            {
                 _table.LayoutTray(Tray, Camera);
+                Hud.LayoutStagingDock(Tray, Camera, _table.TrayShellRect);
+            }
         }
 
         // Room between the header (inside the safe area) and the playable bed's back edge, in reference px; the rules
@@ -407,6 +412,27 @@ namespace ZipTrip.Unity
             _objectiveSafeArea = Hud.AppliedSafeArea;
             if (Camera == null || Board == null || Camera.pixelWidth <= 0)
                 return;
+            // Keep the authored lower module above a home indicator without moving the fixed gameplay camera.
+            // Only presentation scale/reflow changes; no item definition, footprint, or command is modified.
+            if (Tray != null && !Drag.IsDragging)
+            {
+                var scale = FitTrayScale(Level.InitialState, Tray.RowWidth);
+                var depth = 1;
+                foreach (var item in Level.InitialState.GetItems(ItemLocationKind.SourceTray))
+                {
+                    item.State.TryGetFootprint(item.State.AllowedRotations[0], out var footprint);
+                    foreach (var cell in footprint.OccupiedCells)
+                        depth = Mathf.Max(depth, cell.Y + 1);
+                }
+                var pixelsPerUnit = Camera.pixelHeight * Mathf.Sin(PuzzleCameraFraming.Pitch * Mathf.Deg2Rad)
+                    / (2f * Camera.orthographicSize);
+                scale = Mathf.Max(MinTrayScale, scale - _objectiveSafeArea.yMin * Camera.pixelHeight / (depth * pixelsPerUnit));
+                if (!Mathf.Approximately(Tray.Scale, scale))
+                {
+                    Tray.Scale = scale;
+                    Tray.Sync(Session.CurrentState);
+                }
+            }
             var toReference = PuzzleHud.ReferenceWidth / Camera.pixelWidth;
             var bedTop = 0f;
             foreach (var frame in Board.CompartmentFrames())
@@ -427,7 +453,7 @@ namespace ZipTrip.Unity
                 var width = 0;
                 foreach (var cell in footprint.OccupiedCells)
                     width = Mathf.Max(width, cell.X + 1);
-                cells += width;
+                cells += Mathf.Max(2, width);
                 count++;
             }
             if (count == 0)
@@ -448,8 +474,16 @@ namespace ZipTrip.Unity
                     bounds.Encapsulate(renderer.bounds);
             if (lid != null)
                 bounds.Encapsulate(lid.position + Vector3.up * LidFrameHeight);
-            foreach (var renderer in Tray.GetComponentsInChildren<Renderer>())
-                bounds.Encapsulate(renderer.bounds);
+            // Reserve the level-start tray envelope. Safe-area-only tray reflow must not move the camera.
+            if (!_trayFrameBounds.HasValue)
+                foreach (var renderer in Tray.GetComponentsInChildren<Renderer>())
+                {
+                    var trayBounds = _trayFrameBounds ?? renderer.bounds;
+                    trayBounds.Encapsulate(renderer.bounds);
+                    _trayFrameBounds = trayBounds;
+                }
+            if (_trayFrameBounds.HasValue)
+                bounds.Encapsulate(_trayFrameBounds.Value);
             if (Staging.Capacity > 0)
                 foreach (var renderer in Staging.GetComponentsInChildren<Renderer>())
                     bounds.Encapsulate(renderer.bounds);

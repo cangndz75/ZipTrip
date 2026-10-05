@@ -31,8 +31,9 @@ namespace ZipTrip.Unity
         /// <summary>Gap kept between the header and the note, and between the note and the playable bed (reference px).</summary>
         public const float NoteMargin = 10f;
         public const float BedClearance = 24f;
-        public const int RuleFontSize = 26;
-        public const float RowHeight = 40f;
+        public const int RuleFontSize = 34;
+        public const int TitleFontSize = 46;
+        public const float RowHeight = 84f;
         public const float ChipHeight = 60f;
         public const float NoteLeft = 40f;
         public static readonly Color SatisfiedColor = PresentationKit.Teal;
@@ -109,7 +110,7 @@ namespace ZipTrip.Unity
         public IReadOnlyCollection<string> VisibleCues => _visibleShapes;
 
         /// <summary>Builds the note and chip for a level (nothing when it authors no rules). Call after the HUD and board exist.</summary>
-        public void Build(PuzzleLevel level, PuzzleHud hud, PuzzleBoardPresenter board, Material template)
+        public void Build(PuzzleLevel level, PuzzleHud hud, PuzzleBoardPresenter board, Material template, Texture2D travelProps = null)
         {
             Clear();
             _level = level ?? throw new ArgumentNullException(nameof(level));
@@ -136,44 +137,58 @@ namespace ZipTrip.Unity
                     Short = PuzzleRuleText.Subject(rule, level.InitialState)
                 });
 
-            // Full note: title, then one ruled row per rule.
+            // Major authored mission card: fixed readable content width plus a destination-polaroid column.
             var title = PuzzleRuleText.Templates["objective.title"];
-            var measure = PaperUi.Label(transform, "", hud.Font, RuleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
-            var widestRule = 0f;
-            foreach (var tag in _tags)
-            {
-                measure.text = tag.Label;
-                widestRule = Mathf.Max(widestRule, measure.preferredWidth);
-            }
-            measure.font = hud.DisplayFont;
-            measure.fontSize = 27;
-            measure.text = title;
-            var titleWidth = measure.preferredWidth;
-            Destroy(measure.gameObject);
-            // pad + dot + gap + rule + pad, or pad + title + room for the tape corner.
-            var noteWidth = Mathf.Max(22f + 30f + 12f + widestRule + 24f, 22f + titleWidth + 90f);
-            _noteSize = new Vector2(Mathf.Clamp(Mathf.Ceil(noteWidth), 420f, 1000f), 12f + 38f + _tags.Count * RowHeight + 14f);
+            _noteSize = new Vector2(1000f, 120f + _tags.Count * RowHeight + 18f);
             _note = PaperUi.Card(hud.SafeArea, "Objective Note", rounded, new Vector2(0f, 1f), Vector2.zero, _noteSize, PaperUi.Paper,
-                0.28f, 9f, PaperUi.Skin("checklist"));
+                0.38f, 14f, PaperUi.Skin("travel_frame", 0));
             PaperUi.Face(_note).color = Color.white;
-            _note.localRotation = Quaternion.Euler(0f, 0f, 1.5f);
+            _note.localRotation = Quaternion.Euler(0f, 0f, 0.6f);
             var top = _noteSize.y * 0.5f;
             var left = -_noteSize.x * 0.5f;
-            PaperUi.Label(_note, title, hud.DisplayFont, 27, PaperUi.Ink, TextAnchor.MiddleLeft,
-                new Vector2(left + 22f + (_noteSize.x - 44f) * 0.5f, top - 12f - 19f), new Vector2(_noteSize.x - 44f, 38f));
+            PaperUi.Label(_note, title, hud.DisplayFont, TitleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft,
+                new Vector2(left + 370f, top - 66f), new Vector2(650f, 64f));
+            var destination = Resources.Load<Texture2D>("UiSlice011/santorini_vacation");
+            if (destination != null || travelProps != null)
+            {
+                var postcardRect = destination != null
+                    ? new Rect(destination.width * 0.40f, destination.height * 0.49f, destination.width * 0.6f, destination.width * 0.6f)
+                    : new Rect(0f, Mathf.Max(0f, travelProps.height - 722f), Mathf.Min(362f, travelProps.width), Mathf.Min(284f, travelProps.height));
+                var postcard = Own(Sprite.Create(destination != null ? destination : travelProps, postcardRect, new Vector2(0.5f, 0.5f), 100f));
+                var polaroid = PaperUi.Card(_note, "Santorini Polaroid", rounded, new Vector2(0.5f, 0.5f),
+                    new Vector2(367f, 22f), new Vector2(218f, 244f), Color.white, 0.32f, 8f);
+                PaperUi.Image(polaroid, "Santorini", postcard, Color.white, new Vector2(192f, 192f)).anchoredPosition = new Vector2(0f, 12f);
+                PaperUi.Label(polaroid, "SANTORINI", hud.DisplayFont, 22, PaperUi.Teal, TextAnchor.MiddleCenter,
+                    new Vector2(0f, -101f), new Vector2(190f, 30f));
+                polaroid.localRotation = Quaternion.Euler(0f, 0f, -5f);
+            }
             var tape = PaperUi.Image(_note, "Tape", PaperUi.Skin("tape", 0), Color.white,
                 new Vector2(86f, 28f));
-            tape.anchoredPosition = new Vector2(_noteSize.x * 0.5f - 34f, top - 4f);
+            tape.anchoredPosition = new Vector2(367f, 148f);
             tape.localRotation = Quaternion.Euler(0f, 0f, -28f);
             for (var i = 0; i < _tags.Count; i++)
             {
-                var y = top - 12f - 38f - RowHeight * (i + 0.5f);
-                PaperUi.Image(_note, "Rule Line", null, PaperUi.Line, new Vector2(_noteSize.x - 40f, 2f)).anchoredPosition =
-                    new Vector2(0f, y - RowHeight * 0.5f + 2f);
-                _tags[i].Note = MakeMark(_note, "Status " + _tags[i].Rule.Id, new Vector2(left + 22f + 15f, y), circle, ring, check, hud.Font);
-                var width = _noteSize.x - 22f - 30f - 12f - 20f;
-                PaperUi.Label(_note, _tags[i].Label, hud.Font, RuleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft,
-                    new Vector2(left + 22f + 30f + 12f + width * 0.5f, y + 1f), new Vector2(width, RowHeight));
+                var y = top - 120f - RowHeight * (i + 0.5f);
+                PaperUi.Image(_note, "Rule Line", null, PresentationKit.Hex(0xD7B779), new Vector2(660f, 2f)).anchoredPosition =
+                    new Vector2(-130f, y - RowHeight * 0.5f + 2f);
+                var badge = PaperUi.Image(_note, "Rule Number " + (i + 1), circle, PresentationKit.Teal, new Vector2(46f, 46f));
+                badge.anchoredPosition = new Vector2(left + 28f + 23f, y);
+                PaperUi.Label(badge, (i + 1).ToString(), hud.DisplayFont, 27, Color.white, TextAnchor.MiddleCenter,
+                    Vector2.zero, new Vector2(46f, 46f));
+                _tags[i].Note = MakeMark(_note, "Status " + _tags[i].Rule.Id,
+                    new Vector2(left + 28f + 46f + 12f + 17f, y), circle, ring, check, hud.Font);
+                var definitionId = PuzzleRuleText.SubjectDefinitionId(_tags[i].Rule, level.InitialState);
+                var itemIcon = Own(PresentationKit.ItemIcon(definitionId, 64));
+                Own(itemIcon.texture);
+                var icon = PaperUi.Image(_note, "Item Icon " + (definitionId ?? "rule"), itemIcon, PaperUi.Ink, new Vector2(48f, 48f));
+                icon.anchoredPosition = new Vector2(left + 28f + 46f + 12f + 34f + 12f + 24f, y);
+                var labelLeft = left + 28f + 46f + 12f + 34f + 12f + 48f + 14f;
+                var width = _noteSize.x - (labelLeft - left) - 290f;
+                var label = PaperUi.Label(_note, PuzzleRuleText.RichLabel(_tags[i].Rule, level.InitialState), hud.Font,
+                    RuleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft,
+                    new Vector2(labelLeft + width * 0.5f, y + 1f), new Vector2(width, RowHeight));
+                label.supportRichText = true;
+                label.horizontalOverflow = HorizontalWrapMode.Wrap;
             }
 
             // Compact chip: one status mark + subject name per rule.
