@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted. The camera angle (`rotation (75, 0, 0)`) is superseded by ADR-0010 (orthographic, 65° pitch); all other
+decisions here stand.
 
 ## Context
 

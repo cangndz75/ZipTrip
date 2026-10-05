@@ -174,7 +174,16 @@ namespace ZipTrip.Tests.PlayMode
             var bed = camera.pixelHeight - camera.WorldToScreenPoint(scene.Board.CompartmentFrames()[0].Origin).y;
             Assert.That(camera.pixelHeight - ScreenRect(camera, scene.Rules.Note).yMin, Is.LessThan(bed), "note clear of the bed");
 
+            // ADR-0010 (65° pitch) lowers the bed on screen: under the Dynamic Island the full note now fits, clear of the bed.
             PuzzleHud.SafeAreaOverride = FixSlice00Tests.IPhoneDynamicIsland;
+            yield return null;
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            Assert.That(scene.Rules.Compact, Is.False, "Dynamic Island: room for the full note");
+            Assert.That(camera.pixelHeight - ScreenRect(camera, scene.Rules.Note).yMin, Is.LessThan(bed), "note clear of the bed");
+
+            // A deeper top inset leaves no room: chip, not a shrunken note.
+            PuzzleHud.SafeAreaOverride = Rect.MinMaxRect(0f, 102f / 2556f, 1f, 1f - 250f / 2556f);
             yield return null;
             yield return null;
             Canvas.ForceUpdateCanvases();
