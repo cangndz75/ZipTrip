@@ -511,7 +511,10 @@ namespace ZipTrip.Unity
         /// Soft alpha mask of a set of non-negative cells (rows grow towards -z), covering their bounding box plus
         /// <paramref name="padCells"/>; adjacent cells merge into one shape with no per-cell seams.
         /// </summary>
-        public static Texture2D CellMask(IReadOnlyCollection<Cell> cells, int pixelsPerCell, float padCells, float blurCells)
+        /// <param name="edge">ART-CC02 perimeter mode: alpha peaks on the shape's outline and falls to 0 both outside and
+        /// inside, so an enclosed area keeps its own (dark) surface with only a thin edge glow.</param>
+        public static Texture2D CellMask(IReadOnlyCollection<Cell> cells, int pixelsPerCell, float padCells, float blurCells,
+            bool edge = false)
         {
             int width = 0, depth = 0;
             foreach (var cell in cells)
@@ -534,6 +537,12 @@ namespace ZipTrip.Unity
                 }
             var radius = Mathf.Max(1, Mathf.RoundToInt(blurCells * pixelsPerCell));
             mask = BoxBlur(BoxBlur(mask, w, h, radius), w, h, radius);
+            if (edge)
+                for (var i = 0; i < mask.Length; i++)
+                {
+                    var ring = 1f - Mathf.Abs(2f * mask[i] - 1f);
+                    mask[i] = ring * ring;
+                }
             var texture = new Texture2D(w, h, TextureFormat.RGBA32, false)
             {
                 wrapMode = TextureWrapMode.Clamp, name = "Cell mask"

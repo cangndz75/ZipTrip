@@ -12,6 +12,9 @@ namespace ZipTrip.Unity
         public static readonly Dictionary<string, string> Templates = new Dictionary<string, string>
         {
             ["rule.zone"] = "{0} {1} bölgede olmalı",
+            // ART-CC02 presentation copy (the full sentence above stays the rule's semantic label).
+            ["copy.zone"] = "{0} {1}",
+            ["chip.zone"] = "{0} {1}",
             ["rule.adjacencyRequired"] = "{0}, {1} yanında olmalı",
             ["rule.adjacencyForbidden"] = "{0}, {1} yanında olmamalı",
             ["rule.access"] = "{0} üstte olmalı",
@@ -38,7 +41,17 @@ namespace ZipTrip.Unity
             ["zone.right"] = "sağ",
             ["zone.bottom"] = "alt",
             ["zone.top"] = "üst",
-            ["zone.upper"] = "üst"
+            ["zone.upper"] = "üst",
+            ["zoneAt.left"] = "solda",
+            ["zoneAt.right"] = "sağda",
+            ["zoneAt.bottom"] = "altta",
+            ["zoneAt.top"] = "üstte",
+            ["zoneAt.upper"] = "üstte",
+            ["zoneArrow.left"] = "←",
+            ["zoneArrow.right"] = "→",
+            ["zoneArrow.bottom"] = "↓",
+            ["zoneArrow.top"] = "↑",
+            ["zoneArrow.upper"] = "↑"
         };
 
         /// <summary>Authored level names shown under "Seviye N", by level id (none = title only).</summary>
@@ -70,9 +83,14 @@ namespace ZipTrip.Unity
             return selector.Kind == ItemSelectorKind.Definition ? selector.Value : null;
         }
 
+        /// <summary>Mission-card copy: short for zone rules ("Pasaport üstte"), the full sentence otherwise.</summary>
+        public static string Copy(PuzzleRule rule, PuzzleState state) => rule is ZoneRule zone
+            ? string.Format(Templates["copy.zone"], Name(rule.Subjects, state), Lookup("zoneAt." + zone.ZoneId, zone.ZoneId))
+            : Label(rule, state);
+
         public static string RichLabel(PuzzleRule rule, PuzzleState state)
         {
-            var label = Label(rule, state);
+            var label = Copy(rule, state);
             var keyword = Keyword(rule, state);
             return string.IsNullOrEmpty(keyword) ? label
                 : label.Replace(keyword, "<b><color=#168C8C>" + keyword + "</color></b>");
@@ -97,6 +115,11 @@ namespace ZipTrip.Unity
 
         /// <summary>Short form for the compact rule chip: the rule's subject name ("Pasaport").</summary>
         public static string Subject(PuzzleRule rule, PuzzleState state) => Name(rule.Subjects, state);
+
+        /// <summary>Compact chip entry: keeps a zone rule's direction ("Pasaport ↑"); other kinds name the subject.</summary>
+        public static string Chip(PuzzleRule rule, PuzzleState state) => rule is ZoneRule zone
+            ? string.Format(Templates["chip.zone"], Name(rule.Subjects, state), Lookup("zoneArrow." + zone.ZoneId, zone.ZoneId))
+            : Subject(rule, state);
 
         // Instance selectors name the instance's definition; definition and tag selectors name themselves.
         private static string Name(ItemSelector selector, PuzzleState state)

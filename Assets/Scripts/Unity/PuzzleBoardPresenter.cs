@@ -73,6 +73,11 @@ namespace ZipTrip.Unity
         public Rect ContainerFootprint { get; private set; }
         public float ContainerBottomY { get; private set; }
         public float ContainerScale { get; private set; } = 1f;
+        /// <summary>
+        /// Height of the shown container's padded floor top above the board plane (0 on the procedural shell). Flat
+        /// presentation cues (regions, rule and drop glows) sit at least this high so the padding cannot hide them.
+        /// </summary>
+        public float FloorLift { get; private set; }
 
         /// <summary>Authored container art for the next Present (null = procedural ZT-040B suitcase).</summary>
         public void UseContainer(GameObject containerPrefab) => _containerPrefab = containerPrefab;
@@ -154,6 +159,7 @@ namespace ZipTrip.Unity
             ContainerFootprint = _shell.Body;
             ContainerBottomY = SuitcaseShell.SurfaceY;
             ContainerScale = 1f;
+            FloorLift = 0f;
         }
 
         // Seats the authored container around the board (uniform scale, board centred, interior floor on the lining
@@ -193,6 +199,10 @@ namespace ZipTrip.Unity
                 any = true;
             }
             ContainerFootprint = Rect.MinMaxRect(body.min.x, body.min.z, body.max.x, body.max.z);
+            FloorLift = 0f;
+            foreach (var renderer in _container.Root.GetComponentsInChildren<Renderer>())
+                if (renderer.name == "PaddedFloor")
+                    FloorLift = Mathf.Max(FloorLift, transform.InverseTransformPoint(renderer.bounds.max).y);
             ContainerBottomY = body.min.y;
 
             ClearContainerDecor();
@@ -201,6 +211,7 @@ namespace ZipTrip.Unity
                 return;
             _containerDecor = new GameObject("Container Presentation").transform;
             _containerDecor.SetParent(transform, false);
+            BuildRegions(template);
             var left = board.xMin - ContainerInterior.xMin;
             var right = ContainerInterior.xMax - board.xMax;
             if (left >= FillerMinGap)
@@ -228,6 +239,65 @@ namespace ZipTrip.Unity
             var occlusion = OwnDecor(InnerOcclusion(64, 0.16f));
             AddDecor("Lining Occlusion", PresentationKit.Quad(ContainerInterior, SuitcaseShell.LiningY + 0.004f),
                 OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.55f), occlusion)));
+        }
+
+        public const string RegionSeamName = "Region Seam";
+
+        // ART-CC02 semantic regions: each authored zone (and the unzoned rest) of a compartment reads as one padded
+        // upholstery section, separated by a stitched, piped seam only where two regions meet. Never per cell and no colliders:
+        // the logical grid stays hidden and multi-cell items may span cells freely inside a region.
+        private void BuildRegions(Material template)
+        {
+            var groove = OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.4f)));
+            var piping = OwnDecor(PresentationKit.Matte(template, PresentationKit.Shade(ContainerLining, 1.7f), null, 0.25f));
+            var stitch = OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PaperUi.Cream, 0.75f)));
+            foreach (var compartment in Board.Compartments)
+            {
+                var origin = _compartments[compartment.Id].transform.localPosition;
+                var regions = new HashSet<string>(StringComparer.Ordinal);
+                var seams = new List<Vector2[]>();
+                foreach (var cell in compartment.Mask.GetValidCells())
+                {
+                    var zone = compartment.GetColumnZone(cell) ?? "";
+                    regions.Add(zone);
+                    var x = origin.x + cell.X;
+                    var z = origin.z - cell.Y;
+                    var right = new Cell(cell.X + 1, cell.Y);
+                    if (compartment.Mask.IsValid(right) && (compartment.GetColumnZone(right) ?? "") != zone)
+                        seams.Add(new[] { new Vector2(x + 1f, z), new Vector2(x + 1f, z - 1f) });
+                    var below = new Cell(cell.X, cell.Y + 1);
+                    if (compartment.Mask.IsValid(below) && (compartment.GetColumnZone(below) ?? "") != zone)
+                        seams.Add(new[] { new Vector2(x, z - 1f), new Vector2(x + 1f, z - 1f) });
+                }
+                if (regions.Count < 2)
+                    continue;
+                var grooves = new List<Mesh>();
+                var pipes = new List<Mesh>();
+                var stitches = new List<Mesh>();
+                foreach (var seam in seams)
+                {
+                    var along = (seam[1] - seam[0]).normalized;
+                    var side = new Vector2(-along.y, along.x) * 0.075f;
+                    grooves.Add(PresentationKit.Ribbon(seam, 0.17f, origin.y + FloorLift + 0.004f, false));
+                    pipes.Add(PresentationKit.Ribbon(seam, 0.05f, origin.y + FloorLift + 0.007f, false));
+                    foreach (var offset in new[] { side, -side })
+                        stitches.Add(PresentationKit.DashedPath(new[] { seam[0] + offset, seam[1] + offset }, 0.1f, 0.1f, 0.02f,
+                            origin.y + FloorLift + 0.008f, false));
+                }
+                AddDecor(RegionSeamName + " " + compartment.Id, Combine(grooves), groove);
+                AddDecor(RegionSeamName + " Piping " + compartment.Id, Combine(pipes), piping);
+                AddDecor(RegionSeamName + " Stitch " + compartment.Id, Combine(stitches), stitch);
+            }
+        }
+
+        private static Mesh Combine(List<Mesh> parts)
+        {
+            var combine = parts.ConvertAll(m => new CombineInstance { mesh = m, transform = Matrix4x4.identity });
+            var mesh = new Mesh { name = "Region seams" };
+            mesh.CombineMeshes(combine.ToArray(), true, true);
+            foreach (var part in parts)
+                Destroy(part);
+            return mesh;
         }
 
         // Alpha 1 at the rim of the texture falling to 0 within `band` (fraction of the size) - an inner-edge glow mask.

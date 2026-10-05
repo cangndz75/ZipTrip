@@ -105,7 +105,7 @@ namespace ZipTrip.Tests.PlayMode
                 var shown = scene.Rules.Compact ? scene.Rules.Chip : scene.Rules.Note;
                 var corners = new Vector3[4];
                 shown.GetWorldCorners(corners);
-                var bottomFromTop = camera.pixelHeight - corners.Min(c => camera.WorldToScreenPoint(c).y);
+                var bottomFromTop = camera.pixelHeight - corners.Min(c => UiProjection.Screen(shown, c).y);
                 var backRowFromTop = camera.pixelHeight - camera.WorldToScreenPoint(scene.Board.CompartmentFrames().Single().Origin).y;
                 Assert.That(backRowFromTop, Is.GreaterThan(bottomFromTop), "the objective does not cover the packing interior");
             }
@@ -133,13 +133,15 @@ namespace ZipTrip.Tests.PlayMode
             scene.Drag.UpdateDrag(scene.Board.Compartments["main"].transform.position + new Vector3(3.5f, 0f, -4.5f));
             Assert.That(scene.Drag.Drop().Move.IsAccepted, Is.True);
             yield return null;
-            Assert.That(scene.Rules.VisibleCues, Is.Empty, "zone overlay ends with the drag");
+            Assert.That(scene.Rules.VisibleCues, Is.EquivalentTo(new[] { "zone:r1-zone:main" }),
+                "ART-CC02: the drag overlay ends; the now-unmet rule's region stays gold as the active requirement");
             Assert.That(scene.Rules.StatusOf("r1-zone"), Is.EqualTo(RuleTagStatus.Violated));
             Assert.That(scene.Rules.IsPulsing("r1-zone"), Is.True, "status change pulses once");
             AssertMatchesDomain(scene);
 
             Assert.That(scene.Undo(), Is.True);
             Assert.That(scene.Rules.StatusOf("r1-zone"), Is.EqualTo(RuleTagStatus.Satisfied), "undo restores rule status");
+            Assert.That(scene.Rules.VisibleCues, Is.Empty, "a met zone rule has no gold region");
             AssertMatchesDomain(scene);
         }
 

@@ -76,7 +76,7 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Hud.LevelSubtitle, Is.EqualTo("İlk Yolculuk"));
             Assert.That(scene.Hud.StatusText, Is.EqualTo("3 eşya kaldı"));
             AssertAuthoredInitialState(scene);
-            Assert.That(scene.Tray.ItemViews.Values.Select(v => v.transform.localPosition.z).Distinct().Count(), Is.EqualTo(1),
+            Assert.That(scene.Tray.ItemViews.Keys.Select(id => scene.Tray.CardPosition(id).z).Distinct().Count(), Is.EqualTo(1),
                 "three loose items in one row");
 
             foreach (var (id, prefab) in Roster)

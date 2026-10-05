@@ -12,14 +12,22 @@ namespace ZipTrip.Unity
         public const int PixelsPerCell = 16;
         public const float Pad = 0.16f;
         public const float Blur = 0.1f;
+        public const int EdgePixelsPerCell = 32;
+        public const float EdgeBlur = 0.07f;
 
         private readonly string _name;
+        private readonly bool _edge;
         private GameObject _object;
         private Mesh _mesh;
         private Texture2D _mask;
         private string _key;
 
-        public SoftCellShape(string name) => _name = name;
+        /// <param name="edge">Outline glow only (ART-CC02 active rule region) instead of a filled shape.</param>
+        public SoftCellShape(string name, bool edge = false)
+        {
+            _name = name;
+            _edge = edge;
+        }
 
         public Renderer Renderer => _object != null ? _object.GetComponent<Renderer>() : null;
 
@@ -55,7 +63,8 @@ namespace ZipTrip.Unity
                 _key = key.ToString();
                 if (_mask != null)
                     UnityEngine.Object.Destroy(_mask);
-                _mask = PresentationKit.CellMask(local, PixelsPerCell, Pad, Blur);
+                _mask = _edge ? PresentationKit.CellMask(local, EdgePixelsPerCell, Pad, EdgeBlur, true)
+                    : PresentationKit.CellMask(local, PixelsPerCell, Pad, Blur);
                 int width = 0, depth = 0;
                 foreach (var cell in local)
                 {

@@ -59,6 +59,7 @@ namespace ZipTrip.Unity
             {
                 _rig.SetLidClosed(false);
                 _rig.Root.localScale = _rootScale;
+                SetLidVisible(true);
             }
             _rig = rig;
             SignatureEnabled = signature && rig != null;
@@ -79,7 +80,11 @@ namespace ZipTrip.Unity
             _strapCues = _zipTicks = 0;
             CurrentPhase = Phase.Idle;
             if (_rig != null)
+            {
                 _rig.SetLidClosed(false);
+                // ART-CC02: while packing the lid stays in the hierarchy but outside the composition; Zip It shows it.
+                SetLidVisible(false);
+            }
             _suitcase?.SetStraps(0f, 0f);
             if (_suitcase != null && _suitcase.HasZipperPath)
                 _suitcase.ZipperPull.position = _suitcase.ZipperStart.position;
@@ -102,7 +107,19 @@ namespace ZipTrip.Unity
             TimelineTime = 0f;
             _elapsed = 0f;
             CurrentPhase = Phase.Settle;
+            SetLidVisible(true);
             FeedbackPoint?.Invoke("final_item_settle");
+        }
+
+        /// <summary>The lid's renderers are drawn (Zip It) or hidden (packing).</summary>
+        public bool LidVisible { get; private set; } = true;
+
+        private void SetLidVisible(bool visible)
+        {
+            LidVisible = visible;
+            if (_rig != null && _rig.Lid != null)
+                foreach (var renderer in _rig.Lid.GetComponentsInChildren<Renderer>(true))
+                    renderer.enabled = visible;
         }
 
         public bool Accelerate()

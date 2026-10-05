@@ -33,7 +33,6 @@ namespace ZipTrip.Unity
         public static readonly Color SurfaceTone = PresentationKit.Hex(0xE9DFCD);
         public const float PropLift = 0.006f;
         private const float AtlasSize = 1024f;
-        private static readonly float FrontToScreen = Mathf.Sin(PuzzleCameraFraming.Pitch * Mathf.Deg2Rad);
 
         // Texels (top-left origin) and world sizes from Tools/Art/build_backdrop_slice_01.py; anchors measured on the
         // locked frame (1080x2340: 136.4 px per world unit): inward offset from the screen edge and the screen-space
@@ -60,6 +59,7 @@ namespace ZipTrip.Unity
         private Material _shellMaterial;
         private Material _trayShadowMaterial;
         private Material _trayArtMaterial;
+        private Material _trayCardArtMaterial;
         private int _trayKey;
         private bool _vacationBackdrop;
 
@@ -86,7 +86,9 @@ namespace ZipTrip.Unity
             if (_template == null)
                 return;
             Material table;
-            var vacation = Resources.Load<Texture2D>("UiSlice011/santorini_vacation");
+            // ART-CC02: the table uses an offline softened, desaturated copy so the suitcase stays dominant.
+            var vacation = Resources.Load<Texture2D>("UiSlice011/santorini_vacation_soft")
+                ?? Resources.Load<Texture2D>("UiSlice011/santorini_vacation");
             _vacationBackdrop = vacation != null;
             if (_vacationBackdrop)
                 backdrop = vacation;
@@ -119,9 +121,12 @@ namespace ZipTrip.Unity
             _shellMaterial = Own(PresentationKit.Matte(_template, ShellLinen, null, 0.06f));
             _trayShadowMaterial = Own(PresentationKit.Transparent(_template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.28f),
                 Own(PresentationKit.SoftRect(64, 0.35f))));
-            var trayArt = Resources.Load<Texture2D>("UiSlice011/travel_frame");
+            var trayArt = Resources.Load<Texture2D>("UiSlice011/mission_leather");
             if (trayArt != null)
                 _trayArtMaterial = Own(PresentationKit.Transparent(_template, Color.white, trayArt));
+            var cardArt = Resources.Load<Texture2D>("UiSlice011/tray_slot");
+            if (cardArt != null)
+                _trayCardArtMaterial = Own(PresentationKit.Transparent(_template, PaperUi.Cream, cardArt));
             _trayRoot = new GameObject("Source Tray Shell").transform;
             _trayRoot.SetParent(transform, false);
             _trayRoot.gameObject.SetActive(false);
@@ -156,7 +161,7 @@ namespace ZipTrip.Unity
             var key = 17;
             foreach (var view in tray.ItemViews.Values)
             {
-                var p = tray.RestPosition(view.InstanceId);
+                var p = tray.CardPosition(view.InstanceId);
                 key = key * 31 + Mathf.RoundToInt(p.x * 100f);
                 key = key * 31 + Mathf.RoundToInt(p.z * 100f);
                 key = key * 31 + (int)view.Rotation + view.Footprint.CellCount * 7;
@@ -196,7 +201,7 @@ namespace ZipTrip.Unity
                     width = Mathf.Max(width, cells[i].X + 1);
                     depth = Mathf.Max(depth, cells[i].Y + 1);
                 }
-                var p = tray.RestPosition(view.InstanceId);
+                var p = tray.CardPosition(view.InstanceId);
                 var cardWidth = Mathf.Max(2, width);
                 var card = new Rect(p.x - (cardWidth - width) * tray.Scale * 0.5f - CardPad, p.z - depth * tray.Scale - CardPad, cardWidth * tray.Scale + 2f * CardPad,
                     depth * tray.Scale + 2f * CardPad);
@@ -218,8 +223,8 @@ namespace ZipTrip.Unity
                 TrayMesh("Card Edge " + view.InstanceId, PresentationKit.Slab(rim, 0.2f, y + 0.026f, top - 0.002f),
                     selected ? _selectedMaterial : _edgeMaterial);
                 TrayMesh("Card " + view.InstanceId, PresentationKit.Slab(card, 0.18f, y + 0.026f, top), _cardMaterial);
-                if (_trayArtMaterial != null)
-                    TrayMesh("Card Liner " + view.InstanceId, PresentationKit.Quad(card, top + 0.0005f), _trayArtMaterial);
+                if (_trayCardArtMaterial != null)
+                    TrayMesh("Card Liner " + view.InstanceId, PresentationKit.Quad(card, top + 0.0005f), _trayCardArtMaterial);
                 if (selected)
                 {
                     var tab = new Rect(card.xMin + 0.12f, card.yMax - 0.07f, Mathf.Min(0.42f, card.width - 0.24f), 0.15f);
@@ -272,6 +277,10 @@ namespace ZipTrip.Unity
             if (camera == null || _props.Count == 0)
                 return;
             var y = _surfaceY + PropLift;
+            // Screen height per unit of depth relative to screen width per unit (sin pitch, times any vertical squash).
+            var origin = camera.WorldToScreenPoint(Vector3.zero);
+            var frontToScreen = Mathf.Abs(camera.WorldToScreenPoint(Vector3.forward).y - origin.y)
+                / Mathf.Abs(camera.WorldToScreenPoint(Vector3.right).x - origin.x);
             var left = GridProjector.ScreenToWorld(camera, new Vector2(0f, camera.pixelHeight * 0.5f), y).x;
             var right = GridProjector.ScreenToWorld(camera, new Vector2(camera.pixelWidth, camera.pixelHeight * 0.5f), y).x;
             for (var i = 0; i < Props.Length; i++)
@@ -281,7 +290,11 @@ namespace ZipTrip.Unity
                 // The wider authored dock owns the lower centre. Keep loose travel props at the outer edges.
                 if (prop.Name == "Postcard")
                     x += 0.7f;
-                var z = body.yMin + prop.Offset / FrontToScreen;
+                // ART-CC02: the edge-to-edge suitcase widens the dock below it; props beside the dock only peek in from
+                // the screen edge, never over the loose-item row (which spans the body width).
+                if (prop.Offset > -1f)
+                    x = prop.Right ? Mathf.Max(x, body.xMax + prop.Size.x * 0.5f) : Mathf.Min(x, body.xMin - prop.Size.x * 0.5f);
+                var z = body.yMin + prop.Offset / frontToScreen;
                 _props[i].transform.localPosition = new Vector3(x, y, z);
             }
         }
@@ -328,15 +341,17 @@ namespace ZipTrip.Unity
             KeyLight.color = KeyColor;
             KeyLight.intensity = KeyIntensity;
             KeyLight.shadows = LightShadows.Soft;
-            KeyLight.shadowStrength = 0.58f;
+            KeyLight.shadowStrength = 0.68f;
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = new Color(0.74f, 0.77f, 0.81f);
-            RenderSettings.ambientEquatorColor = new Color(0.60f, 0.57f, 0.52f);
-            RenderSettings.ambientGroundColor = new Color(0.30f, 0.27f, 0.24f);
+            RenderSettings.ambientEquatorColor = new Color(0.66f, 0.64f, 0.58f);
+            RenderSettings.ambientGroundColor = new Color(0.36f, 0.32f, 0.28f);
         }
 
-        // Mobile-safe, restrained, all inside URP's single uber pass: neutral tonemapping, a little contrast/saturation and
-        // a soft warm vignette. No bloom (extra passes, no visible gain at phone scale), no blur, no chromatic aberration.
+        // Mobile-safe, restrained: neutral tonemapping, warm white balance, contrast/saturation and a soft warm vignette in
+        // URP's uber pass, plus one subtle quarter-resolution bloom (ART-CC02) that only catches highlights above 1.0 (brass
+        // speculars), never the cream paper. The HUD is a screen-space overlay and is never post-processed. No blur, no
+        // chromatic aberration.
         private void BuildPost(Camera camera)
         {
             if (camera == null)
@@ -345,9 +360,19 @@ namespace ZipTrip.Unity
             var tonemapping = profile.Add<Tonemapping>(true);
             tonemapping.mode.Override(TonemappingMode.Neutral);
             var color = profile.Add<ColorAdjustments>(true);
-            color.postExposure.Override(0.18f);
+            color.postExposure.Override(0.22f);
             color.contrast.Override(20f);
-            color.saturation.Override(16f);
+            color.saturation.Override(20f);
+            var balance = profile.Add<WhiteBalance>(true);
+            balance.temperature.Override(9f);
+            balance.tint.Override(2f);
+            var bloom = profile.Add<Bloom>(true);
+            bloom.threshold.Override(1.05f);
+            bloom.intensity.Override(0.25f);
+            bloom.scatter.Override(0.55f);
+            bloom.downscale.Override(BloomDownscaleMode.Quarter);
+            bloom.maxIterations.Override(4);
+            bloom.highQualityFiltering.Override(false);
             var vignette = profile.Add<UnityEngine.Rendering.Universal.Vignette>(true);
             vignette.intensity.Override(0.12f);
             vignette.smoothness.Override(0.5f);

@@ -194,14 +194,14 @@ namespace ZipTrip.Unity
             _dock.Find("Face").gameObject.SetActive(false);
             _dock.Find("Shadow").gameObject.SetActive(false);
             _stagingTitleRow = PaperUi.Card(_dock, "Staging Title Row", _rounded, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(860f, 96f), Color.white, 0.22f, 6f, PaperUi.Skin("travel_frame", 0));
+                new Vector2(860f, 96f), Color.white, 0.22f, 6f, PaperUi.Skin("checklist", 24));
             _stagingTitle = PaperUi.Label(_stagingTitleRow, "Yerleştirilecek Eşyalar", _display, 40, PaperUi.Ink,
                 TextAnchor.MiddleLeft, new Vector2(-55f, 0f), new Vector2(540f, 58f));
             _status = PaperUi.Label(_stagingTitleRow, "", _display, 30, PaperUi.Teal, TextAnchor.MiddleRight,
                 new Vector2(270f, 0f), new Vector2(180f, 58f));
 
             _utilityBlock = PaperUi.Card(_dock, "Secondary Utilities", _rounded, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(800f, 140f), Color.white, 0.32f, 10f, PaperUi.Skin("travel_frame", 0));
+                new Vector2(800f, 140f), Color.white, 0.32f, 10f, PaperUi.Skin("checklist", 24));
             AddControl(PuzzleHudAction.Undo, "Geri Al", undoIcon, new Vector2(-250f, 0f));
             AddControl(PuzzleHudAction.Restart, "Baştan", restartIcon, Vector2.zero);
             var rotate = AddPill(_utilityBlock, PuzzleHudAction.Rotate, "Döndür", new Vector2(250f, 0f), RotateSize,
@@ -288,8 +288,8 @@ namespace ZipTrip.Unity
                     if (!_stagingLabels.TryGetValue(pair.Key, out var label))
                     {
                         var plate = PaperUi.Card(_dock, "Item Name " + pair.Key, _rounded, new Vector2(0.5f, 0.5f),
-                            Vector2.zero, new Vector2(242f, 64f), Color.white, 0.18f, 4f, PaperUi.Skin("luggage_label", 32));
-                        label = PaperUi.Label(plate, PuzzleRuleText.StagingName(view.DefinitionId), _display, 28, PaperUi.Ink,
+                            Vector2.zero, new Vector2(242f, 64f), Color.white, 0.12f, 3f, PaperUi.Skin("checklist", 24));
+                        label = PaperUi.Label(plate, PuzzleRuleText.StagingName(view.DefinitionId), _display, 30, PaperUi.Ink,
                             TextAnchor.MiddleCenter, Vector2.zero, new Vector2(230f, 60f));
                         label.horizontalOverflow = HorizontalWrapMode.Wrap;
                         _stagingLabels.Add(pair.Key, label);
@@ -311,6 +311,7 @@ namespace ZipTrip.Unity
                         / (2f * camera.orthographicSize) * ReferenceWidth / camera.pixelWidth;
                     PaperUi.Resize(label.transform.parent.GetComponent<RectTransform>(), new Vector2(cardWidthPx, 70f));
                     label.rectTransform.sizeDelta = new Vector2(cardWidthPx - 16f, 64f);
+                    label.fontSize = cardWidthPx < 190f ? 26 : 30;
                     label.text = PuzzleRuleText.StagingName(view.DefinitionId);
                 }
 
@@ -332,14 +333,14 @@ namespace ZipTrip.Unity
             }
         }
 
-        /// <summary>Capture only: draw the HUD through a camera so off-screen renders include it.</summary>
-        public void RenderThrough(Camera camera)
-        {
-            var canvas = GetComponent<Canvas>();
-            canvas.renderMode = camera != null ? RenderMode.ScreenSpaceCamera : RenderMode.ScreenSpaceOverlay;
-            canvas.worldCamera = camera;
-            canvas.planeDistance = 1f;
-        }
+        /// <summary>
+        /// Capture only: draw the HUD into <paramref name="camera"/>'s target so off-screen renders include it (via
+        /// CaptureUi; null restores the overlay). Measure HUD rects with <see cref="CaptureCamera"/>.
+        /// </summary>
+        public void RenderThrough(Camera camera) => CaptureCamera = CaptureUi.Attach(GetComponent<Canvas>(), camera, 1f);
+
+        /// <summary>The camera drawing the HUD while capturing (null in the overlay used by the game).</summary>
+        public Camera CaptureCamera { get; private set; }
 
         public void SetRotateVisible(bool visible)
         {

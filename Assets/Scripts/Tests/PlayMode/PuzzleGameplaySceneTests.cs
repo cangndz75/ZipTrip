@@ -539,7 +539,7 @@ namespace ZipTrip.Tests.PlayMode
                 Assert.That(left, Is.GreaterThanOrEqualTo(0f));
                 Assert.That(right, Is.LessThanOrEqualTo(1f));
 
-                var rows = scene.Tray.ItemViews.Values.Select(v => v.transform.localPosition.z).Distinct().Count();
+                var rows = scene.Tray.ItemViews.Keys.Select(id => scene.Tray.CardPosition(id).z).Distinct().Count();
                 Assert.That(rows, Is.EqualTo(1), "Lv1 loose items lie in one row");
                 var pixelsPerCell = scene.Tray.Scale * camera.pixelHeight / (2f * camera.orthographicSize);
                 Assert.That(pixelsPerCell, Is.GreaterThanOrEqualTo(75f), "loose items are not tiny icons");

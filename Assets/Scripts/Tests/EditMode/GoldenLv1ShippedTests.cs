@@ -75,6 +75,16 @@ namespace ZipTrip.Tests.EditMode
                 Assert.That(PuzzleRuleText.Label(rule, level.InitialState), Does.Contain(keyword), rule.Id);
                 Assert.That(PuzzleRuleText.RichLabel(rule, level.InitialState), Does.Contain("<b><color=#168C8C>" + keyword), rule.Id);
             }
+            // ART-CC02: short mission copy and a directional chip are presentation only; the full sentence stays the label.
+            var byId = level.Rules.Rules.ToDictionary(r => r.Id);
+            Assert.That(PuzzleRuleText.Copy(byId["passport-upper"], level.InitialState), Is.EqualTo("Pasaport üstte"));
+            Assert.That(PuzzleRuleText.Copy(byId["shampoo-right"], level.InitialState), Is.EqualTo("Şampuan sağda"));
+            Assert.That(PuzzleRuleText.Chip(byId["passport-upper"], level.InitialState), Is.EqualTo("Pasaport ↑"));
+            Assert.That(PuzzleRuleText.Chip(byId["shampoo-right"], level.InitialState), Is.EqualTo("Şampuan →"));
+            Assert.That(PuzzleRuleText.Label(byId["passport-upper"], level.InitialState), Is.EqualTo("Pasaport üst bölgede olmalı"),
+                "full rule semantics kept");
+            Assert.That(PuzzleRuleText.Chip(byId["passport-upper"], level.InitialState),
+                Is.Not.EqualTo(PuzzleRuleText.Subject(byId["passport-upper"], level.InitialState)), "chip never drops the direction");
             Assert.That(new[] { "sweater", "passport", "towel", "shampoo", "sunglasses", "travel-pouch" }
                 .Select(PuzzleRuleText.StagingName), Is.EqualTo(new[]
             {

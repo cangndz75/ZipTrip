@@ -31,15 +31,20 @@ namespace ZipTrip.Unity
         /// <summary>Gap kept between the header and the note, and between the note and the playable bed (reference px).</summary>
         public const float NoteMargin = 10f;
         public const float BedClearance = 24f;
-        public const int RuleFontSize = 34;
-        public const int TitleFontSize = 46;
+        public const int RuleFontSize = 36;
+        public const int TitleFontSize = 50;
         public const float RowHeight = 84f;
         public const float ChipHeight = 60f;
         public const float NoteLeft = 40f;
+        /// <summary>ART-CC02 floating mission card: width, centre (fraction of the 9:16 reference frame from its top) and tilt.</summary>
+        public const float NoteWidth = 640f;
+        public const float NoteCenter = 0.21f;
+        public const float NoteTilt = -3f;
         public static readonly Color SatisfiedColor = PresentationKit.Teal;
         public static readonly Color ViolatedColor = PresentationKit.Terracotta;
         public static readonly Color InactiveColor = PresentationKit.Hex(0xB9B2A6);
-        public static readonly Color ZoneTint = new Color(1f, 0.96f, 0.84f, 0.3f);
+        /// <summary>ART-CC02 gold = active rule region (rule context). Blue is reserved for valid-drop feedback.</summary>
+        public static readonly Color ZoneTint = new Color(0.98f, 0.78f, 0.36f, 0.9f);
         public static readonly Color TargetTint = new Color(0.98f, 0.82f, 0.42f, 0.7f);
         public static readonly Color SuccessTint = new Color(0.36f, 0.8f, 0.6f, 0.72f);
         public static readonly Color WarningTint = new Color(0.86f, 0.32f, 0.24f, 0.62f);
@@ -134,20 +139,21 @@ namespace ZipTrip.Unity
                 {
                     Rule = rule,
                     Label = PuzzleRuleText.Label(rule, level.InitialState),
-                    Short = PuzzleRuleText.Subject(rule, level.InitialState)
+                    Short = PuzzleRuleText.Chip(rule, level.InitialState)
                 });
 
-            // Major authored mission card: fixed readable content width plus a destination-polaroid column.
+            // ART-CC02 floating mission card: a tilted travel prop with a deep shadow; the destination polaroid overlaps
+            // its top-right corner instead of taking a column.
             var title = PuzzleRuleText.Templates["objective.title"];
-            _noteSize = new Vector2(1000f, 120f + _tags.Count * RowHeight + 18f);
+            _noteSize = new Vector2(NoteWidth, 108f + _tags.Count * RowHeight + 30f);
             _note = PaperUi.Card(hud.SafeArea, "Objective Note", rounded, new Vector2(0f, 1f), Vector2.zero, _noteSize, PaperUi.Paper,
-                0.38f, 14f, PaperUi.Skin("travel_frame", 0));
+                0.55f, 22f, PaperUi.Skin("mission_leather", 0));
             PaperUi.Face(_note).color = Color.white;
-            _note.localRotation = Quaternion.Euler(0f, 0f, 0.6f);
+            _note.localRotation = Quaternion.Euler(0f, 0f, NoteTilt);
             var top = _noteSize.y * 0.5f;
             var left = -_noteSize.x * 0.5f;
             PaperUi.Label(_note, title, hud.DisplayFont, TitleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft,
-                new Vector2(left + 370f, top - 66f), new Vector2(650f, 64f));
+                new Vector2(left + 40f + 290f, top - 64f), new Vector2(580f, 64f));
             var destination = Resources.Load<Texture2D>("UiSlice011/santorini_vacation");
             if (destination != null || travelProps != null)
             {
@@ -156,21 +162,20 @@ namespace ZipTrip.Unity
                     : new Rect(0f, Mathf.Max(0f, travelProps.height - 722f), Mathf.Min(362f, travelProps.width), Mathf.Min(284f, travelProps.height));
                 var postcard = Own(Sprite.Create(destination != null ? destination : travelProps, postcardRect, new Vector2(0.5f, 0.5f), 100f));
                 var polaroid = PaperUi.Card(_note, "Santorini Polaroid", rounded, new Vector2(0.5f, 0.5f),
-                    new Vector2(367f, 22f), new Vector2(218f, 244f), Color.white, 0.32f, 8f);
-                PaperUi.Image(polaroid, "Santorini", postcard, Color.white, new Vector2(192f, 192f)).anchoredPosition = new Vector2(0f, 12f);
-                PaperUi.Label(polaroid, "SANTORINI", hud.DisplayFont, 22, PaperUi.Teal, TextAnchor.MiddleCenter,
-                    new Vector2(0f, -101f), new Vector2(190f, 30f));
-                polaroid.localRotation = Quaternion.Euler(0f, 0f, -5f);
+                    new Vector2(-left - 4f, top - 2f), new Vector2(176f, 198f), Color.white, 0.45f, 12f);
+                PaperUi.Image(polaroid, "Santorini", postcard, Color.white, new Vector2(154f, 154f)).anchoredPosition = new Vector2(0f, 10f);
+                PaperUi.Label(polaroid, "SANTORINI", hud.DisplayFont, 19, PaperUi.Teal, TextAnchor.MiddleCenter,
+                    new Vector2(0f, -82f), new Vector2(160f, 26f));
+                polaroid.localRotation = Quaternion.Euler(0f, 0f, 9f);
+                var tape = PaperUi.Image(polaroid, "Tape", PaperUi.Skin("tape", 0), Color.white, new Vector2(78f, 26f));
+                tape.anchoredPosition = new Vector2(-6f, 96f);
+                tape.localRotation = Quaternion.Euler(0f, 0f, -24f);
             }
-            var tape = PaperUi.Image(_note, "Tape", PaperUi.Skin("tape", 0), Color.white,
-                new Vector2(86f, 28f));
-            tape.anchoredPosition = new Vector2(367f, 148f);
-            tape.localRotation = Quaternion.Euler(0f, 0f, -28f);
             for (var i = 0; i < _tags.Count; i++)
             {
-                var y = top - 120f - RowHeight * (i + 0.5f);
-                PaperUi.Image(_note, "Rule Line", null, PresentationKit.Hex(0xD7B779), new Vector2(660f, 2f)).anchoredPosition =
-                    new Vector2(-130f, y - RowHeight * 0.5f + 2f);
+                var y = top - 90f - RowHeight * (i + 0.5f);
+                PaperUi.Image(_note, "Rule Line", null, PresentationKit.Hex(0xD7B779), new Vector2(_noteSize.x - 64f, 2f)).anchoredPosition =
+                    new Vector2(0f, y - RowHeight * 0.5f + 2f);
                 var badge = PaperUi.Image(_note, "Rule Number " + (i + 1), circle, PresentationKit.Teal, new Vector2(46f, 46f));
                 badge.anchoredPosition = new Vector2(left + 28f + 23f, y);
                 PaperUi.Label(badge, (i + 1).ToString(), hud.DisplayFont, 27, Color.white, TextAnchor.MiddleCenter,
@@ -178,12 +183,18 @@ namespace ZipTrip.Unity
                 _tags[i].Note = MakeMark(_note, "Status " + _tags[i].Rule.Id,
                     new Vector2(left + 28f + 46f + 12f + 17f, y), circle, ring, check, hud.Font);
                 var definitionId = PuzzleRuleText.SubjectDefinitionId(_tags[i].Rule, level.InitialState);
-                var itemIcon = Own(PresentationKit.ItemIcon(definitionId, 64));
-                Own(itemIcon.texture);
-                var icon = PaperUi.Image(_note, "Item Icon " + (definitionId ?? "rule"), itemIcon, PaperUi.Ink, new Vector2(48f, 48f));
-                icon.anchoredPosition = new Vector2(left + 28f + 46f + 12f + 34f + 12f + 24f, y);
-                var labelLeft = left + 28f + 46f + 12f + 34f + 12f + 48f + 14f;
-                var width = _noteSize.x - (labelLeft - left) - 290f;
+                var itemIcon = PaperUi.Skin("item_" + definitionId, 0);
+                var illustrated = itemIcon != null;
+                if (!illustrated)
+                {
+                    itemIcon = Own(PresentationKit.ItemIcon(definitionId, 64));
+                    Own(itemIcon.texture);
+                }
+                var icon = PaperUi.Image(_note, "Item Icon " + (definitionId ?? "rule"), itemIcon,
+                    illustrated ? Color.white : PaperUi.Ink, new Vector2(80f, 80f));
+                icon.anchoredPosition = new Vector2(left + 28f + 46f + 12f + 34f + 12f + 40f, y);
+                var labelLeft = left + 28f + 46f + 12f + 34f + 12f + 80f + 14f;
+                var width = _noteSize.x - (labelLeft - left) - 28f;
                 var label = PaperUi.Label(_note, PuzzleRuleText.RichLabel(_tags[i].Rule, level.InitialState), hud.Font,
                     RuleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft,
                     new Vector2(labelLeft + width * 0.5f, y + 1f), new Vector2(width, RowHeight));
@@ -191,7 +202,7 @@ namespace ZipTrip.Unity
                 label.horizontalOverflow = HorizontalWrapMode.Wrap;
             }
 
-            // Compact chip: one status mark + subject name per rule.
+            // Compact chip: one status mark + subject (with its direction for zone rules) per rule, "·"-separated.
             var names = new List<Text>();
             var chipWidth = 58f; // keep the final label clear of the paper's folded corner
             _chip = PaperUi.Card(hud.SafeArea, "Objective Chip", rounded, new Vector2(0f, 1f), Vector2.zero, Vector2.one, PaperUi.Paper,
@@ -199,7 +210,7 @@ namespace ZipTrip.Unity
             PaperUi.Face(_chip).color = Color.white;
             foreach (var tag in _tags)
             {
-                var name = PaperUi.Label(_chip, tag.Short, hud.Font, RuleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft, Vector2.zero,
+                var name = PaperUi.Label(_chip, tag == _tags[_tags.Count - 1] ? tag.Short : tag.Short + "  ·", hud.Font, RuleFontSize, PaperUi.Ink, TextAnchor.MiddleLeft, Vector2.zero,
                     new Vector2(10f, ChipHeight));
                 name.rectTransform.sizeDelta = new Vector2(Mathf.Ceil(name.preferredWidth) + 4f, ChipHeight);
                 names.Add(name);
@@ -263,7 +274,17 @@ namespace ZipTrip.Unity
             if (!Compact)
                 Expanded = false;
             var top = -(PuzzleHud.HeaderBottom + NoteMargin);
-            _note.anchoredPosition = new Vector2(NoteLeft + _noteSize.x * 0.5f, top - _noteSize.y * 0.5f);
+            // Card centre at NoteCenter of the 9:16 reference frame (fitted into the canvas, centred), never under the
+            // header. Canvas units are reference px (width-matched scaler).
+            var safeArea = (RectTransform)_note.parent;
+            var canvasHeight = ((RectTransform)safeArea.parent).rect.height;
+            var frameHeight = PuzzleCameraFraming.ReferenceHeight * Mathf.Min(1f, canvasHeight / PuzzleCameraFraming.ReferenceHeight);
+            var center = (canvasHeight - frameHeight) * 0.5f + NoteCenter * frameHeight
+                - canvasHeight * (1f - safeArea.anchorMax.y);
+            // Never over the packing interior (the bed starts availableHeight below the header); Compact covers the
+            // case where neither bound can hold.
+            center = Mathf.Min(center, PuzzleHud.HeaderBottom + availableHeight - BedClearance - _noteSize.y * 0.5f);
+            _note.anchoredPosition = new Vector2(NoteLeft + _noteSize.x * 0.5f, Mathf.Min(top - _noteSize.y * 0.5f, -center));
             _chip.anchoredPosition = new Vector2(NoteLeft + _chipSize.x * 0.5f, top - _chipSize.y * 0.5f);
             ApplyVisibility();
         }
@@ -388,6 +409,7 @@ namespace ZipTrip.Unity
                 return;
             }
             BeginCues();
+            ShowActiveZone();
             foreach (var rule in _level.Rules.Rules)
                 switch (rule)
                 {
@@ -422,10 +444,25 @@ namespace ZipTrip.Unity
         private PuzzleItem ItemOf(PuzzleItemView view) =>
             _board.PresentedState != null && _board.PresentedState.TryGetItem(view.InstanceId, out var item) ? item : null;
 
-        // Idle: only currently broken forbidden-adjacency pairs and blocked access subjects get a cue.
+        // ART-CC02: the active requirement (first committed-unmet zone rule, in note order) keeps its region in gold, idle
+        // and while dragging, so valid-drop blue can read inside it.
+        private void ShowActiveZone()
+        {
+            if (_committed == null || _level == null)
+                return;
+            foreach (var rule in _level.Rules.Rules)
+                if (rule is ZoneRule zone && StatusFrom(Find(_committed, rule.Id)) == RuleTagStatus.Violated)
+                {
+                    ShowZone("zone:" + rule.Id, zone.ZoneId);
+                    return;
+                }
+        }
+
+        // Idle: the active zone, plus currently broken forbidden-adjacency pairs and blocked access subjects.
         private void ShowIdleCues()
         {
             BeginCues();
+            ShowActiveZone();
             if (_committed != null && _level != null)
                 foreach (var rule in _level.Rules.Rules)
                 {
@@ -473,7 +510,7 @@ namespace ZipTrip.Unity
                 return;
             var material = MaterialFor(key, tint);
             ShapeFor(key).Show(_overlayRoot, view.Footprint.OccupiedCells, compartment.transform.position, view.Placement.Anchor,
-                view.Placement.Layer * PuzzleBoardLayout.LayerHeight + 0.02f, material);
+                view.Placement.Layer * PuzzleBoardLayout.LayerHeight + _board.FloorLift + 0.02f, material);
             _frame.Add(key);
         }
 
@@ -489,16 +526,17 @@ namespace ZipTrip.Unity
                     if (compartment.GetColumnZone(cell) == zoneId)
                         cells.Add(cell);
                 var shapeKey = key + ":" + compartment.Id;
-                ShapeFor(shapeKey).Show(_overlayRoot, cells, view.transform.position, default, 0.012f, MaterialFor(shapeKey, ZoneTint));
+                ShapeFor(shapeKey, true).Show(_overlayRoot, cells, view.transform.position, default, _board.FloorLift + 0.012f,
+                    MaterialFor(shapeKey, ZoneTint));
                 if (cells.Count > 0)
                     _frame.Add(shapeKey);
             }
         }
 
-        private SoftCellShape ShapeFor(string key)
+        private SoftCellShape ShapeFor(string key, bool edge = false)
         {
             if (!_shapes.TryGetValue(key, out var shape))
-                _shapes.Add(key, shape = new SoftCellShape("Rule Cue " + key));
+                _shapes.Add(key, shape = new SoftCellShape("Rule Cue " + key, edge));
             return shape;
         }
 

@@ -45,3 +45,23 @@ The ART-01 neighbour-overlap test (`Art01GoldenVisualTests.SolvedLv1Items_DoNotR
 casts rays from the camera position as if the gameplay camera were perspective. The production camera is
 orthographic, so that measurement is incorrect and must be fixed (rays along the camera forward) when ART-01
 resumes. Its 4.5% value is not an authoritative gameplay threshold.
+
+## Amendment — ART-CC02 composition convergence (2026-10-05, Can)
+
+Human decision during ART-CC02: the presentation camera may change to reach the approved 9:16 target composition;
+gameplay model, hidden grid, colliders, solver coordinates and interaction must not. Priority: suitcase width 94–98%
+of the 9:16 reference frame, bottom ~77–79%, then top ~32–35%; mission card centre stays at ~20–22%.
+
+Lowering the real pitch cannot reach the target aspect on the deep 5x7 Lv1 board without hiding the near row behind
+the front wall (~22° needed). Instead, with an authored container:
+
+- Pitch stays **65°**, orthographic. `PuzzleCameraFraming.Compose` fits the suitcase body (lid excluded) to 96% of the
+  reference-frame width with its lowest point at 78% of its height (frame = largest 9:16 rect fitted, centred).
+- The projection gets a presentation-only **vertical scale of 0.8** (`VerticalScale`). Picking, ghost and commit go
+  through the same projection matrix (`Camera.ScreenPointToRay`), so they stay exact; the board, cells and colliders
+  are untouched. Ground depth reads at `sin 65° × 0.8 ≈ 0.725` of width; far-row cells stay ≥100 px (140×101 at 1080 wide).
+- Result on Lv1 (1080×2340 and 1080×1920): width 96.0%, bottom 78.0%, body top 22.5% (back rim), interior back row
+  30.0%. The top misses 32–35%; reaching it needs `VerticalScale ≈ 0.64` (cells ≈140×81 px), which was not taken.
+- The procedural-shell fallback keeps the band-fit `Frame` with a plain projection.
+- Capture-only canvases (`CaptureUi`) are drawn as a world-space plane in front of the gameplay camera, since a
+  ScreenSpaceCamera canvas mis-sizes under a custom projection. The shipped HUD stays ScreenSpaceOverlay.

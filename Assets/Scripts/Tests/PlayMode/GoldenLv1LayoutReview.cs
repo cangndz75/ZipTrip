@@ -426,8 +426,8 @@ namespace ZipTrip.Tests.PlayMode
                 {
                     var c = new Vector3[4];
                     rect.GetWorldCorners(c);
-                    var a = camera.WorldToScreenPoint(c[0]);
-                    var b = camera.WorldToScreenPoint(c[2]);
+                    var a = UiProjection.Screen(rect, c[0]);
+                    var b = UiProjection.Screen(rect, c[2]);
                     return UnityEngine.Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
                 }
                 json.AppendLine("  \"header\": " + R(Ui((RectTransform)_safe.Find("Header"))) + ",");
@@ -494,7 +494,7 @@ namespace ZipTrip.Tests.PlayMode
                     trayBottom = front;
                 var corners = new Vector3[4];
                 _dock.GetWorldCorners(corners);
-                var dockTop = camera.WorldToViewportPoint(corners[1]).y;
+                var dockTop = UiProjection.Screen(_dock, corners[1]).y / camera.pixelHeight;
                 var left = camera.WorldToViewportPoint(new Vector3(body.xMin, y, body.center.y)).x;
                 var right = camera.WorldToViewportPoint(new Vector3(body.xMax, y, body.center.y)).x;
                 return string.Format(CultureInfo.InvariantCulture,

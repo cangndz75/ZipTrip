@@ -74,8 +74,8 @@ namespace ZipTrip.Tests.PlayMode
         {
             var c = new Vector3[4];
             rect.GetWorldCorners(c);
-            var a = camera.WorldToScreenPoint(c[0]);
-            var b = camera.WorldToScreenPoint(c[2]);
+            var a = UiProjection.Screen(rect, c[0]);
+            var b = UiProjection.Screen(rect, c[2]);
             return Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
         }
 
@@ -120,6 +120,20 @@ namespace ZipTrip.Tests.PlayMode
             note.Find("Status " + rule + "/" + part).gameObject.activeSelf;
 
         // ------------------------------------------------------------------ header / safe area
+
+        [UnityTest]
+        public IEnumerator ShortTrayItems_CenterInTheirCards_WithoutChangingState()
+        {
+            yield return GoldenProduction();
+            var scene = Scene;
+            var tray = scene.Tray;
+            Assert.That(tray.RestPosition("sunglasses-1").z,
+                Is.LessThan(tray.CardPosition("sunglasses-1").z), "short product is centred within the tall row");
+            Assert.That(tray.RestPosition("shampoo-1").z,
+                Is.EqualTo(tray.CardPosition("shampoo-1").z).Within(.001f), "tall product keeps its anchor");
+            Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(scene.Level.InitialState.Hash));
+            Assert.That(scene.Table.TrayCardCount, Is.EqualTo(tray.ItemViews.Count));
+        }
 
         [UnityTest]
         public IEnumerator Header_ShowsLevelAndSubtitle_StaysInsideTheSafeArea_AndNeverMovesTheCamera()
@@ -241,14 +255,23 @@ namespace ZipTrip.Tests.PlayMode
         // ------------------------------------------------------------------ source tray
 
         [UnityTest]
-        public IEnumerator AuthoredMission_RemainsFullAt1080x1920_WithoutCoveringTheBoard()
+        // ART-CC02 (human decision): 16:9 has no height beyond the 9:16 frame, so the edge-to-edge suitcase leaves room
+        // for the compact chip, not the full card. The chip keeps each zone rule's direction, never just item names.
+        public IEnumerator Mission_CollapsesToADirectionalChipAt1080x1920_WithoutCoveringTheBoard()
         {
             yield return GoldenProduction(1080, 1920);
             var scene = Scene;
-            Assert.That(scene.Rules.Compact, Is.False, "short phone still gets the authored mission card");
-            Assert.That(scene.Rules.Note.Find("Santorini Polaroid").gameObject.activeInHierarchy, Is.True);
+            Assert.That(scene.Rules.Compact, Is.True, "16:9 uses the compact chip");
+            Assert.That(scene.Rules.Chip.gameObject.activeInHierarchy, Is.True);
+            Assert.That(scene.Rules.Note.gameObject.activeInHierarchy, Is.False);
+            var chip = string.Join(" ", scene.Rules.Chip.GetComponentsInChildren<Text>().Select(t => t.text));
+            Assert.That(chip, Does.Contain("Pasaport ↑").And.Contain("·").And.Contain("Şampuan →"), chip);
             var bedTop = scene.Camera.WorldToScreenPoint(scene.Board.CompartmentFrames()[0].Origin).y;
-            Assert.That(ScreenRect(scene.Camera, scene.Rules.Note).yMin, Is.GreaterThan(bedTop), "no board occlusion");
+            Assert.That(ScreenRect(scene.Camera, scene.Rules.Chip).yMin, Is.GreaterThan(bedTop), "no board occlusion");
+            scene.Rules.ToggleExpanded();
+            Assert.That(scene.Rules.Note.gameObject.activeInHierarchy, Is.True, "a tap still opens the full card");
+            var note = string.Join(" ", scene.Rules.Note.GetComponentsInChildren<Text>().Select(t => t.text));
+            Assert.That(note, Does.Contain("üstte").And.Contain("sağda"), note);
         }
 
         [UnityTest]
@@ -492,7 +515,8 @@ namespace ZipTrip.Tests.PlayMode
         {
             var quality = QualitySettings.GetQualityLevel();
             QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "Mobile"), true);
-            var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../Builds/visual-align-03-revision/captures"));
+            var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath,
+                System.Environment.GetEnvironmentVariable("ZT_CAPTURE_FOLDER") ?? "../Builds/visual-align-03-revision/captures"));
             Directory.CreateDirectory(folder);
             try
             {
@@ -507,7 +531,20 @@ namespace ZipTrip.Tests.PlayMode
                     + $"uiImages={scene.GetComponentsInChildren<Image>(true).Length}");
                 drawCalls.Dispose();
 
-                foreach (var asset in new[] { "travel_frame", "santorini_vacation", "next_hero" })
+                long textureBytes = 0;
+                foreach (var texture in Resources.FindObjectsOfTypeAll<Texture2D>())
+                    textureBytes += UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(texture);
+                Debug.Log($"[target-convergence] loadedTextureBytes={textureBytes} realtimeLights="
+                    + Object.FindObjectsByType<Light>(FindObjectsSortMode.None).Count(l => l.enabled && l.gameObject.activeInHierarchy));
+                using (var allocations = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame", 64))
+                {
+                    for (var sample = 0; sample < 60; sample++) yield return null;
+                    var samples = allocations.ToArray();
+                    Debug.Log($"[target-convergence] editorIdleGcBytesPerFrame={samples.Average(s => (double)s.Value)} valid={allocations.Valid}");
+                }
+
+                foreach (var asset in new[] { "travel_frame", "santorini_vacation", "next_hero",
+                    "mission_leather", "item_passport", "item_shampoo" })
                 {
                     var texture = Resources.Load<Texture2D>("UiSlice011/" + asset);
                     Debug.Log($"[visual-align-03-revision] texture={asset} size={texture.width}x{texture.height} "

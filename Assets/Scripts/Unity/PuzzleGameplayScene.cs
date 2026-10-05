@@ -28,8 +28,9 @@ namespace ZipTrip.Unity
         public const float TrayItemGap = 0.15f;
         /// <summary>Distance from the suitcase interior's front edge to the loose items (clears wall + handle).</summary>
         public const float TrayGap = 1.5f;
-        /// <summary>Gap between an authored container's front (handle included) and the loose items.</summary>
-        public const float ContainerTrayGap = 0.1f;
+        /// <summary>Gap between an authored container's front (handle included) and the loose items; ART-CC02 sets it so the
+        /// dock's upper edge meets the composed suitcase bottom (~78% of the 9:16 reference frame).</summary>
+        public const float ContainerTrayGap = 0.95f;
         /// <summary>
         /// Height (world y above the hinge) of the open lid that camera framing reserves; the rest of the lid may rise
         /// into the top HUD band or past the screen edge, so the lid reads without shrinking the board.
@@ -424,8 +425,8 @@ namespace ZipTrip.Unity
                     foreach (var cell in footprint.OccupiedCells)
                         depth = Mathf.Max(depth, cell.Y + 1);
                 }
-                var pixelsPerUnit = Camera.pixelHeight * Mathf.Sin(PuzzleCameraFraming.Pitch * Mathf.Deg2Rad)
-                    / (2f * Camera.orthographicSize);
+                var pixelsPerUnit = Camera.pixelHeight * (Board.Container != null ? PuzzleCameraFraming.GroundToScreen
+                    : Mathf.Sin(PuzzleCameraFraming.Pitch * Mathf.Deg2Rad)) / (2f * Camera.orthographicSize);
                 scale = Mathf.Max(MinTrayScale, scale - _objectiveSafeArea.yMin * Camera.pixelHeight / (depth * pixelsPerUnit));
                 if (!Mathf.Approximately(Tray.Scale, scale))
                 {
@@ -466,6 +467,18 @@ namespace ZipTrip.Unity
         {
             if (Completion != null && Completion.CurrentPhase != PuzzleCompletionPresenter.Phase.Idle)
                 return;
+            if (Board.Container != null)
+            {
+                // ART-CC02: compose around the suitcase body only; the lid is hidden while packing and the loose
+                // items sit in the dock directly below the body.
+                var renderers = Board.Container.Base.GetComponentsInChildren<Renderer>();
+                var body = renderers[0].bounds;
+                foreach (var renderer in renderers)
+                    body.Encapsulate(renderer.bounds);
+                PuzzleCameraFraming.Compose(Camera, body);
+                FinishFraming();
+                return;
+            }
             var bounds = new Bounds(Board.transform.position, Vector3.zero);
             var lid = Board.Lid;
             foreach (var renderer in Board.GetComponentsInChildren<Renderer>())
@@ -489,6 +502,13 @@ namespace ZipTrip.Unity
                     bounds.Encapsulate(renderer.bounds);
             PuzzleCameraFraming.Frame(Camera, bounds, PuzzleHud.TopFraction(Camera.pixelWidth, Camera.pixelHeight),
                 PuzzleHud.BottomFraction(Camera.pixelWidth, Camera.pixelHeight));
+            FinishFraming();
+        }
+
+        private void FinishFraming()
+        {
+            if (Hud.CaptureCamera != null)
+                Hud.RenderThrough(Hud.CaptureCamera); // capture-only canvas follows the re-framed camera
             _framedAspect = Camera.aspect;
             _framedScreen = new Vector2Int(Screen.width, Screen.height);
             _table?.LayoutTray(Tray, Camera);

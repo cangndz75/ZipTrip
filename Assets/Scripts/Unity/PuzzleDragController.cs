@@ -34,7 +34,8 @@ namespace ZipTrip.Unity
         public const float LiftHeight = 0.5f;
         private const float GhostLift = 0.03f;
         private const float InvalidPreviewHeight = LiftHeight - 0.08f;
-        private static readonly Color ValidColor = new Color(0.36f, 0.80f, 0.50f, 0.62f);
+        // ART-CC02 blue = valid drop (current interaction); gold is reserved for the active rule region.
+        private static readonly Color ValidColor = new Color(0.30f, 0.70f, 0.95f, 0.62f);
         private static readonly Color InvalidColor = new Color(0.92f, 0.30f, 0.24f, 0.62f);
         private static readonly Color MarkColor = new Color(0.62f, 0.07f, 0.05f, 0.95f);
 
@@ -639,7 +640,7 @@ namespace ZipTrip.Unity
                     if (frame.Id == CandidateCompartment)
                         origin = frame.Origin;
             // Valid: on the resolved layer. Invalid: just under the lifted item, so the red reads over whatever blocks it.
-            var elevation = PreviewValid ? PreviewLayer * PuzzleBoardLayout.LayerHeight + GhostLift : InvalidPreviewHeight;
+            var elevation = PreviewValid ? PreviewLayer * PuzzleBoardLayout.LayerHeight + _board.FloorLift + GhostLift : InvalidPreviewHeight;
             EnsurePreviewMaterials();
             if (_footprintMaterial != null)
                 _footprintMaterial.SetColor(PresentationKit.BaseColorId, PreviewValid ? ValidColor : InvalidColor);

@@ -16,6 +16,7 @@ namespace ZipTrip.Unity
         private readonly Dictionary<string, PuzzleItemView> _items = new Dictionary<string, PuzzleItemView>();
         private readonly Dictionary<string, Rotation> _displayRotations = new Dictionary<string, Rotation>(StringComparer.Ordinal);
         private readonly Dictionary<string, Vector3> _restPositions = new Dictionary<string, Vector3>(StringComparer.Ordinal);
+        private readonly Dictionary<string, Vector3> _cardPositions = new Dictionary<string, Vector3>(StringComparer.Ordinal);
         private PuzzleBoardPresenter _board;
         public Func<PuzzleItem, PuzzleItem> DisplayItem { get; set; }
 
@@ -30,6 +31,7 @@ namespace ZipTrip.Unity
         public string SelectedInstanceId { get; private set; }
         // Stable card anchors, independent of the view being lifted or dragged over the board.
         public Vector3 RestPosition(string id) => transform.TransformPoint(_restPositions[id]);
+        public Vector3 CardPosition(string id) => transform.TransformPoint(_cardPositions[id]);
 
         /// <summary>Uses the board presenter's material and visual resolver so tray and board items look alike.</summary>
         public void Configure(PuzzleBoardPresenter board)
@@ -56,6 +58,7 @@ namespace ZipTrip.Unity
             _items.Clear();
             _displayRotations.Clear();
             _restPositions.Clear();
+            _cardPositions.Clear();
             SelectedInstanceId = null;
         }
 
@@ -89,7 +92,7 @@ namespace ZipTrip.Unity
                 var cardWidth = Mathf.Max(2, width);
                 if (RowWidth > 0f && x > 0f && x + cardWidth * Scale > RowWidth)
                 {
-                    CenterRow(row, x - Gap);
+                    CenterRow(row, x - Gap, rowDepth);
                     x = 0f;
                     z -= rowDepth + Gap;
                     rowDepth = 0f;
@@ -105,7 +108,7 @@ namespace ZipTrip.Unity
                 x += cardWidth * Scale + Gap;
                 rowDepth = Mathf.Max(rowDepth, depth * Scale);
             }
-            CenterRow(row, x - Gap);
+            CenterRow(row, x - Gap, rowDepth);
 
             foreach (var id in live)
                 _restPositions[id] = _items[id].transform.localPosition;
@@ -120,20 +123,26 @@ namespace ZipTrip.Unity
                 _items.Remove(id);
                 _displayRotations.Remove(id);
                 _restPositions.Remove(id);
+                _cardPositions.Remove(id);
             }
             if (SelectedInstanceId != null && !live.Contains(SelectedInstanceId))
                 SelectedInstanceId = null;
         }
 
-        private void CenterRow(List<(PuzzleItemView View, float X)> row, float usedWidth)
+        private void CenterRow(List<(PuzzleItemView View, float X)> row, float usedWidth, float rowDepth)
         {
-            if (CenterRows && RowWidth > 0f && row.Count > 0)
+            if (row.Count > 0)
             {
-                var shift = Mathf.Max(0f, (RowWidth - usedWidth) * 0.5f);
+                var shift = CenterRows && RowWidth > 0f ? Mathf.Max(0f, (RowWidth - usedWidth) * 0.5f) : 0f;
                 foreach (var (view, x) in row)
                 {
                     var position = view.transform.localPosition;
-                    view.transform.localPosition = new Vector3(x + shift, position.y, position.z);
+                    var cardPosition = new Vector3(x + shift, position.y, position.z);
+                    _cardPositions[view.InstanceId] = cardPosition;
+                    var depth = 0;
+                    foreach (var cell in view.Footprint.OccupiedCells) depth = Mathf.Max(depth, cell.Y + 1);
+                    // Centre short products within their authored card; picking continues to use the real view pose.
+                    view.transform.localPosition = cardPosition + Vector3.back * ((rowDepth - depth * Scale) * .5f);
                 }
             }
             row.Clear();
