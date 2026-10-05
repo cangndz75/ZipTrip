@@ -148,7 +148,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a0dfc7fb98604c449b9b2516e265f5ac, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: ZipTrip.Unity::ZipTrip.Unity.PuzzleGameplayScene
   levelIds:
   - lv1-fit
@@ -171,17 +171,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a1299b63871d4a4fbd14bf95f59ca204, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: ZipTrip.Unity::ZipTrip.Unity.GoldenItemPrefabCatalog
   laptop: {fileID: 800555402651178064, guid: 8be98f459bed5f44ba10fe11605ce2c8, type: 3}
   sneakerPair: {fileID: 4685423852331411272, guid: 1bcef4bb41851b641aa17733351b904e, type: 3}
-  sweaterOpen: {fileID: 4530022656319029468, guid: 51b83f92e956bfd439ddfca75ae5bdb8, type: 3}
+  sweaterOpen: {fileID: 9146673677954912894, guid: d534544584c344649b299e3ecb1041a9, type: 3}
   sweaterFolded: {fileID: 2698886092395759672, guid: 35f45972b8e5d74449d288ffff2a4d96, type: 3}
-  passport: {fileID: 329692792678166858, guid: 08a7f9fb671e8dc4293cb7f60aadd6a7, type: 3}
-  towel: {fileID: 8859237844793658366, guid: e6b9b71e838aa98449804cd4439bb895, type: 3}
-  shampoo: {fileID: 746324635876215969, guid: e1ef97369fa075548b11fb535ce2f3d8, type: 3}
-  sunglasses: {fileID: 8640807522983260881, guid: b8d78248b75514c4ea01df7cc31dc68f, type: 3}
-  travelPouch: {fileID: 5007495242390438273, guid: 8e76ba53f4c52264886142b09698fdf5, type: 3}
+  passport: {fileID: 1481828641117509672, guid: a1d11dcfbf0d76f428ce5d342c17e181, type: 3}
+  towel: {fileID: 1459392519162949910, guid: a18d4d23751f23b458469651eae39b06, type: 3}
+  shampoo: {fileID: 4615236528455622835, guid: fc38957289dc91f4ab7ebbba2c9ba5eb, type: 3}
+  sunglasses: {fileID: 1877339970056887638, guid: 9647b5c133a54a9479d6371cac19929e, type: 3}
+  travelPouch: {fileID: 5734637645558591434, guid: f1e752aff8c985744831610e641878b6, type: 3}
 --- !u!114 &89142487
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -192,7 +192,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2564336310944b378283960db573ca16, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: ZipTrip.Unity::ZipTrip.Unity.PointerInteractor
 --- !u!4 &89142488
 Transform:
