@@ -287,13 +287,15 @@ namespace ZipTrip.Tests.PlayMode
         {
             var quality = QualitySettings.GetQualityLevel();
             QualitySettings.SetQualityLevel(System.Array.IndexOf(QualitySettings.names, "Mobile"), true);
-            var folder = System.IO.Path.GetFullPath(System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Builds/art-cc02/after"));
+            var folder = System.IO.Path.GetFullPath(System.Environment.GetEnvironmentVariable("ZIPTRIP_CAPTURE_DIR")
+                ?? System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Builds/art-cc02/after"));
             System.IO.Directory.CreateDirectory(folder);
             try
             {
                 yield return Open();
                 var scene = Scene;
                 yield return Shot(folder, "A-packing");
+                yield return Shot(folder, "I-interior-closeup", true);
                 var overlay = TargetCompositionOverlay.Instance;
                 overlay.Visible = true;
                 overlay.RenderThrough(scene.Camera);
@@ -314,6 +316,7 @@ namespace ZipTrip.Tests.PlayMode
                 Place(scene, "travel-pouch-1", 1, 3);
                 Place(scene, "sunglasses-1", 3, 6);
                 Place(scene, "shampoo-1", 3, 2);
+                foreach (var view in scene.Board.ItemViews.Values) view.Feedback.CompleteAll();
                 yield return Shot(folder, "E-zip-it-begin");
                 scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration + PuzzleCompletionPresenter.AnticipationDuration
                     + PuzzleCompletionPresenter.RuleCascadeDuration + PuzzleCompletionPresenter.StrapsDuration
@@ -334,7 +337,7 @@ namespace ZipTrip.Tests.PlayMode
             }
         }
 
-        private IEnumerator Shot(string folder, string name)
+        private IEnumerator Shot(string folder, string name, bool closeup = false)
         {
             yield return null;
             yield return null;
@@ -342,8 +345,9 @@ namespace ZipTrip.Tests.PlayMode
             var camera = Scene.Camera;
             camera.Render();
             RenderTexture.active = _target;
-            var image = new Texture2D(_target.width, _target.height, TextureFormat.RGB24, false);
-            image.ReadPixels(new Rect(0, 0, _target.width, _target.height), 0, 0);
+            var read = closeup ? new Rect(0, 600, 1080, 1100) : new Rect(0, 0, _target.width, _target.height);
+            var image = new Texture2D((int)read.width, (int)read.height, TextureFormat.RGB24, false);
+            image.ReadPixels(read, 0, 0);
             image.Apply();
             System.IO.File.WriteAllBytes(System.IO.Path.Combine(folder, name + ".png"), image.EncodeToPNG());
             RenderTexture.active = null;

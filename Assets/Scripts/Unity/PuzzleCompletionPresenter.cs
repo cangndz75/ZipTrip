@@ -319,15 +319,24 @@ namespace ZipTrip.Unity
                 main.playOnAwake = false;
                 main.loop = false;
                 main.duration = CelebrationDuration;
-                main.startLifetime = 0.45f;
-                main.startSpeed = 1.2f;
-                main.startSize = 0.085f;
-                main.maxParticles = 40;
-                main.startColor = PresentationKit.Mustard;
+                main.startLifetime = 0.38f;
+                main.startSpeed = 0.65f;
+                main.startSize = new ParticleSystem.MinMaxCurve(0.025f, 0.055f);
+                main.maxParticles = 16;
+                main.startColor = PresentationKit.Hex(0xF1D49A);
                 main.useUnscaledTime = true;
                 var emission = _celebration.emission;
                 emission.rateOverTime = 0f;
-                emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 28) });
+                emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 12) });
+                var size = _celebration.sizeOverLifetime;
+                size.enabled = true;
+                size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 1f, 1f, 0f));
+                var fade = _celebration.colorOverLifetime;
+                fade.enabled = true;
+                var gradient = new Gradient();
+                gradient.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                    new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, .15f), new GradientAlphaKey(0f, 1f) });
+                fade.color = gradient;
                 var shader = Shader.Find("Sprites/Default");
                 if (shader != null)
                 {

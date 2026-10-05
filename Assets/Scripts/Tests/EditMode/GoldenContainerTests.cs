@@ -97,7 +97,7 @@ namespace ZipTrip.Tests.EditMode
             // Remapped by authored material name; Unity's submesh order differs per node, so compare as sets.
             string[] Slots(Transform t) => t.GetComponent<MeshRenderer>().sharedMaterials.Select(m => m.name).ToArray();
             Assert.That(Slots(rig.Base), Is.EquivalentTo(new[] { "M_CabinSuitcase_Exterior", "M_CabinSuitcase_Lining" }));
-            Assert.That(Slots(rig.Lid), Is.EquivalentTo(new[] { "M_CabinSuitcase_Exterior", "M_CabinSuitcase_Lining" }));
+            Assert.That(Slots(rig.Lid), Is.EquivalentTo(new[] { "M_PremiumLid", "M_CabinSuitcase_Lining" }));
             Assert.That(Slots(prefab.transform.Find("Interior")), Is.EqualTo(new[] { "M_CabinSuitcase_Lining" }));
             var materials = rig.Base.GetComponent<MeshRenderer>().sharedMaterials;
             var exterior = materials.Single(m => m.name == "M_CabinSuitcase_Exterior");
@@ -107,19 +107,22 @@ namespace ZipTrip.Tests.EditMode
             Assert.That(AssetDatabase.GetAssetPath(exterior), Does.EndWith("Materials/M_CabinSuitcase_Exterior.mat"),
                 "explicit Unity material, not an FBX-generated one");
             var lining = liningMaterial.GetColor("_BaseColor");
-            Assert.That(new[] { lining.r, lining.g, lining.b }, Is.EqualTo(new[] { 0.10f, 0.27f, 0.28f }).Within(0.005f));
+            Assert.That(new[] { lining.r, lining.g, lining.b }, Is.EqualTo(new[] { 0.045f, 0.10f, 0.115f }).Within(0.005f));
         }
 
         [Test]
-        public void Richness_ChangesOnlyOpaqueMaterialResponse_NotContainerBudget()
+        public void PremiumFinish_PreservesSourceGeometry_AndBoundsAddedOpaqueDetail()
         {
             var prefab = Prefab();
             var renderers = prefab.GetComponentsInChildren<MeshRenderer>(true);
             var materials = renderers.SelectMany(r => r.sharedMaterials).Distinct().ToArray();
-            Assert.That(renderers, Has.Length.EqualTo(6));
-            Assert.That(materials, Has.Length.EqualTo(3));
-            Assert.That(renderers.Sum(r => Enumerable.Range(0, r.GetComponent<MeshFilter>().sharedMesh.subMeshCount)
+            var details = renderers.Where(r => r.transform.parent.name == "Lid").ToArray();
+            Assert.That(details.Select(r => r.name), Is.EquivalentTo(new[] { "LidWelt", "LidStitch", "LidStraps", "LidBuckles" }));
+            Assert.That(renderers, Has.Length.EqualTo(10));
+            Assert.That(materials, Has.Length.EqualTo(7));
+            Assert.That(renderers.Except(details).Sum(r => Enumerable.Range(0, r.GetComponent<MeshFilter>().sharedMesh.subMeshCount)
                 .Sum(i => (long)r.GetComponent<MeshFilter>().sharedMesh.GetIndexCount(i) / 3)), Is.EqualTo(39555));
+            Assert.That(details.Sum(r => (long)r.GetComponent<MeshFilter>().sharedMesh.GetIndexCount(0) / 3), Is.InRange(1, 5000));
             Assert.That(prefab.GetComponentsInChildren<Collider>(true), Is.Empty);
             Assert.That(materials.All(m => m.GetFloat("_Surface") == 0f), Is.True, "opaque URP materials");
             var exterior = materials.Single(m => m.name == "M_CabinSuitcase_Exterior");

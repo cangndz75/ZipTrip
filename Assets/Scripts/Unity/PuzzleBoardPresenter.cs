@@ -25,7 +25,7 @@ namespace ZipTrip.Unity
         /// <summary>Spare interior width (cells, per side) at or above which a padded filler closes the gap.</summary>
         public const float FillerMinGap = 0.15f;
         public const float FillerHeight = 0.42f;
-        public static readonly Color ContainerLining = new Color(0.10f, 0.27f, 0.28f);
+        public static readonly Color ContainerLining = new Color(0.045f, 0.10f, 0.115f);
         /// <summary>
         /// ZT-040C.1 gameplay open pose (local X). The authored -77.08 is nearly edge-on to the 75-degree camera; at -90
         /// the lining and straps face it. Smaller angles tilt the lid over the cavity and show its exterior instead.
@@ -237,7 +237,7 @@ namespace ZipTrip.Unity
                 OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.3f), soft)));
             // Interior depth: soft occlusion where the lining floor meets the walls (darkens edges, clear centre).
             var occlusion = OwnDecor(InnerOcclusion(64, 0.16f));
-            AddDecor("Lining Occlusion", PresentationKit.Quad(ContainerInterior, SuitcaseShell.LiningY + 0.004f),
+            AddDecor("Lining Occlusion", PresentationKit.Quad(ContainerInterior, Mathf.Max(SuitcaseShell.LiningY, FloorLift) + 0.012f),
                 OwnDecor(PresentationKit.Transparent(template, PresentationKit.WithAlpha(PresentationKit.Shadow, 0.55f), occlusion)));
         }
 
