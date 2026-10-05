@@ -132,7 +132,8 @@ namespace ZipTrip.Tests.PlayMode
                 yield return Shot(scene, target, "10-final-pre-zip");
                 CheckLidClearance(scene);
                 scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration +
-                    PuzzleCompletionPresenter.AnticipationDuration + PuzzleCompletionPresenter.LidDuration * .30f);
+                    PuzzleCompletionPresenter.AnticipationDuration + PuzzleCompletionPresenter.RuleCascadeDuration
+                    + PuzzleCompletionPresenter.StrapsDuration + PuzzleCompletionPresenter.LidDuration * .30f);
                 yield return Shot(scene, target, "11-lid-30");
                 scene.Completion.Advance(PuzzleCompletionPresenter.LidDuration * .40f);
                 yield return Shot(scene, target, "12-lid-70");

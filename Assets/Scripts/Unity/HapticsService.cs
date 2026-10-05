@@ -2,7 +2,8 @@ using UnityEngine;
 
 namespace ZipTrip.Unity
 {
-    public enum FeelCue { ItemLift, ItemSettle, Reject, Rotate, Undo, RuleSatisfied, RuleViolated }
+    public enum FeelCue { ItemLift, ItemSettle, Reject, Rotate, Undo, RuleSatisfied, RuleViolated,
+        StrapBuckle, LidContact, ZipTick, ZipComplete, Celebration, Stamp }
 
     // Presentation-only Android bridge. A disabled or unsupported device produces no vibration.
     public sealed class HapticsService : MonoBehaviour
@@ -24,9 +25,10 @@ namespace ZipTrip.Unity
                 {
                     // API 30 names in the feel book; the P30 Pro's API 29 uses restrained supported constants.
                     var api30 = version.GetStatic<int>("SDK_INT") >= 30;
-                    var effect = cue == FeelCue.ItemSettle || cue == FeelCue.RuleSatisfied ? (api30 ? 16 : 6)
+                    var effect = cue == FeelCue.ItemSettle || cue == FeelCue.RuleSatisfied || cue == FeelCue.StrapBuckle
+                        || cue == FeelCue.ZipTick ? (api30 ? 16 : 6)
                         : cue == FeelCue.Reject ? (api30 ? 17 : 6)
-                        : cue == FeelCue.RuleViolated ? 4 : 4;
+                        : 4;
                     return view.Call<bool>("performHapticFeedback", effect);
                 }
             }

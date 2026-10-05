@@ -43,6 +43,7 @@ namespace ZipTrip.Unity
         private RectTransform _dock;
         private Text _status;
         private RectTransform _card;
+        private RectTransform _stamp;
         private Sprite _rounded;
         private readonly List<Object> _owned = new List<Object>();
         private RectTransform _pressed;
@@ -58,6 +59,8 @@ namespace ZipTrip.Unity
         public Font DisplayFont => _display;
 
         public bool CompletionVisible => _card != null && _card.gameObject.activeSelf;
+        public bool CompletionActionsVisible => _card != null && _card.Find("Button Sonraki").gameObject.activeSelf;
+        public float StampProgress { get; private set; }
         public bool CompletionMode { get; private set; }
         public bool RotateVisible => _buttons.TryGetValue(PuzzleHudAction.Rotate, out var rotate) && rotate.gameObject.activeSelf;
         public bool FoldVisible => _buttons.TryGetValue(PuzzleHudAction.Fold, out var fold) && fold.gameObject.activeSelf;
@@ -201,12 +204,17 @@ namespace ZipTrip.Unity
             // Existing Zip It confirmation (PACKED-SLICE owns its redesign): Sonraki on the hero tier, Tekrar secondary.
             _card = PaperUi.Card(SafeArea, "Packed Tag", _rounded, new Vector2(0.5f, 0f), new Vector2(0f, 390f), new Vector2(640f, 245f),
                 Color.white, 0.26f, 10f, PaperUi.Skin("checklist"));
-            PaperUi.Label(_card, "Paketlendi!", _display, 64, PaperUi.Ink, TextAnchor.MiddleCenter, new Vector2(0f, 62f), new Vector2(590f, 82f));
+            _stamp = PaperUi.Label(_card, "Paketlendi!", _display, 64, PaperUi.Ink, TextAnchor.MiddleCenter,
+                new Vector2(0f, 62f), new Vector2(590f, 82f)).rectTransform;
             AddPill(_card, PuzzleHudAction.Next, "Sonraki", new Vector2(140f, -58f), new Vector2(260f, 100f), PaperUi.Mustard,
                 PaperUi.MustardUnder, 8f, 44);
             AddPill(_card, PuzzleHudAction.Restart, "Tekrar", new Vector2(-140f, -58f), new Vector2(260f, 100f), PaperUi.ButtonFill,
                 PresentationKit.Hex(0xD9CDB8), 6f, 40, register: false);
             _card.gameObject.SetActive(false);
+            var next = (RectTransform)_card.Find("Button Sonraki");
+            PaperUi.Face(next).color = PresentationKit.Hex(0x289964);
+            next.Find("Shadow").GetComponent<Image>().color = PresentationKit.Hex(0x14754C);
+            next.GetComponentInChildren<Text>().color = Color.white;
         }
 
         /// <summary>Header text: "Seviye N" and an optional subtitle (authored level name).</summary>
@@ -271,7 +279,7 @@ namespace ZipTrip.Unity
         {
             if (_pressed != null)
                 _pressed.localScale = Vector3.one;
-            _pressed = action == PuzzleHudAction.Next ? (RectTransform)_card.Find("Button Next")
+            _pressed = action == PuzzleHudAction.Next ? (RectTransform)_card.Find("Button Sonraki")
                 : _buttons.TryGetValue(action, out var button) ? button : null;
             _pressTime = 0f;
         }
@@ -293,7 +301,32 @@ namespace ZipTrip.Unity
             }
         }
 
-        public void SetCompletionVisible(bool visible) => _card.gameObject.SetActive(visible);
+        public void SetCompletionVisible(bool visible)
+        {
+            _card.gameObject.SetActive(visible);
+            if (!visible)
+            {
+                SetStampProgress(0f);
+                SetCompletionActionsVisible(false);
+            }
+        }
+
+        public void SetStampProgress(float progress)
+        {
+            if (_stamp == null) return;
+            StampProgress = Mathf.Clamp01(progress);
+            var t = MotionTokens.LidSmoothStep(StampProgress);
+            _stamp.localScale = Vector3.one * Mathf.Lerp(1.4f, 1f, t);
+            _stamp.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-2f, 0f, t));
+            _stamp.GetComponent<Text>().color = new Color(PaperUi.Ink.r, PaperUi.Ink.g, PaperUi.Ink.b, t);
+        }
+
+        public void SetCompletionActionsVisible(bool visible)
+        {
+            if (_card == null) return;
+            _card.Find("Button Sonraki").gameObject.SetActive(visible);
+            _card.Find("Button Tekrar").gameObject.SetActive(visible);
+        }
 
         public void SetCompletionMode(bool active)
         {
@@ -317,7 +350,7 @@ namespace ZipTrip.Unity
                 foreach (Transform child in _card)
                     if (child.name.StartsWith("Button ") && child.gameObject.activeSelf
                         && RectTransformUtility.RectangleContainsScreenPoint((RectTransform)child, screenPosition, null))
-                        return child.name == "Button Next" ? PuzzleHudAction.Next : PuzzleHudAction.Restart;
+                        return child.name == "Button Sonraki" ? PuzzleHudAction.Next : PuzzleHudAction.Restart;
                 return PuzzleHudAction.None;
             }
             foreach (var pair in _buttons)
@@ -330,7 +363,7 @@ namespace ZipTrip.Unity
         /// <summary>Screen-space centre of a visible button (tests and device scripts).</summary>
         public Vector2 ButtonCenter(PuzzleHudAction action)
         {
-            var rect = action == PuzzleHudAction.Next ? (RectTransform)_card.Find("Button Next") : _buttons[action];
+            var rect = action == PuzzleHudAction.Next ? (RectTransform)_card.Find("Button Sonraki") : _buttons[action];
             var corners = new Vector3[4];
             rect.GetWorldCorners(corners);
             return (corners[0] + corners[2]) * 0.5f;

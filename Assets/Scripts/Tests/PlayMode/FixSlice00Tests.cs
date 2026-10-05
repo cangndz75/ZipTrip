@@ -430,6 +430,7 @@ namespace ZipTrip.Tests.PlayMode
                 Place(scene, "sneaker-1", 3, 0);
                 yield return Capture(scene, folder, "11-complete-before-closure", 1080, 2340);
                 scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration + PuzzleCompletionPresenter.AnticipationDuration
+                    + PuzzleCompletionPresenter.RuleCascadeDuration + PuzzleCompletionPresenter.StrapsDuration
                     + PuzzleCompletionPresenter.LidDuration * 0.3735f);
                 yield return Capture(scene, folder, "12-lid-30-percent", 1080, 2340);
                 scene.Completion.Advance(PuzzleCompletionPresenter.LidDuration * (0.6265f - 0.3735f));

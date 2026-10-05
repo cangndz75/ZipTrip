@@ -229,10 +229,11 @@ namespace ZipTrip.Tests.PlayMode
             Assert.That(scene.Camera.transform.position, Is.EqualTo(cameraPosition));
             Assert.That(scene.Camera.orthographicSize, Is.EqualTo(cameraSize));
             scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration + PuzzleCompletionPresenter.AnticipationDuration
+                + PuzzleCompletionPresenter.RuleCascadeDuration + PuzzleCompletionPresenter.StrapsDuration
                 + PuzzleCompletionPresenter.LidDuration * 0.3f);
             Assert.That(scene.Completion.CurrentPhase, Is.EqualTo(PuzzleCompletionPresenter.Phase.Lid));
             Assert.That(Quaternion.Angle(rig.Lid.localRotation, rig.LidOpenLocalRotation), Is.GreaterThan(1f));
-            scene.Completion.Advance(2f);
+            scene.Completion.Advance(PuzzleCompletionPresenter.FullDuration);
             Assert.That(rig.Lid.localRotation, Is.EqualTo(Quaternion.identity));
             Assert.That(rig.Base.position, Is.EqualTo(basePosition));
             Assert.That(rig.Base.rotation, Is.EqualTo(baseRotation));
@@ -252,7 +253,7 @@ namespace ZipTrip.Tests.PlayMode
             Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(1, 3));
             Place(scene, "sunglasses-1", Rotation.Degrees0, new Cell(3, 6));
             Assert.That(Place(scene, "shampoo-1", Rotation.Degrees0, new Cell(3, 2)).Step.CompletionReached, Is.True);
-            scene.Completion.Advance(2f);
+            scene.Completion.Advance(PuzzleCompletionPresenter.FullDuration);
             scene.Perform(PuzzleHudAction.Next);
             Assert.That(scene.Level.Id, Is.EqualTo("lv2-rotate"));
             Assert.That(Quaternion.Angle(rig.Lid.localRotation, rig.LidOpenLocalRotation), Is.LessThan(0.01f));
@@ -280,6 +281,102 @@ namespace ZipTrip.Tests.PlayMode
             var frame = scene.Board.CompartmentFrames().Single();
             Assert.That(scene.Camera.WorldToViewportPoint(frame.Origin + new Vector3(frame.Width * 0.5f, 0f, 0f)).x,
                 Is.EqualTo(0.5f).Within(0.02f));
+        }
+
+        [UnityTest]
+        public IEnumerator Zip02_GoldenCompletion_OrdersRulesStrapsLidZipStampAndActions()
+        {
+            yield return LoadGameplayScene();
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            scene.Completion.AutoAdvance = false;
+            Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(1, 3));
+            Place(scene, "sunglasses-1", Rotation.Degrees0, new Cell(3, 6));
+            Assert.That(Place(scene, "shampoo-1", Rotation.Degrees0, new Cell(3, 2)).Step.CompletionReached, Is.True);
+            var state = scene.Session.CurrentState;
+            var hash = state.Hash;
+            var container = scene.Board.Container;
+            var rig = container.Root.GetComponent<SuitcaseRig>();
+            Assert.That(rig, Is.Not.Null);
+            Assert.That(rig.LidPivot, Is.SameAs(container.Lid));
+            Assert.That(rig.HasStraps, Is.True);
+            Assert.That(scene.CompletionCount, Is.EqualTo(1));
+            Assert.That(scene.Hud.CompletionVisible, Is.False);
+
+            scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration
+                + PuzzleCompletionPresenter.AnticipationDuration + PuzzleCompletionPresenter.RuleCascadeDuration);
+            Assert.That(scene.Completion.CurrentPhase, Is.EqualTo(PuzzleCompletionPresenter.Phase.Straps));
+            Assert.That(scene.Rules.ConfirmedRuleCount, Is.EqualTo(scene.Rules.CompletionRuleCount));
+            Assert.That(Quaternion.Angle(container.Lid.localRotation, container.LidOpenLocalRotation), Is.LessThan(0.01f));
+            scene.Completion.Advance(PuzzleCompletionPresenter.StrapsDuration * 0.5f);
+            Assert.That(rig.StrapA.localScale.z, Is.GreaterThan(0f));
+            Assert.That(rig.StrapB.localScale.z, Is.EqualTo(0f).Within(0.001f));
+            Assert.That(Quaternion.Angle(container.Lid.localRotation, container.LidOpenLocalRotation), Is.LessThan(0.01f));
+            scene.Completion.Advance(PuzzleCompletionPresenter.StrapsDuration * 0.5f);
+            Assert.That(scene.Completion.CurrentPhase, Is.EqualTo(PuzzleCompletionPresenter.Phase.Lid));
+            Assert.That(rig.StrapA.localScale.z, Is.GreaterThan(0f));
+            Assert.That(rig.StrapB.localScale.z, Is.GreaterThan(0f));
+            scene.Completion.Advance(PuzzleCompletionPresenter.LidDuration);
+            Assert.That(container.LidClosed, Is.True);
+            Assert.That(scene.Completion.ZipperComplete, Is.False);
+            scene.Completion.Advance(PuzzleCompletionPresenter.ZipDuration);
+            Assert.That(scene.Completion.ZipperComplete, Is.True);
+            Assert.That(scene.Hud.CompletionVisible, Is.False);
+            scene.Completion.Advance(PuzzleCompletionPresenter.CelebrationDuration);
+            Assert.That(scene.Hud.CompletionVisible, Is.True);
+            Assert.That(scene.Hud.CompletionActionsVisible, Is.False);
+            scene.Completion.Advance(PuzzleCompletionPresenter.StampDuration);
+            Assert.That(scene.Completion.CurrentPhase, Is.EqualTo(PuzzleCompletionPresenter.Phase.Confirmed));
+            Assert.That(scene.Hud.StampProgress, Is.EqualTo(1f));
+            Assert.That(scene.Hud.CompletionActionsVisible, Is.True);
+            Assert.That(scene.Session.CurrentState, Is.SameAs(state));
+            Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(hash));
+        }
+
+        [UnityTest]
+        public IEnumerator Zip02_AccelerationAndReplay_ReachTheSameFinalState()
+        {
+            yield return LoadGameplayScene();
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            scene.Completion.AutoAdvance = false;
+            Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(1, 3));
+            Place(scene, "sunglasses-1", Rotation.Degrees0, new Cell(3, 6));
+            Place(scene, "shampoo-1", Rotation.Degrees0, new Cell(3, 2));
+            Assert.That(scene.Completion.Accelerate(), Is.False);
+            scene.Completion.Advance(MotionTokens.CompletionAccelerateAfter);
+            Assert.That(scene.Completion.Accelerate(), Is.True);
+            var hash = scene.Session.CurrentState.Hash;
+            scene.Completion.Advance((PuzzleCompletionPresenter.FullDuration - MotionTokens.CompletionAccelerateAfter)
+                / MotionTokens.CompletionAcceleration + 0.01f);
+            Assert.That(scene.Completion.CurrentPhase, Is.EqualTo(PuzzleCompletionPresenter.Phase.Confirmed));
+            Assert.That(scene.Board.Container.LidClosed, Is.True);
+            Assert.That(scene.Completion.ZipperComplete, Is.True);
+            Assert.That(scene.Hud.StampProgress, Is.EqualTo(1f));
+            Assert.That(scene.Hud.CompletionActionsVisible, Is.True);
+            Assert.That(scene.Session.CurrentState.Hash, Is.EqualTo(hash));
+
+            scene.Perform(PuzzleHudAction.Restart);
+            Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(1, 3));
+            Place(scene, "sunglasses-1", Rotation.Degrees0, new Cell(3, 6));
+            Place(scene, "shampoo-1", Rotation.Degrees0, new Cell(3, 2));
+            Assert.That(scene.Completion.Replay, Is.True);
+            scene.Completion.Advance(MotionTokens.CompletionReplayDuration - 0.02f);
+            Assert.That(scene.Hud.CompletionActionsVisible, Is.False);
+            scene.Completion.Advance(0.03f);
+            Assert.That(scene.Completion.CurrentPhase, Is.EqualTo(PuzzleCompletionPresenter.Phase.Confirmed));
+            Assert.That(scene.Board.Container.LidClosed, Is.True);
+            Assert.That(scene.Completion.ZipperComplete, Is.True);
+            Assert.That(scene.Hud.StampProgress, Is.EqualTo(1f));
+            Assert.That(scene.Hud.CompletionActionsVisible, Is.True);
+            Assert.That(scene.Drag.InteractionEnabled, Is.False);
+            Assert.That(scene.CompletionCount, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Zip02_MissingRequiredLidAnchor_FailsClearly()
+        {
+            _root = new GameObject("Missing lid test");
+            var rig = _root.AddComponent<SuitcaseRig>();
+            Assert.That(() => rig.RequireLid(), Throws.InvalidOperationException.With.Message.Contains("lid pivot"));
         }
 
         [UnityTest]
@@ -631,7 +728,9 @@ namespace ZipTrip.Tests.PlayMode
             yield return Capture(scene, folder, "02-final-item-settle", 1080, 2340);
             scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration);
             yield return Capture(scene, folder, "03-anticipation", 1080, 2340);
-            scene.Completion.Advance(PuzzleCompletionPresenter.AnticipationDuration + PuzzleCompletionPresenter.LidDuration * 0.3f);
+            scene.Completion.Advance(PuzzleCompletionPresenter.AnticipationDuration
+                + PuzzleCompletionPresenter.RuleCascadeDuration + PuzzleCompletionPresenter.StrapsDuration
+                + PuzzleCompletionPresenter.LidDuration * 0.3f);
             yield return Capture(scene, folder, "04-lid-30-percent", 1080, 2340);
             scene.Completion.Advance(PuzzleCompletionPresenter.LidDuration * 0.4f);
             yield return Capture(scene, folder, "05-lid-70-percent", 1080, 2340);
@@ -647,6 +746,40 @@ namespace ZipTrip.Tests.PlayMode
             scene.NextLevel();
             yield return Capture(scene, folder, "10-next-lv2-open", 1080, 2340);
             Debug.Log("[zt043-screens] " + folder);
+        }
+
+        [UnityTest, Explicit("Writes ZIP-02 shipped Lv1 review captures")]
+        public IEnumerator Zip02_CaptureShippedLv1Signature()
+        {
+            yield return LoadGameplayScene();
+            var scene = Object.FindFirstObjectByType<PuzzleGameplayScene>();
+            scene.Hud.RenderThrough(scene.Camera);
+            scene.Completion.AutoAdvance = false;
+            var folder = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../Builds/zip02-captures"));
+            Directory.CreateDirectory(folder);
+            Place(scene, "travel-pouch-1", Rotation.Degrees0, new Cell(1, 3));
+            Place(scene, "sunglasses-1", Rotation.Degrees0, new Cell(3, 6));
+            yield return Capture(scene, folder, "A-final-pre-completion", 1080, 2340);
+            Place(scene, "shampoo-1", Rotation.Degrees0, new Cell(3, 2));
+            scene.Completion.Advance(PuzzleCompletionPresenter.SettleDuration
+                + PuzzleCompletionPresenter.AnticipationDuration + MotionTokens.CompletionRuleStagger * 0.5f);
+            yield return Capture(scene, folder, "B-rule-cascade", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.RuleCascadeDuration
+                - MotionTokens.CompletionRuleStagger * 0.5f + PuzzleCompletionPresenter.StrapsDuration);
+            yield return Capture(scene, folder, "C-straps-secured", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.LidDuration * 0.5f);
+            yield return Capture(scene, folder, "D-lid-mid-close", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.LidDuration * 0.5f + PuzzleCompletionPresenter.ZipDuration * 0.5f);
+            yield return Capture(scene, folder, "E-zipper", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.ZipDuration * 0.5f
+                + PuzzleCompletionPresenter.CelebrationDuration * 0.5f);
+            yield return Capture(scene, folder, "F-celebration", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.CelebrationDuration * 0.5f
+                + PuzzleCompletionPresenter.StampDuration * 0.5f);
+            yield return Capture(scene, folder, "F2-paketlendi-stamp", 1080, 2340);
+            scene.Completion.Advance(PuzzleCompletionPresenter.StampDuration * 0.5f);
+            yield return Capture(scene, folder, "G-final-sonraki", 1080, 2340);
+            Debug.Log("[zip02-captures] " + folder);
         }
 
         // Visual smoke check: renders both levels at 1080x1920 and a 20:9 device aspect.

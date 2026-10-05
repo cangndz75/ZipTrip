@@ -18,6 +18,12 @@ namespace ZipTrip.Unity
         [SerializeField] private AudioClip undo;
         [SerializeField] private AudioClip ruleSatisfied;
         [SerializeField] private AudioClip ruleViolated;
+        [SerializeField] private AudioClip strapBuckle;
+        [SerializeField] private AudioClip lidContact;
+        [SerializeField] private AudioClip zipTick;
+        [SerializeField] private AudioClip zipComplete;
+        [SerializeField] private AudioClip celebration;
+        [SerializeField] private AudioClip stamp;
 
         public bool CuesEnabled { get => cuesEnabled; set => cuesEnabled = value; }
         public void ConfigureSource(AudioSource audioSource) => source = audioSource;
@@ -42,6 +48,12 @@ namespace ZipTrip.Unity
                 case FeelCue.Undo: undo = clip; break;
                 case FeelCue.RuleSatisfied: ruleSatisfied = clip; break;
                 case FeelCue.RuleViolated: ruleViolated = clip; break;
+                case FeelCue.StrapBuckle: strapBuckle = clip; break;
+                case FeelCue.LidContact: lidContact = clip; break;
+                case FeelCue.ZipTick: zipTick = clip; break;
+                case FeelCue.ZipComplete: zipComplete = clip; break;
+                case FeelCue.Celebration: celebration = clip; break;
+                case FeelCue.Stamp: stamp = clip; break;
             }
         }
 
@@ -63,7 +75,13 @@ namespace ZipTrip.Unity
                 case FeelCue.Rotate: clip = rotate; break;
                 case FeelCue.Undo: clip = undo; break;
                 case FeelCue.RuleSatisfied: clip = ruleSatisfied; break;
-                default: clip = ruleViolated; break;
+                case FeelCue.RuleViolated: clip = ruleViolated; break;
+                case FeelCue.StrapBuckle: clip = strapBuckle; break;
+                case FeelCue.LidContact: clip = lidContact; break;
+                case FeelCue.ZipTick: clip = zipTick; break;
+                case FeelCue.ZipComplete: clip = zipComplete; break;
+                case FeelCue.Celebration: clip = celebration; break;
+                default: clip = stamp; break;
             }
             if (clip == null)
                 return false;

@@ -85,6 +85,8 @@ namespace ZipTrip.Unity
 
         /// <summary>Rule ids shown on the note, in RuleSet (ordinal id) order.</summary>
         public IReadOnlyList<string> RuleIds => _tags.ConvertAll(t => t.Rule.Id);
+        public int CompletionRuleCount => _tags.Count;
+        public int ConfirmedRuleCount { get; private set; }
         /// <summary>The objective (full note or compact chip) is on screen.</summary>
         public bool ObjectiveVisible => _note != null && (_note.gameObject.activeSelf || _chip.gameObject.activeSelf);
         /// <summary>Not enough room for the full note: the chip is the resting presentation.</summary>
@@ -327,6 +329,32 @@ namespace ZipTrip.Unity
             Expanded = false;
             _hidden = true;
             ApplyVisibility();
+        }
+
+        public void BeginCompletionCascade()
+        {
+            ConfirmedRuleCount = 0;
+            _hidden = false;
+            ApplyVisibility();
+            foreach (var tag in _tags)
+            {
+                tag.Pulse = -1f;
+                Apply(tag.Note, RuleTagStatus.Inactive, true);
+                Apply(tag.Chip, RuleTagStatus.Inactive, true);
+            }
+            BeginCues();
+            EndCues();
+        }
+
+        public void ConfirmCompletionRule(int index)
+        {
+            if (index != ConfirmedRuleCount || index >= _tags.Count)
+                return;
+            var tag = _tags[index];
+            Apply(tag.Note, tag.Status, false);
+            Apply(tag.Chip, tag.Status, false);
+            tag.Pulse = 0f;
+            ConfirmedRuleCount++;
         }
 
         /// <summary>

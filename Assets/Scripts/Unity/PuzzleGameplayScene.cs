@@ -61,6 +61,7 @@ namespace ZipTrip.Unity
         private HapticsService _haptics;
         private AudioCueService _audio;
         private readonly Dictionary<string, bool> _ruleStates = new Dictionary<string, bool>();
+        private readonly HashSet<string> _completedLevelIds = new HashSet<string>();
 
         public PuzzleLevel Level { get; private set; }
         public PuzzleSession Session { get; private set; }
@@ -203,7 +204,8 @@ namespace ZipTrip.Unity
             _ruleDragKey = null;
             Hud.SetCompletionMode(Session.CurrentCompletion.IsComplete);
             Completion.ResetForLevel(Board.Container, Board.ContainerFootprint,
-                Board.Container != null ? Board.Container.Base.GetComponent<Renderer>().bounds.max.y + 0.04f : 0f, Hud);
+                Board.Container != null ? Board.Container.Base.GetComponent<Renderer>().bounds.max.y + 0.04f : 0f,
+                Hud, Level.Id == "lv1-fit" && Board.Container != null);
             Hud.SetCompletionVisible(Session.CurrentCompletion.IsComplete);
             FrameCamera();
         }
@@ -271,6 +273,12 @@ namespace ZipTrip.Unity
         /// <summary>Single pointer flow (ADR-0004): HUD buttons first, everything else to the drag controller.</summary>
         public void HandlePointer(PointerSignal signal)
         {
+            if (Hud.CompletionMode && signal.Phase == PointerPhase.Down
+                && Completion.CurrentPhase != PuzzleCompletionPresenter.Phase.Confirmed)
+            {
+                Completion.Accelerate();
+                return;
+            }
             if (signal.Phase == PointerPhase.Down && !Drag.IsDragging)
             {
                 // Compact objective chip: a tap expands / collapses the note (presentation only); any other press
@@ -322,7 +330,7 @@ namespace ZipTrip.Unity
         {
             foreach (var rule in Session.CurrentCompletion.Rules)
             {
-                if (_ruleStates.TryGetValue(rule.RuleId, out var previous) && previous != rule.IsSatisfied)
+                if (!edge && _ruleStates.TryGetValue(rule.RuleId, out var previous) && previous != rule.IsSatisfied)
                 {
                     var cue = rule.IsSatisfied ? FeelCue.RuleSatisfied : FeelCue.RuleViolated;
                     _haptics?.Play(cue);
@@ -341,11 +349,13 @@ namespace ZipTrip.Unity
                 Staging.SetHover(-1, false);
                 Rules.ClearForCompletion();
                 Hud.SetCompletionMode(true);
-                Completion.Begin();
+                Completion.Begin(_completedLevelIds.Contains(Level.Id));
+                _completedLevelIds.Add(Level.Id);
             }
             else if (!complete)
             {
-                Completion.ResetForLevel(Board.Container, Board.ContainerFootprint, 0f, Hud);
+                Completion.ResetForLevel(Board.Container, Board.ContainerFootprint, 0f, Hud,
+                    Level.Id == "lv1-fit" && Board.Container != null);
                 Hud.SetCompletionMode(false);
             }
             Drag.InteractionEnabled = !complete;
@@ -479,6 +489,7 @@ namespace ZipTrip.Unity
             Hud.Build(uiFont, displayFont);
             Completion = new GameObject("Zip It Completion").AddComponent<PuzzleCompletionPresenter>();
             Completion.transform.SetParent(transform, false);
+            Completion.Configure(Rules, _haptics, _audio);
             _pointer = GetComponent<PointerInteractor>();
             if (_pointer == null)
                 _pointer = gameObject.AddComponent<PointerInteractor>();
